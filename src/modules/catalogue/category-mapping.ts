@@ -7,13 +7,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { rankBySimilarity } from "@/modules/catalogue/similarity";
 
 /**
- * Proposing what a retailer's category labels mean.
+ * Proposing what a category label means.
  *
- * A retailer files laptops under "Clamshell", "Gaming PC" and "Copilot+ PC".
- * None of those words is "laptop", so nothing lexical will ever connect them —
- * but their meanings are close, which is what an embedding measures. A few
- * hundred short labels is exactly the size and shape of problem embeddings are
- * good at, and getting one wrong costs a click to correct.
+ * Two kinds of label arrive at the same problem. A retailer files laptops under
+ * "Clamshell", "Gaming PC" and "Copilot+ PC"; a customer asks for a "2 bhk flat"
+ * one day and a "residential property / apartment" the next. Neither vocabulary
+ * contains ANUMA's word for the thing, so nothing lexical will ever connect
+ * them — but their meanings are close, which is what an embedding measures. A
+ * few hundred short labels is exactly the size and shape of problem embeddings
+ * are good at, and getting one wrong costs a click to correct.
  *
  * This only ever *proposes*. The stored mapping is whatever a person confirmed,
  * and every rollup in the product groups by that confirmed mapping — so no
@@ -42,15 +44,37 @@ export function labelPath(groupName: string, subgroupName: string): string {
   return [groupName, subgroupName].filter((part) => part.trim().length > 0).join(" > ");
 }
 
+/**
+ * The ontology as comparable vectors.
+ *
+ * Embedded on every run rather than cached: it is a few dozen short strings, and
+ * a stale cache would silently propose against a category set that no longer
+ * exists.
+ */
+async function ontologyOptions(
+  db: ReturnType<typeof createAdminClient>,
+): Promise<{ item: string; vector: number[] }[]> {
+  const { data } = await db
+    .from("anuma_categories")
+    .select("key, label, description")
+    .eq("active", true);
+  const ontology = data ?? [];
+  if (ontology.length === 0) throw new Error("The category ontology is empty.");
+
+  const vectors = await embed(
+    ontology.map((category) => `${category.label}: ${category.description}`),
+  );
+  return ontology.map((category, index) => ({ item: category.key, vector: vectors[index]! }));
+}
+
 export type ProposalResult = {
   labelsSeen: number;
   proposed: number;
   alreadyMapped: number;
 };
 
-export async function proposeCategoryMappings(
-  organizationId: string,
-): Promise<ProposalResult> {
+/** What a retailer's own catalogue labels mean. */
+export async function proposeCategoryMappings(organizationId: string): Promise<ProposalResult> {
   const db = createAdminClient();
 
   const { data: labels, error: labelError } = await db.rpc("catalogue_label_summary", {
@@ -74,25 +98,10 @@ export async function proposeCategoryMappings(
     return { labelsSeen: allLabels.length, proposed: 0, alreadyMapped: mapped.size };
   }
 
-  const { data: categories } = await db
-    .from("anuma_categories")
-    .select("key, label, description")
-    .eq("active", true);
-  const ontology = categories ?? [];
-  if (ontology.length === 0) throw new Error("The category ontology is empty.");
-
-  // The ontology is embedded on every run rather than cached: it is a few dozen
-  // short strings, and a stale cache would silently propose against a category
-  // set that no longer exists.
-  const [ontologyVectors, labelVectors] = await Promise.all([
-    embed(ontology.map((category) => `${category.label}: ${category.description}`)),
-    embed(pending.map((row) => labelPath(row.group_name, row.subgroup_name))),
-  ]);
-
-  const options = ontology.map((category, index) => ({
-    item: category.key,
-    vector: ontologyVectors[index]!,
-  }));
+  const options = await ontologyOptions(db);
+  const labelVectors = await embed(
+    pending.map((row) => labelPath(row.group_name, row.subgroup_name)),
+  );
 
   const rows = pending.map((row, index) => {
     const best = rankBySimilarity(labelVectors[index]!, options, 1)[0];
@@ -108,10 +117,66 @@ export async function proposeCategoryMappings(
     };
   });
 
-  const { error: insertError } = await db
-    .from("category_mappings")
-    .upsert(rows, { onConflict: "organization_id,group_name,subgroup_name", ignoreDuplicates: true });
+  const { error: insertError } = await db.from("category_mappings").upsert(rows, {
+    onConflict: "organization_id,group_name,subgroup_name",
+    ignoreDuplicates: true,
+  });
   if (insertError) throw new Error(`Proposals could not be saved: ${insertError.message}`);
 
   return { labelsSeen: allLabels.length, proposed: rows.length, alreadyMapped: mapped.size };
+}
+
+/**
+ * What customers' own words for a category mean.
+ *
+ * Same mechanism, different vocabulary. The phrase is compared as spoken rather
+ * than dressed up as a path, because there is no parent label to disambiguate
+ * it — the words are all there is.
+ */
+export async function proposeSpokenCategoryMappings(
+  organizationId: string,
+): Promise<ProposalResult> {
+  const db = createAdminClient();
+
+  const { data: phrases, error: phraseError } = await db.rpc("spoken_category_summary", {
+    p_organization_id: organizationId,
+  });
+  if (phraseError) {
+    throw new Error(`Spoken categories could not be read: ${phraseError.message}`);
+  }
+  const allPhrases = phrases ?? [];
+
+  const { data: existing } = await db
+    .from("spoken_category_mappings")
+    .select("phrase")
+    .eq("organization_id", organizationId);
+  const mapped = new Set((existing ?? []).map((row) => row.phrase));
+
+  const pending = allPhrases.filter((row) => !mapped.has(row.phrase));
+  if (pending.length === 0) {
+    return { labelsSeen: allPhrases.length, proposed: 0, alreadyMapped: mapped.size };
+  }
+
+  const options = await ontologyOptions(db);
+  const phraseVectors = await embed(pending.map((row) => row.phrase));
+
+  const rows = pending.map((row, index) => {
+    const best = rankBySimilarity(phraseVectors[index]!, options, 1)[0];
+    return {
+      organization_id: organizationId,
+      phrase: row.phrase,
+      status: "proposed" as const,
+      proposed_key: best?.item ?? null,
+      proposed_score: best ? Number(best.score.toFixed(3)) : null,
+      anuma_category_key: best?.item ?? null,
+      occurrence_count: Number(row.occurrence_count),
+    };
+  });
+
+  const { error: insertError } = await db
+    .from("spoken_category_mappings")
+    .upsert(rows, { onConflict: "organization_id,phrase", ignoreDuplicates: true });
+  if (insertError) throw new Error(`Proposals could not be saved: ${insertError.message}`);
+
+  return { labelsSeen: allPhrases.length, proposed: rows.length, alreadyMapped: mapped.size };
 }

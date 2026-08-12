@@ -13,6 +13,11 @@ import {
   type CategoryRole,
 } from "@/modules/interaction-metrics/buying-behaviour";
 import {
+  normalizeCategoryPhrase,
+  resolveSpokenCategories,
+  type SpokenMappingStatus,
+} from "@/modules/interaction-metrics/category-grouping";
+import {
   computeDecisionHierarchy,
   decisionDimensionFor,
   type DecisionAppearance,
@@ -61,6 +66,26 @@ export type LabeledDimension = { key: string; count: number; example: string | n
 export type ShadowPrice = { product: string; median: number; count: number; currency: string };
 export type Band = { key: string; count: number };
 
+/**
+ * How much of the window the category grouping actually accounts for.
+ *
+ * Grouping by a confirmed mapping means some interactions have no category to
+ * sit in — either because nobody has confirmed what the customer's phrasing
+ * meant, or because it named something outside the range ANUMA covers. Both are
+ * reported rather than dropped: a category breakdown that silently omits a third
+ * of the window is worse than one that says so.
+ */
+export type CategoryCoverage = {
+  /** Interactions counted into a category. */
+  resolved: number;
+  /** Interactions whose phrasing is confirmed as outside the covered range. */
+  outsideRange: number;
+  /** Interactions whose phrasing nobody has confirmed a meaning for yet. */
+  unresolved: number;
+  /** Those phrasings, so the gap can be closed rather than merely noted. */
+  unresolvedPhrases: Distribution[];
+};
+
 export type DemandIntelligence = {
   conversations: number;
   /** The rolling window these figures cover, so the view can state it plainly. */
@@ -80,6 +105,8 @@ export type DemandIntelligence = {
   decisionHierarchy: DecisionFilter[];
   /** Observed buying behaviour per category, against the role the business set. */
   behaviour: BehaviourMix[];
+  /** What the category breakdown above does and does not account for. */
+  categoryCoverage: CategoryCoverage;
   useCases: Distribution[];
   brands: Distribution[];
   requirementDimensions: LabeledDimension[];
@@ -431,44 +458,86 @@ export async function getDemandIntelligence(
   }
   const decisionHierarchy = computeDecisionHierarchy(appearances);
 
-  // (3) Observed buying behaviour per category, against the stated role.
-  const categoryByConversation = new Map<string, string>();
+  // (3) Observed buying behaviour per ANUMA category, against the stated role.
+  //
+  // Grouped by the confirmed meaning of what the customer said rather than by
+  // the words themselves. "2 bhk flat", "2 bhk property", "property / 2 bhk
+  // flat" and "residential property / apartment" are one category described four
+  // ways; grouped as text they read as four categories of one interaction each,
+  // and the pattern a category head is looking for disappears into the noise.
+  //
+  // A phrase nobody has confirmed yet is never guessed at — it is counted as
+  // unresolved and named in the coverage note, so a thin category is visibly
+  // thin rather than quietly missing.
+  const phraseByConversation = new Map<string, string>();
   for (const v of byField("purchase_category")) {
-    if (v.value_text && !categoryByConversation.has(v.conversation_id)) {
-      categoryByConversation.set(v.conversation_id, v.value_text.trim().toLowerCase());
+    if (v.value_text && !phraseByConversation.has(v.conversation_id)) {
+      phraseByConversation.set(v.conversation_id, normalizeCategoryPhrase(v.value_text));
     }
   }
-  const { data: roleRows } = await supabase
-    .from("category_roles")
-    .select("category, intended_role")
-    .eq("organization_id", organizationId);
-  const roleByCategory = new Map(
-    (roleRows ?? []).map((r) => [r.category, r.intended_role as CategoryRole]),
+
+  const [spokenResult, roleResult, ontologyResult] = await Promise.all([
+    supabase
+      .from("spoken_category_mappings")
+      .select("phrase, anuma_category_key, status")
+      .eq("organization_id", organizationId),
+    supabase
+      .from("category_roles")
+      .select("category, intended_role")
+      .eq("organization_id", organizationId),
+    supabase.from("anuma_categories").select("key, label"),
+  ]);
+
+  const resolution = resolveSpokenCategories(
+    phraseByConversation,
+    (spokenResult.data ?? []).map((row) => ({
+      phrase: row.phrase,
+      anumaCategoryKey: row.anuma_category_key,
+      status: row.status as SpokenMappingStatus,
+    })),
   );
-  const behaviourByCategory = new Map<string, ReturnType<typeof classifyBuyingBehaviour>[]>();
+
+  const labelByKey = new Map((ontologyResult.data ?? []).map((r) => [r.key, r.label]));
+  // Roles are stated against an ANUMA category key, so a change in the
+  // retailer's or the customer's wording never detaches a role from its category.
+  const roleByKey = new Map(
+    (roleResult.data ?? []).map((r) => [r.category, r.intended_role as CategoryRole]),
+  );
+
+  const behaviourByKey = new Map<string, ReturnType<typeof classifyBuyingBehaviour>[]>();
   for (const r of rows) {
-    const category = categoryByConversation.get(r.conversation_id);
-    if (!category) continue;
+    const key = resolution.keyByConversation.get(r.conversation_id);
+    if (key === undefined) continue;
     const behaviour = classifyBuyingBehaviour({
       arrivalIntent: r.arrival_intent,
       clarityStart: r.clarity_start,
       productsConsidered: r.products_considered_count ?? 0,
       competitorsNamed: r.competitor_count ?? 0,
     });
-    const list = behaviourByCategory.get(category) ?? [];
+    const list = behaviourByKey.get(key) ?? [];
     list.push(behaviour);
-    behaviourByCategory.set(category, list);
+    behaviourByKey.set(key, list);
   }
-  const behaviour = [...behaviourByCategory.entries()]
-    .map(([category, list]) =>
-      summarizeBehaviour(category, list, roleByCategory.get(category) ?? null),
+  const behaviour = [...behaviourByKey.entries()]
+    .map(([key, list]) =>
+      summarizeBehaviour(labelByKey.get(key) ?? key, list, roleByKey.get(key) ?? null),
     )
     .sort((a, b) => b.observed - a.observed);
+
+  const categoryCoverage: CategoryCoverage = {
+    resolved: resolution.keyByConversation.size,
+    outsideRange: resolution.outsideRange,
+    unresolved: [...resolution.unresolved.values()].reduce((total, count) => total + count, 0),
+    unresolvedPhrases: [...resolution.unresolved.entries()]
+      .map(([key, count]) => ({ key, count }))
+      .sort((a, b) => b.count - a.count),
+  };
 
   return {
     questionTopics,
     decisionHierarchy,
     behaviour,
+    categoryCoverage,
     leakage: computeDemandLeakage(leakageInputs),
     conversations: rows.length,
     windowDays,
@@ -566,6 +635,7 @@ function emptyIntelligence(windowDays: number): DemandIntelligence {
     questionTopics: [],
     decisionHierarchy: [],
     behaviour: [],
+    categoryCoverage: { resolved: 0, outsideRange: 0, unresolved: 0, unresolvedPhrases: [] },
     useCases: [],
     brands: [],
     requirementDimensions: [],

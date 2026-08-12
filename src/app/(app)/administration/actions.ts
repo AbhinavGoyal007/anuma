@@ -109,8 +109,11 @@ const categoryRoleSchema = z.object({
  * States the strategic role a category plays.
  *
  * The role is a business decision, so it is declared here rather than inferred.
- * The category is stored lowercased because it joins to the extracted
- * purchase_category, which customers phrase in their own case.
+ * The category stored is an `anuma_categories.key` — the same key the dashboard
+ * groups behaviour by. It used to be the extracted `purchase_category` text,
+ * which meant a role attached to "laptop" never applied to the interaction that
+ * said "gaming laptop", and a role could be typed for a category that did not
+ * exist.
  */
 export async function setCategoryRole(formData: FormData) {
   const current = await requireAdmin();

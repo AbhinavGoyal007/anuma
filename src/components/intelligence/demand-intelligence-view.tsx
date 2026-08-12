@@ -1,5 +1,6 @@
 import type {
   Band,
+  CategoryCoverage,
   DemandIntelligence,
   Distribution,
   LabeledDimension,
@@ -214,13 +215,32 @@ function DecisionOrder({ filters }: { filters: DecisionFilter[] }) {
   );
 }
 
-/** Observed buying behaviour per category, against the role the business set. */
-function Behaviour({ mixes }: { mixes: BehaviourMix[] }) {
+/**
+ * Observed buying behaviour per category, against the role the business set.
+ *
+ * Categories here are ANUMA's own, reached through a confirmed mapping of what
+ * the customer said. Anything that mapping does not yet cover is stated
+ * underneath rather than left out, because a reader has no way of telling a
+ * category that is genuinely quiet from one whose interactions never arrived.
+ */
+function Behaviour({
+  mixes,
+  coverage,
+}: {
+  mixes: BehaviourMix[];
+  coverage: CategoryCoverage;
+}) {
   if (mixes.length === 0) {
-    return <p className="demand-empty">No category behaviour observed yet.</p>;
+    return (
+      <>
+        <p className="demand-empty">No category behaviour observed yet.</p>
+        <Coverage coverage={coverage} />
+      </>
+    );
   }
   return (
-    <ul className="behaviour-list">
+    <>
+      <ul className="behaviour-list">
       {mixes.map((mix) => (
         <li key={mix.category} className={mix.mismatch ? "behaviour--mismatch" : undefined}>
           <div className="behaviour-head">
@@ -248,7 +268,45 @@ function Behaviour({ mixes }: { mixes: BehaviourMix[] }) {
           ) : null}
         </li>
       ))}
-    </ul>
+      </ul>
+      <Coverage coverage={coverage} />
+    </>
+  );
+}
+
+/**
+ * What the category breakdown above leaves out, and why.
+ *
+ * Silent when everything is accounted for — a note that always says "nothing
+ * missing" stops being read, and then it is not read on the day it matters.
+ */
+function Coverage({ coverage }: { coverage: CategoryCoverage }) {
+  const { resolved, unresolved, outsideRange, unresolvedPhrases } = coverage;
+  if (unresolved === 0 && outsideRange === 0) return null;
+
+  const total = resolved + unresolved + outsideRange;
+  return (
+    <p className="demand-coverage" role="note">
+      {resolved} of {total} interactions are grouped above.
+      {outsideRange > 0 ? ` ${outsideRange} named something outside the categories ANUMA covers.` : ""}
+      {unresolved > 0 ? (
+        <>
+          {" "}
+          {unresolved} use wording nobody has confirmed a meaning for yet
+          {unresolvedPhrases.length > 0 ? (
+            <>
+              {" — "}
+              {unresolvedPhrases
+                .slice(0, 4)
+                .map((phrase) => `“${phrase.key}”`)
+                .join(", ")}
+              {unresolvedPhrases.length > 4 ? ` and ${unresolvedPhrases.length - 4} more` : ""}
+            </>
+          ) : null}
+          . Confirm them in Administration to bring them in.
+        </>
+      ) : null}
+    </p>
   );
 }
 
@@ -376,7 +434,7 @@ export function DemandIntelligenceView({ data }: { data: DemandIntelligence }) {
             </p>
           </Panel>
           <Panel title="How customers actually buy">
-            <Behaviour mixes={data.behaviour} />
+            <Behaviour mixes={data.behaviour} coverage={data.categoryCoverage} />
           </Panel>
         </div>
       </Section>

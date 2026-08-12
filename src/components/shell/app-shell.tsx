@@ -26,6 +26,10 @@ export function AppShell({ children, context, switchOrganization }: AppShellProp
   const router = useRouter();
   const { currentOrganization } = context;
   const navigationGroups = ["Interactions", "Intelligence", "Configure"] as const;
+  // A section's own sub-pages keep it selected. Without this, opening category
+  // mapping from Administration leaves nothing in the sidebar marked, and the
+  // reader loses track of where in the product they are.
+  const isCurrentSection = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   const assignmentSummary =
     context.assignmentCount > 0
       ? `${context.assignmentCount} active scope assignment${context.assignmentCount === 1 ? "" : "s"}`
@@ -53,7 +57,7 @@ export function AppShell({ children, context, switchOrganization }: AppShellProp
               {applicationRoutes
                 .filter((route) => route.group === group)
                 .map((route) => {
-                  const active = pathname === route.href;
+                  const active = isCurrentSection(route.href);
                   return (
                     <Link
                       aria-current={active ? "page" : undefined}
@@ -125,7 +129,7 @@ export function AppShell({ children, context, switchOrganization }: AppShellProp
         </header>
         <nav aria-label="Primary navigation on small screens" className="mobile-navigation">
           {applicationRoutes.map((route) => {
-            const active = pathname === route.href;
+            const active = isCurrentSection(route.href);
             return (
               <Link
                 aria-current={active ? "page" : undefined}

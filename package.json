@@ -15,6 +15,8 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --check \"src/**/*.{ts,tsx,css}\" \"tests/**/*.{ts,tsx}\" \"docs/phase-*-foundation.md\" \"docs/phase-3-audio-transcription.md\" \"*.{ts,mjs,json,md}\"",
     "format:write": "prettier --write \"src/**/*.{ts,tsx,css}\" \"tests/**/*.{ts,tsx}\" \"docs/phase-*-foundation.md\" \"docs/phase-3-audio-transcription.md\" \"*.{ts,mjs,json,md}\"",
+    "catalogue:load": "node --env-file=.env.local --experimental-strip-types --no-warnings=ExperimentalWarning scripts/load-catalogue.mts",
+    "db:migrate": "node --env-file=.env.local --experimental-strip-types --no-warnings=ExperimentalWarning scripts/apply-migration.mts",
     "test": "vitest run",
     "test:security": "node tests/security/rls.integration.mjs",
     "test:watch": "vitest",

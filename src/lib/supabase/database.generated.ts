@@ -154,6 +154,33 @@ export type Database = {
           },
         ]
       }
+      anuma_categories: {
+        Row: {
+          active: boolean
+          description: string
+          key: string
+          label: string
+          sort_order: number
+          vertical: string
+        }
+        Insert: {
+          active?: boolean
+          description: string
+          key: string
+          label: string
+          sort_order?: number
+          vertical?: string
+        }
+        Update: {
+          active?: boolean
+          description?: string
+          key?: string
+          label?: string
+          sort_order?: number
+          vertical?: string
+        }
+        Relationships: []
+      }
       catalogue_imports: {
         Row: {
           added_count: number
@@ -349,6 +376,80 @@ export type Database = {
           subgroup_name?: string | null
         }
         Relationships: []
+      }
+      category_mappings: {
+        Row: {
+          anuma_category_key: string | null
+          confirmed_by_membership_id: string | null
+          created_at: string
+          group_name: string
+          id: string
+          item_count: number
+          organization_id: string
+          proposed_key: string | null
+          proposed_score: number | null
+          status: string
+          subgroup_name: string
+          updated_at: string
+        }
+        Insert: {
+          anuma_category_key?: string | null
+          confirmed_by_membership_id?: string | null
+          created_at?: string
+          group_name: string
+          id?: string
+          item_count?: number
+          organization_id: string
+          proposed_key?: string | null
+          proposed_score?: number | null
+          status?: string
+          subgroup_name: string
+          updated_at?: string
+        }
+        Update: {
+          anuma_category_key?: string | null
+          confirmed_by_membership_id?: string | null
+          created_at?: string
+          group_name?: string
+          id?: string
+          item_count?: number
+          organization_id?: string
+          proposed_key?: string | null
+          proposed_score?: number | null
+          status?: string
+          subgroup_name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_mappings_anuma_category_key_fkey"
+            columns: ["anuma_category_key"]
+            isOneToOne: false
+            referencedRelation: "anuma_categories"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "category_mappings_confirmed_by_membership_id_fkey"
+            columns: ["confirmed_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "organization_memberships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "category_mappings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "category_mappings_proposed_key_fkey"
+            columns: ["proposed_key"]
+            isOneToOne: false
+            referencedRelation: "anuma_categories"
+            referencedColumns: ["key"]
+          },
+        ]
       }
       category_roles: {
         Row: {
@@ -2385,6 +2486,77 @@ export type Database = {
           },
         ]
       }
+      spoken_category_mappings: {
+        Row: {
+          anuma_category_key: string | null
+          confirmed_by_membership_id: string | null
+          created_at: string
+          id: string
+          occurrence_count: number
+          organization_id: string
+          phrase: string
+          proposed_key: string | null
+          proposed_score: number | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          anuma_category_key?: string | null
+          confirmed_by_membership_id?: string | null
+          created_at?: string
+          id?: string
+          occurrence_count?: number
+          organization_id: string
+          phrase: string
+          proposed_key?: string | null
+          proposed_score?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          anuma_category_key?: string | null
+          confirmed_by_membership_id?: string | null
+          created_at?: string
+          id?: string
+          occurrence_count?: number
+          organization_id?: string
+          phrase?: string
+          proposed_key?: string | null
+          proposed_score?: number | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spoken_category_mappings_anuma_category_key_fkey"
+            columns: ["anuma_category_key"]
+            isOneToOne: false
+            referencedRelation: "anuma_categories"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "spoken_category_mappings_confirmed_by_membership_id_fkey"
+            columns: ["confirmed_by_membership_id"]
+            isOneToOne: false
+            referencedRelation: "organization_memberships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spoken_category_mappings_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spoken_category_mappings_proposed_key_fkey"
+            columns: ["proposed_key"]
+            isOneToOne: false
+            referencedRelation: "anuma_categories"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       structured_observations: {
         Row: {
           analysis_run_id: string
@@ -2696,6 +2868,14 @@ export type Database = {
           organization_id: string
         }[]
       }
+      catalogue_label_summary: {
+        Args: { p_organization_id: string }
+        Returns: {
+          group_name: string
+          item_count: number
+          subgroup_name: string
+        }[]
+      }
       create_automatic_speaker_mapping: {
         Args: {
           p_confidence: number
@@ -2865,6 +3045,13 @@ export type Database = {
       seed_starter_electronics_checks: {
         Args: { p_organization_id: string }
         Returns: undefined
+      }
+      spoken_category_summary: {
+        Args: { p_organization_id: string }
+        Returns: {
+          occurrence_count: number
+          phrase: string
+        }[]
       }
       update_organization_member: {
         Args: {

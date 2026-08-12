@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import {
@@ -30,6 +31,27 @@ export default async function AdministrationPage({ searchParams }: Administratio
     .select("id,category,intended_role")
     .eq("organization_id", organization.id)
     .order("category");
+  // The ontology backs both the role picker and the label shown for a stored
+  // role, which holds an anuma_categories key rather than the display name.
+  const { data: ontology } = await supabase
+    .from("anuma_categories")
+    .select("key,label")
+    .eq("active", true)
+    .order("sort_order");
+  const categoryLabels = new Map((ontology ?? []).map((row) => [row.key, row.label]));
+  const [{ count: labelsWaiting }, { count: phrasesWaiting }] = await Promise.all([
+    supabase
+      .from("category_mappings")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organization.id)
+      .eq("status", "proposed"),
+    supabase
+      .from("spoken_category_mappings")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", organization.id)
+      .eq("status", "proposed"),
+  ]);
+  const mappingsWaiting = (labelsWaiting ?? 0) + (phrasesWaiting ?? 0);
   const { data: checks } = await supabase
     .from("check_definitions")
     .select(
@@ -248,6 +270,26 @@ export default async function AdministrationPage({ searchParams }: Administratio
         ) : null}
       </section>
 
+      <section className="product-panel" aria-labelledby="category-mapping-title">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Category meaning</p>
+            <h2 id="category-mapping-title">Category mapping</h2>
+          </div>
+          <span className="count-label">{mappingsWaiting} waiting</span>
+        </div>
+        <p className="section-copy">
+          Your catalogue&rsquo;s group names and your customers&rsquo; own wording both map into
+          ANUMA&rsquo;s stable categories. Confirm what each label means once, and every figure in
+          Customer Intelligence groups by it.
+        </p>
+        <p className="section-copy">
+          <Link className="button button-secondary" href="/administration/categories">
+            Review category mappings
+          </Link>
+        </p>
+      </section>
+
       <section className="product-panel" aria-labelledby="category-roles-title">
         <div className="section-heading">
           <div>
@@ -265,7 +307,9 @@ export default async function AdministrationPage({ searchParams }: Administratio
           <ul className="category-role-list">
             {categoryRoles.map((role) => (
               <li key={role.id}>
-                <span className="category-role-name">{role.category}</span>
+                <span className="category-role-name">
+                  {categoryLabels.get(role.category) ?? role.category}
+                </span>
                 <span className="behaviour-role">{role.intended_role}</span>
               </li>
             ))}
@@ -281,7 +325,18 @@ export default async function AdministrationPage({ searchParams }: Administratio
           <form action={setCategoryRole} className="category-role-form">
             <label>
               <span>Category</span>
-              <input name="category" placeholder="e.g. laptop" maxLength={80} required />
+              {/* An ANUMA category, not free text: the role has to attach to the
+                  same category the dashboard groups by, or it can never match. */}
+              <select name="category" required defaultValue="">
+                <option disabled value="">
+                  Choose a category…
+                </option>
+                {(ontology ?? []).map((category) => (
+                  <option key={category.key} value={category.key}>
+                    {category.label}
+                  </option>
+                ))}
+              </select>
             </label>
             <label>
               <span>Role</span>

@@ -2100,6 +2100,15 @@ a {
   font-size: 0.82rem;
   margin: 0;
 }
+/* What a category breakdown does not account for. Stated, not decorated. */
+.demand-coverage {
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  margin: 0.85rem 0 0;
+  padding-top: 0.7rem;
+}
 
 /* Store filter chips */
 .store-filter {
@@ -3235,3 +3244,47 @@ a {
   color: var(--carbon); padding: 0.55rem 0.65rem; font: inherit; min-height: 42px;
 }
 .category-role-form .button { min-height: 42px; }
+
+/* ---- Category mapping queue ------------------------------------------------
+   A worklist, not a dashboard: the label, what confirming it is worth, and the
+   decision. Nothing here is decorative — the only colour is the state of a row
+   a reader has already settled. */
+.mapping-list { list-style: none; margin: 1rem 0 0; padding: 0; }
+.mapping-row {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border); padding: 0.85rem 0;
+}
+.mapping-row:last-child { border-bottom: 0; }
+.mapping-identity { display: grid; gap: 0.15rem; min-width: 14rem; flex: 1 1 16rem; }
+.mapping-title {
+  color: var(--carbon); font-size: 0.92rem; font-weight: 700;
+  /* Retailer labels and spoken phrases are both arbitrary user text. */
+  overflow-wrap: anywhere;
+}
+.mapping-context { color: var(--muted); font-size: 0.76rem; }
+.mapping-score { color: var(--muted); }
+.mapping-decision { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.mapping-select {
+  border: 1px solid var(--border); border-radius: 7px; background: var(--surface);
+  color: var(--carbon); padding: 0.55rem 0.65rem; font: inherit;
+  min-height: 44px; min-width: 12rem;
+}
+.mapping-action { min-height: 44px; }
+.mapping-decision--readonly { color: var(--muted); font-size: 0.84rem; }
+.mapping-resolved { color: var(--carbon); font-weight: 600; }
+/* A settled row stays legible but stops competing with the ones still waiting. */
+.mapping-row--confirmed .mapping-title,
+.mapping-row--not_relevant .mapping-title { font-weight: 600; }
+.mapping-settled { margin-top: 1.25rem; }
+.mapping-settled > summary {
+  cursor: pointer; color: var(--muted); font-size: 0.8rem;
+  padding: 0.5rem 0; min-height: 44px; display: flex; align-items: center;
+}
+.mapping-settled > summary:focus-visible { outline: 2px solid var(--signal-coral); outline-offset: 2px; }
+
+@media (max-width: 640px) {
+  .mapping-row { align-items: stretch; }
+  .mapping-decision { width: 100%; }
+  .mapping-select { flex: 1 1 100%; }
+}
