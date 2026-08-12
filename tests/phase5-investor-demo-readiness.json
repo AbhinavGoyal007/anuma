@@ -1,0 +1,110 @@
+{
+  "scope": "Phase 5 investor-demo readiness; no Phase 6 aggregate intelligence is included.",
+  "coreMetricAlgorithm": {
+    "version": "phase5.1.v1",
+    "durationSource": "mapped transcript span; recording duration is not substituted because it is not consistently available in the analysis path.",
+    "deterministic": true,
+    "modelCalls": 0,
+    "zeroBilateralSpeech": "talk-share rows are omitted rather than represented as a misleading percentage.",
+    "wpm": "whitespace-token estimate using the same count as persisted word count."
+  },
+  "interactionDiversity": [
+    {
+      "case": "Complete sales interaction",
+      "evidence": "Retained Heavy Hinglish live Phase 4 result and hosted review acceptance.",
+      "factsPresent": ["need", "budget", "product", "spec", "competitor", "competitor_price", "objection", "question", "finance", "store_quote", "next_action"],
+      "factsAbsent": [],
+      "unexpectedOrHallucinatedFacts": [],
+      "applicableChecks": 8,
+      "notApplicableChecks": 0,
+      "insufficientEvidenceChecks": 0,
+      "scorecardDenominator": 8,
+      "objectiveMetrics": "phase5.1.v1 persisted metric lineage",
+      "evidenceValidity": "hosted evidence references validated against the same transcription run",
+      "result": "rich observations, evidence-backed checks, scorecard and coaching"
+    },
+    {
+      "case": "Short / incomplete interaction",
+      "evidence": "Deterministic review evaluator acceptance.",
+      "factsAbsent": ["budget", "competitor", "objection", "finance", "next_action"],
+      "unexpectedOrHallucinatedFacts": [],
+      "applicableChecks": "only applicable configured checks",
+      "notApplicableChecks": ["price objection", "finance / EMI"],
+      "insufficientEvidenceChecks": [],
+      "scorecardDenominator": "excludes not_applicable",
+      "objectiveMetrics": "not required for absence classification",
+      "evidenceValidity": "no evidence was fabricated to prove absence",
+      "result": "when-relevant price/finance checks resolve not_applicable; absent facts are not created"
+    },
+    {
+      "case": "Customer-led interaction",
+      "evidence": "Metric unit acceptance.",
+      "unexpectedOrHallucinatedFacts": [],
+      "objectiveMetrics": "customer talk share, duration, WPM and longest monologue",
+      "evidenceValidity": "metric lineage is derived from mapped transcript segments",
+      "result": "customer talk share and duration exceed representative values; no quality judgment is emitted"
+    },
+    {
+      "case": "Representative-led interaction",
+      "evidence": "Metric unit acceptance.",
+      "unexpectedOrHallucinatedFacts": [],
+      "objectiveMetrics": "representative talk share, duration, WPM and longest monologue",
+      "evidenceValidity": "metric lineage is derived from mapped transcript segments",
+      "result": "representative talk share and monologue reflect the transcript; no automatic penalty"
+    },
+    {
+      "case": "No objection / no competitor",
+      "evidence": "Deterministic review evaluator acceptance.",
+      "factsAbsent": ["competitor", "objection"],
+      "unexpectedOrHallucinatedFacts": [],
+      "notApplicableChecks": ["price objection"],
+      "scorecardDenominator": "excludes price-objection check",
+      "evidenceValidity": "no evidence was fabricated to prove absence",
+      "result": "price-objection check is not_applicable with no fabricated evidence"
+    },
+    {
+      "case": "Objection interaction",
+      "evidence": "Hosted Heavy Hinglish review acceptance.",
+      "unexpectedOrHallucinatedFacts": [],
+      "applicableChecks": ["price objection handled"],
+      "evidenceValidity": "original-language customer comparison evidence is retained",
+      "result": "price-objection check is not_met because no clear value response was observed"
+    },
+    {
+      "case": "Different electronics products",
+      "evidence": "Television, smartphone and laptop generic observation-check acceptance.",
+      "unexpectedOrHallucinatedFacts": [],
+      "evidenceValidity": "generic observation type checks do not depend on a product category",
+      "result": "one product observation strategy; no category-specific code"
+    }
+  ],
+  "languageStatus": {
+    "English": "validated for current acceptance scope",
+    "Light Hinglish": "validated for current acceptance scope",
+    "Heavy Hinglish": "validated for current acceptance scope",
+    "Hindi": "experimental; Phase 8 accuracy evaluation required"
+  },
+  "featureInventory": [
+    { "feature": "Authentication", "status": "working", "implementation": "real", "evidence": "existing auth and security suites", "decision": "keep", "limitation": null },
+    { "feature": "Workspace, organization, locations and teams", "status": "working", "implementation": "real", "evidence": "hosted RLS suite", "decision": "keep", "limitation": null },
+    { "feature": "Conversation creation and consent", "status": "working", "implementation": "real", "evidence": "hosted RLS suite", "decision": "keep", "limitation": "Product consent provenance is not a legal-compliance claim." },
+    { "feature": "Audio capture/upload/private storage", "status": "working", "implementation": "real", "evidence": "Phase 3 foundation and hosted security suite", "decision": "keep", "limitation": "Live device/browser acceptance remains pilot hardening work." },
+    { "feature": "Processing state, Sarvam transcript and speaker mapping", "status": "working", "implementation": "real", "evidence": "Phase 3 implementation and component coverage", "decision": "keep", "limitation": "Requires a completed transcript and explicit mapping." },
+    { "feature": "Luna understanding and observations", "status": "working", "implementation": "real", "evidence": "retained multilingual acceptance", "decision": "keep", "limitation": "Hindi remains experimental." },
+    { "feature": "Evidence", "status": "working", "implementation": "real", "evidence": "hosted review acceptance", "decision": "keep", "limitation": null },
+    { "feature": "Currency normalization", "status": "working", "implementation": "real", "evidence": "INR/AED unit coverage", "decision": "keep", "limitation": "Unsupported currency exponents resolve safely to null." },
+    { "feature": "Corrections", "status": "working", "implementation": "real", "evidence": "append-only schema and review processing", "decision": "keep", "limitation": "Re-evaluation remains an explicit action." },
+    { "feature": "Objective interaction metrics", "status": "working", "implementation": "real", "evidence": "phase5.1.v1 metric unit acceptance", "decision": "keep", "limitation": "WPM is explicitly estimated from whitespace tokens." },
+    { "feature": "Starter checks and scorecard", "status": "working", "implementation": "real", "evidence": "two hosted immutable review runs", "decision": "keep", "limitation": "Semantic checks can vary across independently immutable model runs." },
+    { "feature": "Custom semantic and phrase checks", "status": "working", "implementation": "real", "evidence": "Phase 5 configuration/RLS suite", "decision": "keep", "limitation": "Phrase checks are literal, not multilingual semantic matching." },
+    { "feature": "Metric-threshold checks", "status": "deferred", "implementation": "future", "evidence": "explicit Phase 5 scope decision", "decision": "defer", "limitation": "Would require a new metric-lineage check-result contract." },
+    { "feature": "Notes and coaching", "status": "working", "implementation": "real", "evidence": "hosted review projection", "decision": "keep", "limitation": "Deterministic strengths/opportunities are intentionally concise." },
+    { "feature": "Manual re-evaluation and review history", "status": "working", "implementation": "real", "evidence": "hosted Review Runs A and B", "decision": "keep", "limitation": "Equivalent re-evaluations can differ where a semantic batch is required." },
+    { "feature": "Cross-interaction intelligence, outcomes and surveys", "status": "deferred", "implementation": "future", "evidence": "Phase 6 boundary and explicitly honest empty states", "decision": "defer", "limitation": "Not a Phase 5 capability; no aggregates, outcomes, or survey claims are shown." }
+  ],
+  "phase6Readiness": {
+    "atomicData": ["metric_values", "structured_observations", "check_evaluations", "scorecard_evaluations"],
+    "readyForFutureAggregation": true,
+    "deferred": ["rates", "cohorts", "trend detection", "outcome comparisons", "management dashboards"]
+  }
+}

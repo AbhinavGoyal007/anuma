@@ -1,0 +1,96 @@
+{
+  "provenance": {
+    "syntheticFixtureInput": "Heavy Hinglish segments from phase5-multilingual-acceptance.json",
+    "retainedLivePhase4ModelOutput": "Heavy Hinglish raw observations from phase5-multilingual-acceptance.json",
+    "hostedDatabaseResult": true,
+    "livePhase5SemanticModelOutput": "gpt-5.6-luna, one batched request for each review run",
+    "deterministicOutput": "interaction notes and coaching projection"
+  },
+  "fixture": {
+    "organizationId": "58a6cca8-6448-48fb-90e5-475ae4f58f93",
+    "conversationId": "c3f80e99-c8bc-4281-b74c-ac10f41a22c3",
+    "analysisRunId": "f05279a7-8d38-4e16-b45e-dce304b55564",
+    "metricRunId": "dea09856-4ee4-47f0-90a8-ec25ae768f46",
+    "metricAlgorithmVersion": "phase5.1.v1",
+    "synthetic": true
+  },
+  "reviewRunA": {
+    "id": "4336ee3c-073f-4c67-b014-66792a82d948",
+    "status": "completed",
+    "semanticRequestCount": 1,
+    "checks": {
+      "Customer greeted": "met",
+      "Requirement understood": "met",
+      "Budget identified": "met",
+      "Relevant product discussed": "met",
+      "Customer questions addressed": "met",
+      "Price objection handled when applicable": "not_met",
+      "Finance / EMI addressed when applicable": "met",
+      "Next action captured": "met"
+    },
+    "scorecard": { "scorePercent": 83.33, "applicableCheckCount": 8, "evaluatedCheckCount": 8, "insufficientEvidenceCount": 0 }
+  },
+  "reviewRunB": {
+    "id": "cd86d43c-1409-4210-9ecb-a836e0eb9349",
+    "status": "completed",
+    "semanticRequestCount": 1,
+    "checks": {
+      "Customer greeted": "insufficient_evidence",
+      "Requirement understood": "met",
+      "Budget identified": "met",
+      "Relevant product discussed": "met",
+      "Customer questions addressed": "met",
+      "Price objection handled when applicable": "not_met",
+      "Finance / EMI addressed when applicable": "met",
+      "Next action captured": "met"
+    },
+    "scorecard": { "scorePercent": 81.82, "applicableCheckCount": 8, "evaluatedCheckCount": 7, "insufficientEvidenceCount": 1 }
+  },
+  "evaluationArchitecture": {
+    "deterministicChecks": ["Requirement understood", "Budget identified", "Relevant product discussed", "Next action captured"],
+    "semanticChecks": ["Customer greeted", "Customer questions addressed", "Price objection handled when applicable", "Finance / EMI addressed when applicable"],
+    "semanticCallsPerRun": 1
+  },
+  "languageAndEvidenceValidation": {
+    "semanticExplanations": "English",
+    "evidenceLanguage": "original Heavy Hinglish transcript",
+    "positiveAndPartialEvidence": "Every met/partial result was persisted with a real segment reference belonging to the same organization, conversation, and source transcription run.",
+    "absenceEvidence": "No absence evidence was manufactured."
+  },
+  "interactionNotes": [
+    "Customer need: The customer needs a laptop for gaming and college.",
+    "Budget: The customer's approximate maximum budget is INR 80,000.",
+    "Products and specs: The representative recommended the Lenovo LOQ; the Lenovo LOQ has an RTX 4060 GPU.",
+    "Prices: Amazon INR 78,000; bank-offer quote INR 81,000.",
+    "Competitors: The customer compared the laptop with Amazon.",
+    "Questions: A bank offer is available; the customer asked about EMI payments.",
+    "Objections and barriers: The customer raised a price concern because Amazon appeared to offer the laptop for less.",
+    "Next action: The representative will check the exact EMI amount and inform the customer."
+  ],
+  "coaching": {
+    "strengths": ["Budget identified", "Requirement understood"],
+    "opportunities": [
+      {
+        "check": "Price objection handled when applicable",
+        "evidenceSegmentId": "a783ea7f-00c4-4a33-963d-2759fe939e2d",
+        "advice": "After acknowledging the online comparison, make the value difference explicit — for example a bank offer, warranty, immediate availability, or a relevant alternative."
+      }
+    ],
+    "language": "English",
+    "modelCalls": 0
+  },
+  "immutableHistory": {
+    "runAExistsAfterRunB": true,
+    "runACompleted": true,
+    "runACheckRows": 8,
+    "runAScorecardRows": 1,
+    "runBCheckRows": 8,
+    "runBScorecardRows": 1,
+    "overwrite": false,
+    "note": "Semantic outputs differ between independently immutable runs; this is retained as actual bounded-provider behavior."
+  },
+  "cleanup": {
+    "status": "retained",
+    "reason": "The explicitly labelled synthetic fixture is retained so the durable artifact IDs remain inspectable; no broad cleanup was attempted."
+  }
+}

@@ -1,0 +1,506 @@
+{
+  "rules": {
+    "normalizedOutputLanguage": "English",
+    "evidenceLanguage": "original spoken language"
+  },
+  "model": "gpt-5.6-luna",
+  "cases": {
+    "english": {
+      "segments": [
+        {
+          "id": "11111111-0000-4000-8000-000000000001",
+          "speaker": "customer",
+          "text": "Hi. I am looking for a laptop for gaming and college. My budget is around ₹80,000."
+        },
+        {
+          "id": "22222222-0000-4000-8000-000000000002",
+          "speaker": "representative",
+          "text": "Sure. You could look at the Lenovo LOQ with RTX 4060. There is also a bank offer available."
+        },
+        {
+          "id": "33333333-0000-4000-8000-000000000003",
+          "speaker": "customer",
+          "text": "I saw it on Amazon for around ₹78,000. What would the EMI be?"
+        },
+        {
+          "id": "44444444-0000-4000-8000-000000000004",
+          "speaker": "representative",
+          "text": "After the bank offer it would be around ₹81,000. Let me check the exact EMI for you."
+        }
+      ],
+      "raw": [
+        {
+          "type": "need",
+          "key": "use_case",
+          "text": "The customer needs a laptop for gaming and college.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "11111111-0000-4000-8000-000000000001"
+          ]
+        },
+        {
+          "type": "budget",
+          "key": "budget",
+          "text": "The customer's budget is around INR 80,000.",
+          "amountMajor": 80000,
+          "currency": "INR",
+          "evidenceSegmentIds": [
+            "11111111-0000-4000-8000-000000000001"
+          ]
+        },
+        {
+          "type": "product",
+          "key": "recommended_product",
+          "text": "The representative recommended the Lenovo LOQ.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "22222222-0000-4000-8000-000000000002"
+          ]
+        },
+        {
+          "type": "spec",
+          "key": "gpu",
+          "text": "The recommended Lenovo LOQ has an RTX 4060.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "22222222-0000-4000-8000-000000000002"
+          ]
+        },
+        {
+          "type": "competitor",
+          "key": "competitor",
+          "text": "The customer compared the product with Amazon.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "33333333-0000-4000-8000-000000000003"
+          ]
+        },
+        {
+          "type": "competitor_price",
+          "key": "competitor_price",
+          "text": "The customer saw the Lenovo LOQ on Amazon for around INR 78,000.",
+          "amountMajor": 78000,
+          "currency": "INR",
+          "evidenceSegmentIds": [
+            "33333333-0000-4000-8000-000000000003"
+          ]
+        },
+        {
+          "type": "objection",
+          "key": "lower_competitor_price",
+          "text": "The customer's comparison to Amazon's lower price indicates price resistance.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "33333333-0000-4000-8000-000000000003"
+          ]
+        },
+        {
+          "type": "question",
+          "key": "emi",
+          "text": "The customer asked what the EMI would be.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "33333333-0000-4000-8000-000000000003"
+          ]
+        },
+        {
+          "type": "store_quote",
+          "key": "offer_price",
+          "text": "The representative stated that the price after the bank offer would be around INR 81,000.",
+          "amountMajor": 81000,
+          "currency": "INR",
+          "evidenceSegmentIds": [
+            "44444444-0000-4000-8000-000000000004"
+          ]
+        },
+        {
+          "type": "finance",
+          "key": "bank_offer",
+          "text": "A bank offer is available.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "22222222-0000-4000-8000-000000000002"
+          ]
+        }
+      ]
+    },
+    "light_hinglish": {
+      "segments": [
+        {
+          "id": "11111111-0000-4000-8000-000000000001",
+          "speaker": "customer",
+          "text": "Hi. I need a laptop for gaming and college. Budget around ₹80,000 hai."
+        },
+        {
+          "id": "22222222-0000-4000-8000-000000000002",
+          "speaker": "representative",
+          "text": "Sure. Lenovo LOQ RTX 4060 dekh sakte hain. Bank offer bhi available hai."
+        },
+        {
+          "id": "33333333-0000-4000-8000-000000000003",
+          "speaker": "customer",
+          "text": "Amazon pe around ₹78,000 ka dikh raha tha. EMI kitni padegi?"
+        },
+        {
+          "id": "44444444-0000-4000-8000-000000000004",
+          "speaker": "representative",
+          "text": "Bank offer ke baad around ₹81,000 padega. I will check the exact EMI for you."
+        }
+      ],
+      "raw": [
+        {
+          "type": "need",
+          "key": "laptop_use_case",
+          "text": "The customer needs a laptop for gaming and college.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "11111111-0000-4000-8000-000000000001"
+          ]
+        },
+        {
+          "type": "budget",
+          "key": "customer_budget",
+          "text": "The customer's budget is around INR 80,000.",
+          "amountMajor": 80000,
+          "currency": "INR",
+          "evidenceSegmentIds": [
+            "11111111-0000-4000-8000-000000000001"
+          ]
+        },
+        {
+          "type": "product",
+          "key": "lenovo_loq",
+          "text": "The representative recommended the Lenovo LOQ.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "22222222-0000-4000-8000-000000000002"
+          ]
+        },
+        {
+          "type": "spec",
+          "key": "gpu",
+          "text": "The recommended Lenovo LOQ has an RTX 4060 graphics card.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "22222222-0000-4000-8000-000000000002"
+          ]
+        },
+        {
+          "type": "finance",
+          "key": "bank_offer",
+          "text": "A bank offer is available for the recommended laptop.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "22222222-0000-4000-8000-000000000002"
+          ]
+        },
+        {
+          "type": "competitor",
+          "key": "amazon",
+          "text": "The customer saw the laptop on Amazon.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "33333333-0000-4000-8000-000000000003"
+          ]
+        },
+        {
+          "type": "competitor_price",
+          "key": "amazon_price",
+          "text": "The customer saw an Amazon price of around INR 78,000.",
+          "amountMajor": 78000,
+          "currency": "INR",
+          "evidenceSegmentIds": [
+            "33333333-0000-4000-8000-000000000003"
+          ]
+        },
+        {
+          "type": "objection",
+          "key": "lower_competitor_price",
+          "text": "The customer is signaling price resistance by comparing the Amazon price of around INR 78,000 with the in-store offer.",
+          "amountMajor": 78000,
+          "currency": "INR",
+          "evidenceSegmentIds": [
+            "33333333-0000-4000-8000-000000000003"
+          ]
+        },
+        {
+          "type": "question",
+          "key": "emi_amount",
+          "text": "The customer asked how much the EMI would be.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "33333333-0000-4000-8000-000000000003"
+          ]
+        },
+        {
+          "type": "store_quote",
+          "key": "post_offer_price",
+          "text": "After the bank offer, the representative quoted an approximate price of INR 81,000.",
+          "amountMajor": 81000,
+          "currency": "INR",
+          "evidenceSegmentIds": [
+            "44444444-0000-4000-8000-000000000004"
+          ]
+        },
+        {
+          "type": "next_action",
+          "key": "check_exact_emi",
+          "text": "The representative will check the exact EMI for the customer.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "44444444-0000-4000-8000-000000000004"
+          ]
+        }
+      ]
+    },
+    "heavy_hinglish": {
+      "segments": [
+        {
+          "id": "11111111-0000-4000-8000-000000000001",
+          "speaker": "customer",
+          "text": "Namaste. Gaming aur college dono ke liye laptop chahiye. Mera budget lagbhag ₹80,000 tak hai."
+        },
+        {
+          "id": "22222222-0000-4000-8000-000000000002",
+          "speaker": "representative",
+          "text": "Ji. Lenovo LOQ dekh sakte hain, isme RTX 4060 hai. Bank offer bhi chal raha hai."
+        },
+        {
+          "id": "33333333-0000-4000-8000-000000000003",
+          "speaker": "customer",
+          "text": "Amazon pe ye around ₹78,000 ka dikh raha tha. EMI mein kitna padega?"
+        },
+        {
+          "id": "44444444-0000-4000-8000-000000000004",
+          "speaker": "representative",
+          "text": "Bank offer lagne ke baad around ₹81,000 padega. Main exact EMI check karke batata hoon."
+        }
+      ],
+      "raw": [
+        {
+          "type": "need",
+          "key": "use_case",
+          "text": "The customer needs a laptop for gaming and college.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "11111111-0000-4000-8000-000000000001"
+          ]
+        },
+        {
+          "type": "budget",
+          "key": "maximum_budget",
+          "text": "The customer's approximate maximum budget is INR 80,000.",
+          "amountMajor": 80000,
+          "currency": "INR",
+          "evidenceSegmentIds": [
+            "11111111-0000-4000-8000-000000000001"
+          ]
+        },
+        {
+          "type": "product",
+          "key": "recommended_model",
+          "text": "The representative recommended the Lenovo LOQ.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "22222222-0000-4000-8000-000000000002"
+          ]
+        },
+        {
+          "type": "spec",
+          "key": "gpu",
+          "text": "The Lenovo LOQ has an RTX 4060 GPU.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "22222222-0000-4000-8000-000000000002"
+          ]
+        },
+        {
+          "type": "finance",
+          "key": "bank_offer",
+          "text": "A bank offer is available for the Lenovo LOQ.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "22222222-0000-4000-8000-000000000002"
+          ]
+        },
+        {
+          "type": "competitor",
+          "key": "competitor_channel",
+          "text": "The customer compared the laptop with Amazon.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "33333333-0000-4000-8000-000000000003"
+          ]
+        },
+        {
+          "type": "competitor_price",
+          "key": "amazon_price",
+          "text": "The customer saw the laptop on Amazon for approximately INR 78,000.",
+          "amountMajor": 78000,
+          "currency": "INR",
+          "evidenceSegmentIds": [
+            "33333333-0000-4000-8000-000000000003"
+          ]
+        },
+        {
+          "type": "objection",
+          "key": "lower_competitor_price",
+          "text": "The customer raised a price concern because Amazon appeared to offer the laptop for less.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "33333333-0000-4000-8000-000000000003"
+          ]
+        },
+        {
+          "type": "question",
+          "key": "emi_amount",
+          "text": "The customer asked how much the laptop would cost in EMI payments.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "33333333-0000-4000-8000-000000000003"
+          ]
+        },
+        {
+          "type": "store_quote",
+          "key": "price_after_bank_offer",
+          "text": "After applying the bank offer, the representative quoted an approximate price of INR 81,000.",
+          "amountMajor": 81000,
+          "currency": "INR",
+          "evidenceSegmentIds": [
+            "44444444-0000-4000-8000-000000000004"
+          ]
+        },
+        {
+          "type": "next_action",
+          "key": "check_exact_emi",
+          "text": "The representative will check the exact EMI amount and inform the customer.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "44444444-0000-4000-8000-000000000004"
+          ]
+        }
+      ]
+    },
+    "hindi": {
+      "freshResponseId": "resp_0e70ba270e64ea90006a7778dd43f881a0aa15ec742ee0dd1e",
+      "freshRaw": [
+        { "type": "need", "key": "laptop_use_case", "text": "Needs a laptop for gaming and college.", "amountMajor": null, "currency": null, "evidenceSegmentIds": ["11111111-0000-4000-8000-000000000001"] },
+        { "type": "budget", "key": "laptop_budget", "text": "Budget is approximately ₹80,000.", "amountMajor": 80000, "currency": "INR", "evidenceSegmentIds": ["11111111-0000-4000-8000-000000000001"] },
+        { "type": "product", "key": "lenovo_loq", "text": "Lenovo LOQ laptop was presented.", "amountMajor": null, "currency": null, "evidenceSegmentIds": ["22222222-0000-4000-8000-000000000002"] },
+        { "type": "spec", "key": "gpu", "text": "The Lenovo LOQ has an RTX 4060.", "amountMajor": null, "currency": null, "evidenceSegmentIds": ["22222222-0000-4000-8000-000000000002"] },
+        { "type": "competitor", "key": "amazon", "text": "Amazon was cited as an alternative purchase channel.", "amountMajor": null, "currency": null, "evidenceSegmentIds": ["33333333-0000-4000-8000-000000000003"] },
+        { "type": "competitor_price", "key": "amazon_price", "text": "The laptop was seen on Amazon for approximately ₹78,000.", "amountMajor": 78000, "currency": "INR", "evidenceSegmentIds": ["33333333-0000-4000-8000-000000000003"] },
+        { "type": "question", "key": "emi_amount", "text": "Asked how much the laptop would cost in EMI.", "amountMajor": null, "currency": null, "evidenceSegmentIds": ["33333333-0000-4000-8000-000000000003"] },
+        { "type": "price", "key": "bank_offer_price", "text": "After the bank offer, the price would be approximately ₹81,000.", "amountMajor": 81000, "currency": "INR", "evidenceSegmentIds": ["44444444-0000-4000-8000-000000000004"] },
+        { "type": "commitment", "key": "check_emi", "text": "Representative committed to check the exact EMI and provide the information.", "amountMajor": null, "currency": null, "evidenceSegmentIds": ["44444444-0000-4000-8000-000000000004"] },
+        { "type": "next_action", "key": "provide_emi_details", "text": "Check the exact EMI and inform the customer.", "amountMajor": null, "currency": null, "evidenceSegmentIds": ["44444444-0000-4000-8000-000000000004"] }
+      ],
+      "segments": [
+        {
+          "id": "11111111-0000-4000-8000-000000000001",
+          "speaker": "customer",
+          "text": "नमस्ते। मुझे गेमिंग और कॉलेज दोनों के लिए लैपटॉप चाहिए। मेरा बजट लगभग ₹80,000 तक है।"
+        },
+        {
+          "id": "22222222-0000-4000-8000-000000000002",
+          "speaker": "representative",
+          "text": "जी। आप Lenovo LOQ देख सकते हैं, इसमें RTX 4060 है। बैंक ऑफर भी उपलब्ध है।"
+        },
+        {
+          "id": "33333333-0000-4000-8000-000000000003",
+          "speaker": "customer",
+          "text": "Amazon पर यह करीब ₹78,000 का दिख रहा था। EMI में कितना पड़ेगा?"
+        },
+        {
+          "id": "44444444-0000-4000-8000-000000000004",
+          "speaker": "representative",
+          "text": "बैंक ऑफर के बाद करीब ₹81,000 पड़ेगा। मैं सही EMI चेक करके बताता हूँ।"
+        }
+      ],
+      "raw": [
+        {
+          "type": "product",
+          "key": "laptop",
+          "text": "The representative offered a Lenovo LOQ laptop.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "22222222-0000-4000-8000-000000000002"
+          ]
+        },
+        {
+          "type": "spec",
+          "key": "gpu",
+          "text": "The Lenovo LOQ was specified with an RTX 4060 GPU.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "22222222-0000-4000-8000-000000000002"
+          ]
+        },
+        {
+          "type": "competitor",
+          "key": "Amazon",
+          "text": "The customer referenced Amazon as an alternative.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "33333333-0000-4000-8000-000000000003"
+          ]
+        },
+        {
+          "type": "competitor_price",
+          "key": "Amazon_price",
+          "text": "The customer referenced an Amazon price of ₹78,000.",
+          "amountMajor": 78000,
+          "currency": "INR",
+          "evidenceSegmentIds": [
+            "33333333-0000-4000-8000-000000000003"
+          ]
+        },
+        {
+          "type": "finance",
+          "key": "EMI",
+          "text": "EMI was mentioned in connection with the Amazon option.",
+          "amountMajor": null,
+          "currency": null,
+          "evidenceSegmentIds": [
+            "33333333-0000-4000-8000-000000000003"
+          ]
+        },
+        {
+          "type": "store_quote",
+          "key": "quoted_price",
+          "text": "The representative quoted ₹81,000 and mentioned an EMI option.",
+          "amountMajor": 81000,
+          "currency": "INR",
+          "evidenceSegmentIds": [
+            "44444444-0000-4000-8000-000000000004"
+          ]
+        }
+      ]
+    }
+  }
+}

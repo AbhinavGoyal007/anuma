@@ -1,0 +1,20 @@
+# Dependencies and build output
+/node_modules
+/.next
+/.next-locked-build-output
+/out
+*.tsbuildinfo
+
+# Local environment configuration
+.env.local
+.env.*.local
+
+# Test and tooling output
+/coverage
+/playwright-report
+/test-results
+
+# Local operating-system files
+.DS_Store
+Thumbs.db
+/.swc

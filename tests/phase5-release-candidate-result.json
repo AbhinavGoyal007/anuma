@@ -1,0 +1,171 @@
+{
+  "baselineSha": "b4687a76e5de969228f67b23dacea1ffcebcdae3",
+  "finalSha": "recorded in the release handoff after the final commit",
+  "scope": "Phase 5 release-candidate validation only; Phase 6 was not started.",
+  "deployment": {
+    "status": "BLOCKED",
+    "finding": "The available Vercel account context contains only an unrelated project (excenor-ai-maturity-poc); no ANUMA Vercel project was linked or deployed.",
+    "requiredFounderAction": "Import or reconnect SakshamS11/anumaai in the correct Vercel team, configure the named server/public environment variables securely, and deploy main."
+  },
+  "security": {
+    "status": "VALIDATED",
+    "hostedRlsScenarios": 73,
+    "result": "All scenarios passed with rolled-back fixtures, including organization isolation, representative peer restrictions, manager scoped review, admin management, private storage, review objects, and append-only correction roles."
+  },
+  "desktop": {
+    "status": "VALIDATED",
+    "evidence": "Chromium public responsive regression at 1440 x 900 passed."
+  },
+  "androidPhoneEmulation": {
+    "status": "VALIDATED_WITH_LIMITATION",
+    "evidence": "Public responsive regression passed at 360 x 800, 390 x 844, and 412 x 915. The authenticated interaction creation, setup, persistence, sign-out, and small-screen navigation journey passed with the Pixel 5 profile.",
+    "limitation": "Chromium viewport emulation is not a physical Android device."
+  },
+  "androidTabletEmulation": {
+    "status": "VALIDATED_WITH_LIMITATION",
+    "evidence": "Public responsive regression passed at 600 x 960, 768 x 1024, 800 x 1280, and 1024 x 768 using a touch/tablet profile.",
+    "limitation": "Physical portrait and landscape validation remains required."
+  },
+  "physicalAndroidRequired": true,
+  "audioCapture": {
+    "status": "VALIDATED_WITH_LIMITATION",
+    "changes": [
+      "best-effort echo cancellation, noise suppression, auto gain control, and mono constraints with a capability-safe fallback",
+      "normalization of MediaRecorder MIME parameters such as audio/webm;codecs=opus before server validation",
+      "elapsed recording status, screen-awake guidance, before-unload warning, and duplicate save protection"
+    ],
+    "automatedEvidence": "MIME/constraint unit tests passed.",
+    "physicalDeviceRequired": "A real Android microphone, preview, upload interruption, and screen-lock check remain required."
+  },
+  "sarvamRealAudio": {
+    "status": "PHYSICAL_DEVICE_TEST_REQUIRED",
+    "finding": "No human-recorded English or Hinglish audio fixture was available in this environment. A real Sarvam run was not fabricated from a pre-written transcript.",
+    "requiredManualAcceptance": "Record one English-heavy and one Hinglish role-play through the browser path, then capture duration, latency, diarization, timestamps, critical entities, and obvious errors."
+  },
+  "speakerMapping": {
+    "status": "VALIDATED_WITH_LIMITATION",
+    "evidence": "Hosted review acceptance uses explicit representative/customer mapping and all metrics derive from mapped transcript roles; provider labels are never assumed.",
+    "physicalDeviceRequired": "Validate two-plus live diarized speakers after a real Sarvam run."
+  },
+  "lunaUnderstanding": {
+    "status": "VALIDATED_WITH_LIMITATION",
+    "evidence": "Retained multilingual live acceptance: English, Light Hinglish, and Heavy Hinglish are validated for current scope; source evidence remains original language and normalized output remains English.",
+    "limitation": "Hindi remains experimental and real Sarvam-to-Luna validation awaits human-recorded audio."
+  },
+  "evidence": {
+    "status": "VALIDATED",
+    "evidence": "Hosted review proof validated positive/partial evidence IDs against the same organization, conversation, and transcription run; absence evidence is not fabricated."
+  },
+  "metrics": {
+    "status": "VALIDATED",
+    "algorithmVersion": "phase5.1.v1",
+    "rules": [
+      "interaction duration uses mapped transcript span",
+      "talk-share denominator is representative plus customer only",
+      "additional_customer joins customer; manager and unknown are excluded",
+      "same-role chunks merge at a gap of 250 ms or less",
+      "word count and estimated WPM use one whitespace-token implementation",
+      "zero bilateral speech omits talk-share rows"
+    ],
+    "modelCalls": 0
+  },
+  "review": {
+    "status": "VALIDATED",
+    "retainedFixture": "Synthetic Heavy Hinglish input with retained live Phase 4 output; hosted database review result.",
+    "reviewRunA": "4336ee3c-073f-4c67-b014-66792a82d948",
+    "reviewRunB": "cd86d43c-1409-4210-9ecb-a836e0eb9349",
+    "releaseRepeatRun": "40a75e4e-f5db-492e-98b9-a8daa773f22d",
+    "starterCheckStates": {
+      "Customer greeted": "met",
+      "Requirement understood": "met",
+      "Budget identified": "met",
+      "Relevant product discussed": "met",
+      "Customer questions addressed": "met",
+      "Price objection handled when applicable": "not_met",
+      "Finance / EMI addressed when applicable": "met",
+      "Next action captured": "met"
+    },
+    "deterministicCheckCount": 4,
+    "semanticCheckCount": 4,
+    "semanticRequestCountPerRun": 1,
+    "scorecard": {
+      "scorePercent": 83.33,
+      "applicableCheckCount": 8,
+      "evaluatedCheckCount": 8,
+      "insufficientEvidenceCount": 0
+    },
+    "repeatability": "Deterministic checks remained stable. Semantic outcomes varied on the greeting check between immutable historical runs (met versus insufficient_evidence); the release repeat matched the original 83.33% result."
+  },
+  "coaching": {
+    "status": "VALIDATED",
+    "result": "Deterministic strengths for budget and requirement understanding; one evidence-linked price-comparison opportunity. No coaching model call, personality inference, policy claim, or invented price claim."
+  },
+  "corrections": {
+    "status": "VALIDATED",
+    "result": "The product now exposes a safe correction proposal and manager/admin confirmation or rejection path. Hosted RLS acceptance proves representative proposal, cross-tenant denial, representative review denial, and in-scope manager confirmation without source overwrite.",
+    "reEvaluation": "Manual review requests remain explicit and create immutable runs rather than modifying prior check or scorecard rows."
+  },
+  "idempotency": {
+    "status": "VALIDATED_WITH_LIMITATION",
+    "result": "Client double-save protection and duplicate-current-run database protections are present; zero-observation analysis lineage and review-history acceptance are covered by existing targeted tests and hosted runs.",
+    "physicalDeviceRequired": "Founder should double-tap recording, save/process, understanding, and review during device testing."
+  },
+  "networkRecovery": {
+    "status": "PHYSICAL_DEVICE_TEST_REQUIRED",
+    "finding": "Safe user-facing failures and workflow-start recovery are implemented, but actual mobile upload interruption/background behavior requires human device validation."
+  },
+  "cost": {
+    "status": "VALIDATED",
+    "expectedPath": {
+      "sarvam": "one transcription job",
+      "lunaUnderstanding": "one request per analysis run",
+      "semanticReview": "zero or one batched request per review run",
+      "metricsScorecardCoaching": "zero AI calls"
+    }
+  },
+  "featureMatrix": [
+    { "feature": "Authentication", "status": "VALIDATED" },
+    { "feature": "Organizations", "status": "VALIDATED" },
+    { "feature": "Locations and teams", "status": "VALIDATED" },
+    { "feature": "Interaction creation", "status": "VALIDATED" },
+    { "feature": "Consent", "status": "VALIDATED" },
+    { "feature": "Browser recording", "status": "PHYSICAL_DEVICE_TEST_REQUIRED" },
+    { "feature": "File upload", "status": "PHYSICAL_DEVICE_TEST_REQUIRED" },
+    { "feature": "Private storage", "status": "VALIDATED" },
+    { "feature": "Sarvam transcription", "status": "PHYSICAL_DEVICE_TEST_REQUIRED" },
+    { "feature": "Transcript", "status": "VALIDATED_WITH_LIMITATION" },
+    { "feature": "Speaker mapping", "status": "VALIDATED_WITH_LIMITATION" },
+    { "feature": "Luna analysis", "status": "VALIDATED_WITH_LIMITATION" },
+    { "feature": "Observations", "status": "VALIDATED" },
+    { "feature": "Evidence", "status": "VALIDATED" },
+    { "feature": "Currency", "status": "VALIDATED" },
+    { "feature": "Metrics", "status": "VALIDATED" },
+    { "feature": "Custom semantic checks", "status": "VALIDATED" },
+    { "feature": "Custom phrase checks", "status": "VALIDATED" },
+    { "feature": "Starter checks", "status": "VALIDATED" },
+    { "feature": "Scorecard", "status": "VALIDATED" },
+    { "feature": "Notes", "status": "VALIDATED" },
+    { "feature": "Coaching", "status": "VALIDATED" },
+    { "feature": "Corrections", "status": "VALIDATED" },
+    { "feature": "Re-evaluation", "status": "VALIDATED" },
+    { "feature": "Review history", "status": "VALIDATED" },
+    { "feature": "Phase 6 intelligence", "status": "DEFERRED" }
+  ],
+  "phase6FoundationStatus": {
+    "atomicDataReady": [
+      "metric_values",
+      "structured_observations",
+      "check_evaluations",
+      "scorecard_evaluations"
+    ],
+    "deferred": ["outcomes", "aggregate intelligence", "management dashboards", "trends", "cohorts"]
+  },
+  "knownLimitations": [
+    "Physical Android phone and tablet validation remains required.",
+    "No verified ANUMA Vercel deployment is linked in the available account context.",
+    "No human-recorded English/Hinglish Sarvam acceptance audio was available in this environment.",
+    "Hindi understanding remains experimental.",
+    "Semantic review can vary across independently immutable runs.",
+    "No offline mode, background-recording guarantee, native app, outcomes, aggregate intelligence, or Phase 6 capability is included."
+  ]
+}
