@@ -260,6 +260,17 @@ export type Database = {
           item_id: string
           last_seen_import: string | null
           organization_id: string
+          spec_colour: string | null
+          spec_completeness: number | null
+          spec_cpu: string | null
+          spec_cpu_family: string | null
+          spec_gpu_gb: number | null
+          spec_issues: string[]
+          spec_parsed_at: string | null
+          spec_parser_version: string | null
+          spec_ram_gb: number | null
+          spec_screen_in: number | null
+          spec_storage_gb: number | null
           subgroup_id: string | null
           subgroup_name: string | null
           valid_from: string
@@ -280,6 +291,17 @@ export type Database = {
           item_id: string
           last_seen_import?: string | null
           organization_id: string
+          spec_colour?: string | null
+          spec_completeness?: number | null
+          spec_cpu?: string | null
+          spec_cpu_family?: string | null
+          spec_gpu_gb?: number | null
+          spec_issues?: string[]
+          spec_parsed_at?: string | null
+          spec_parser_version?: string | null
+          spec_ram_gb?: number | null
+          spec_screen_in?: number | null
+          spec_storage_gb?: number | null
           subgroup_id?: string | null
           subgroup_name?: string | null
           valid_from?: string
@@ -300,6 +322,17 @@ export type Database = {
           item_id?: string
           last_seen_import?: string | null
           organization_id?: string
+          spec_colour?: string | null
+          spec_completeness?: number | null
+          spec_cpu?: string | null
+          spec_cpu_family?: string | null
+          spec_gpu_gb?: number | null
+          spec_issues?: string[]
+          spec_parsed_at?: string | null
+          spec_parser_version?: string | null
+          spec_ram_gb?: number | null
+          spec_screen_in?: number | null
+          spec_storage_gb?: number | null
           subgroup_id?: string | null
           subgroup_name?: string | null
           valid_from?: string
@@ -2874,12 +2907,69 @@ export type Database = {
           organization_id: string
         }[]
       }
+      catalogue_candidates: {
+        Args: {
+          p_as_of: string
+          p_brand?: string
+          p_limit?: number
+          p_organization_id: string
+          p_tokens?: string[]
+        }
+        Returns: {
+          brand_name: string
+          description: string
+          group_name: string
+          id: string
+          item_id: string
+          spec_cpu_family: string
+          spec_gpu_gb: number
+          spec_issues: string[]
+          spec_ram_gb: number
+          spec_screen_in: number
+          spec_storage_gb: number
+          subgroup_name: string
+        }[]
+      }
       catalogue_label_summary: {
         Args: { p_organization_id: string }
         Returns: {
           group_name: string
           item_count: number
           subgroup_name: string
+        }[]
+      }
+      catalogue_requirement_matches: {
+        Args: {
+          p_as_of: string
+          p_category_key: string
+          p_limit?: number
+          p_min_gpu_gb?: number
+          p_min_ram_gb?: number
+          p_min_storage_gb?: number
+          p_organization_id: string
+        }
+        Returns: {
+          brand_name: string
+          description: string
+          group_name: string
+          id: string
+          item_id: string
+          spec_cpu_family: string
+          spec_gpu_gb: number
+          spec_issues: string[]
+          spec_ram_gb: number
+          spec_screen_in: number
+          spec_storage_gb: number
+          subgroup_name: string
+          total_matching: number
+        }[]
+      }
+      catalogue_spec_health: {
+        Args: { p_organization_id: string }
+        Returns: {
+          example_description: string
+          issue: string
+          item_count: number
         }[]
       }
       confirm_clear_category_mappings: {
@@ -3068,6 +3158,8 @@ export type Database = {
         Args: { p_organization_id: string }
         Returns: undefined
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       spoken_category_summary: {
         Args: { p_organization_id: string }
         Returns: {

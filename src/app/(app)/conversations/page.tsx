@@ -45,7 +45,8 @@ export default async function ConversationsPage() {
   const storeGroups = [...groupsByStore.entries()]
     .map(([key, items]) => ({
       key,
-      name: key === "__unassigned__" ? "No store assigned" : (locationNames.get(key) ?? "Scoped store"),
+      name:
+        key === "__unassigned__" ? "No store assigned" : (locationNames.get(key) ?? "Scoped store"),
       unassigned: key === "__unassigned__",
       items,
     }))

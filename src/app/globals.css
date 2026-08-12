@@ -3490,3 +3490,206 @@ a {
   color: var(--signal-coral);
   font-weight: 600;
 }
+
+/* ---- Catalogue readability -------------------------------------------------
+   A worklist of causes, not a chart of percentages: each row is a group of
+   products that one decision would fix. */
+.spec-issue-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+.spec-issue {
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 0.85rem 1rem;
+}
+.spec-issue--fault {
+  border-left: 3px solid var(--signal-coral);
+}
+.spec-issue-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.spec-issue-head strong {
+  color: var(--carbon);
+  font-size: 0.95rem;
+}
+.spec-issue-count {
+  color: var(--muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.spec-issue-copy {
+  color: var(--muted);
+  font-size: 0.83rem;
+  line-height: 1.55;
+  margin: 0.4rem 0 0;
+}
+.spec-issue-example {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.55rem 0 0;
+}
+.spec-issue-example span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.spec-issue-example code {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--carbon);
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+  padding: 0.2rem 0.45rem;
+}
+
+/* ---- Did we have it? --------------------------------------------------------
+   A finding, then the products it rests on, then why each one qualified. */
+.assortment-caveat {
+  border-left: 3px solid var(--border);
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.55;
+  margin: 0.9rem 0 0;
+  padding: 0.15rem 0 0.15rem 0.75rem;
+}
+.requirement-answer {
+  border-bottom: 1px solid var(--border);
+  margin-top: 1rem;
+  padding-bottom: 1rem;
+}
+.requirement-question {
+  color: var(--carbon);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  margin: 0;
+}
+.requirement-verdict {
+  color: var(--muted);
+  font-size: 0.84rem;
+  margin: 0.35rem 0 0;
+}
+.mention-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+.mention {
+  border-top: 1px solid var(--border);
+  padding-top: 0.9rem;
+}
+.mention:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.mention-head {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.mention-field {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.5rem;
+  text-transform: uppercase;
+}
+.mention-spoken {
+  color: var(--carbon);
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+.mention-verdict {
+  color: var(--muted);
+  font-size: 0.83rem;
+  margin: 0.35rem 0 0;
+}
+.sku-match-list {
+  list-style: none;
+  margin: 0.7rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.sku-match {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.65rem 0.8rem;
+}
+.sku-match-head {
+  align-items: baseline;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+.sku-description {
+  color: var(--carbon);
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+}
+.sku-id {
+  color: var(--muted);
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+.sku-taxonomy {
+  color: var(--muted);
+  font-size: 0.74rem;
+  margin: 0.2rem 0 0;
+}
+.facet-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+.facet {
+  align-items: baseline;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  display: inline-flex;
+  font-size: 0.74rem;
+  gap: 0.35rem;
+  padding: 0.15rem 0.45rem;
+}
+.facet-name {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 0.66rem;
+}
+.facet-value {
+  color: var(--carbon);
+}
+.facet--agrees {
+  border-color: var(--electric-aqua, var(--border));
+}
+.facet--conflicts {
+  border-color: var(--signal-coral);
+}
+.facet--unreadable {
+  border-style: dashed;
+}
+.facet--unreadable .facet-value {
+  color: var(--muted);
+}

@@ -286,6 +286,9 @@ export default async function AdministrationPage({ searchParams }: Administratio
         <p className="section-copy">
           <Link className="button button-secondary" href="/administration/categories">
             Review category mappings
+          </Link>{" "}
+          <Link className="button button-secondary" href="/administration/catalogue">
+            Catalogue
           </Link>
         </p>
       </section>

@@ -19,7 +19,7 @@ describe("reading the export", () => {
   });
 
   it("tolerates a byte order mark and CRLF line endings", () => {
-    const sheet = parseDelimited('﻿ITEM_ID,ITEM_DESC\r\n1,Widget\r\n');
+    const sheet = parseDelimited("﻿ITEM_ID,ITEM_DESC\r\n1,Widget\r\n");
     expect(sheet[0]![0]).toBe("ITEM_ID");
     expect(sheet[1]).toEqual(["1", "Widget"]);
   });
@@ -83,16 +83,48 @@ describe("reading the product shorthand", () => {
     expect(spec.gpuGb).toBeNull();
   });
 
-  it("flags a cut-off description rather than trusting the fragment", () => {
+  it("discards the fragment a cut-off description ends on", () => {
     // Real row, cut off by the export at 40 characters: that trailing 3 is the
-    // first digit of 32GB. The parser cannot know that — which is exactly why
-    // truncation is reported, so the row goes to review instead of into stock
-    // data claiming a 3GB laptop.
+    // first digit of 32GB. Storing 3 would not merely fail to answer "did we
+    // stock 32GB" — it would answer it wrongly, and nothing downstream could
+    // tell the number came from a severed string.
     const spec = parseSpec("HP Victus 16R1060NE A57E4EA i7-14700HX/3", {
       truncatedAtLength: 40,
     });
     expect(spec.issues).toContain("truncated");
-    expect(spec.ramGb).toBe(3);
+    expect(spec.ramGb).toBeNull();
+    // What survived the cut is still read.
+    expect(spec.cpuFamily).toBe("i7");
+  });
+
+  it("keeps every value before the cut, and only drops the last", () => {
+    // Real row: "16GB" is complete, "51" is the start of 512.
+    const spec = parseSpec("Lenovo 83DV000AAX LOQ i5-13450HX/16GB/51", {
+      truncatedAtLength: 40,
+    });
+    expect(spec.cpuFamily).toBe("i5");
+    expect(spec.ramGb).toBe(16);
+    expect(spec.storageGb).toBeNull();
+  });
+
+  it("no longer reports implausible memory that was only ever a fragment", () => {
+    // Real row: parsed as 51GB of memory before the fragment was discarded.
+    const spec = parseSpec("Lenovo 83GS001LAX LOQ15IAX9 Gaming i5/51", {
+      truncatedAtLength: 40,
+    });
+    expect(spec.ramGb).toBeNull();
+    expect(spec.issues).not.toContain("implausible_ram");
+  });
+
+  it("reads a complete description in full, cut-off rule or not", () => {
+    const spec = parseSpec("Lenovo LOQ 83DV0007AX i7/16/512/6/15.6/G", {
+      truncatedAtLength: 40,
+    });
+    // This row happens to be exactly at the limit, so its colour is dropped —
+    // but everything before it is intact.
+    expect(spec.ramGb).toBe(16);
+    expect(spec.storageGb).toBe(512);
+    expect(spec.gpuGb).toBe(6);
   });
 
   it("flags memory no machine is sold with", () => {
@@ -111,5 +143,38 @@ describe("reading the product shorthand", () => {
     expect(spec.cpuFamily).toBe("i7");
     expect(spec.issues).toContain("no_spec_section");
     expect(spec.issues).not.toContain("nothing_parsed");
+  });
+});
+
+describe("refusing values that cannot be right", () => {
+  it("discards memory no machine ships with, rather than ranking on it", () => {
+    // Real row. 88GB is not a memory size; keeping it put this laptop top of
+    // "most memory" for a category manager to trust.
+    const spec = parseSpec("Acer SP314-55-34UR 2-in-1 i3/88GB/256GB");
+    expect(spec.issues).toContain("implausible_ram");
+    expect(spec.ramGb).toBeNull();
+    // What was readable is still kept.
+    expect(spec.storageGb).toBe(256);
+  });
+
+  it("does not read a model code as a memory size", () => {
+    // Real row: "81x800ecus" is a part number the shorthand split on.
+    const spec = parseSpec("Lenovo IdeaPad 3 15ITL05/81x800ecus/i3/1");
+    expect(spec.ramGb).toBeNull();
+  });
+
+  it("reads a trailing size as the screen, not as graphics memory", () => {
+    // Real row: a 16-inch Acer, not one with 16GB of video memory.
+    const spec = parseSpec("Acer AV16-51P-7063 U7-155U/64GB/4TB/16");
+    expect(spec.ramGb).toBe(64);
+    expect(spec.storageGb).toBe(4096);
+    expect(spec.screenIn).toBe(16);
+    expect(spec.gpuGb).toBeNull();
+  });
+
+  it("still reads graphics when the screen is also stated", () => {
+    const spec = parseSpec("Lenovo LOQ 83DV0007AX i7/16/512/6/15.6");
+    expect(spec.gpuGb).toBe(6);
+    expect(spec.screenIn).toBe(15.6);
   });
 });

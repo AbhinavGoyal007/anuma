@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { Suspense } from "react";
 
+import { AssortmentPanel } from "@/components/conversations/assortment-panel";
+import { getConversationAssortment } from "@/modules/catalogue/assortment";
 import { AudioCapturePanel } from "@/components/conversations/audio-capture-panel";
 import { ConversationEvidence } from "@/components/conversations/conversation-evidence";
 import { CustomerConsentPanel } from "@/components/conversations/customer-consent-panel";
@@ -20,6 +23,33 @@ type ConversationPageProps = {
   params: Promise<{ conversationId: string }>;
   searchParams: Promise<{ corrected?: string; error?: string }>;
 };
+
+/** Holds the panel's place so the page does not jump when the answer lands. */
+function AssortmentPanelSkeleton() {
+  return (
+    <section className="product-panel" aria-busy="true" aria-label="Checking the range">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Against the range</p>
+          <h2>Did we have it?</h2>
+        </div>
+      </div>
+      <div className="loading-line loading-line-short" />
+      <div className="loading-line" />
+    </section>
+  );
+}
+
+async function AssortmentSection({
+  conversationId,
+  organizationId,
+}: {
+  conversationId: string;
+  organizationId: string;
+}) {
+  const assortment = await getConversationAssortment(organizationId, conversationId);
+  return <AssortmentPanel assortment={assortment} />;
+}
 
 export default async function ConversationPage({ params, searchParams }: ConversationPageProps) {
   const [context, route, message] = await Promise.all([
@@ -153,6 +183,14 @@ export default async function ConversationPage({ params, searchParams }: Convers
         conversationId={conversation.id}
         canCorrect={membership.role === "admin" || membership.role === "manager"}
       />
+      {/* Searching 180,000 rows for every product named takes a moment, and it
+          is the one panel the rest of the page does not depend on — so the
+          record renders immediately and this arrives when it is ready. */}
+      {interactionRecord?.status === "completed" ? (
+        <Suspense fallback={<AssortmentPanelSkeleton />}>
+          <AssortmentSection conversationId={conversation.id} organizationId={organization.id} />
+        </Suspense>
+      ) : null}
       {canCoach && interactionRecord?.status === "completed" ? (
         <CoachingPanel moments={coachingMoments} />
       ) : null}

@@ -267,7 +267,9 @@ export async function getDemandIntelligence(
   const includedRecordIds = rows.map((r) => r.interaction_record_id);
   const { data: fieldValues } = await supabase
     .from("interaction_field_values")
-    .select("conversation_id, field_key, value_text, value_amount_minor, currency_code, label, evidence_group_id")
+    .select(
+      "conversation_id, field_key, value_text, value_amount_minor, currency_code, label, evidence_group_id",
+    )
     .eq("organization_id", organizationId)
     .in("interaction_record_id", includedRecordIds)
     .is("abstention", null);
@@ -288,9 +290,7 @@ export async function getDemandIntelligence(
   const alternativeEligible = rows.filter(
     (r) => r.alternative_offered === "yes" || r.alternative_offered === "no",
   );
-  const demoMeasured = rows.filter(
-    (r) => r.demo_performed === "yes" || r.demo_performed === "no",
-  );
+  const demoMeasured = rows.filter((r) => r.demo_performed === "yes" || r.demo_performed === "no");
 
   const clarityMeasured = rows.filter((r) => r.clarity_start !== null && r.clarity_end !== null);
   const clarityImproved = clarityMeasured.filter(
@@ -345,7 +345,9 @@ export async function getDemandIntelligence(
   // that most often accompanied them.
   const lostStates = new Set(["deferred", "rejected", "researching"]);
   const lostConversationIds = new Set(
-    rows.filter((r) => r.decision_state && lostStates.has(r.decision_state)).map((r) => r.conversation_id),
+    rows
+      .filter((r) => r.decision_state && lostStates.has(r.decision_state))
+      .map((r) => r.conversation_id),
   );
   const lostObjections = byField("objections")
     .filter((v) => lostConversationIds.has(v.conversation_id))
@@ -428,9 +430,7 @@ export async function getDemandIntelligence(
 
   // (2) The order decision filters surface, from the timestamps already carried
   // by each fact's evidence.
-  const groupIds = fv
-    .map((v) => v.evidence_group_id)
-    .filter((id): id is string => id !== null);
+  const groupIds = fv.map((v) => v.evidence_group_id).filter((id): id is string => id !== null);
   const firstMsByGroup = new Map<string, number>();
   if (groupIds.length > 0) {
     const { data: refs } = await supabase
@@ -554,9 +554,7 @@ export async function getDemandIntelligence(
     budget: { median: median(budgets), currency: budgetCurrency, count: budgets.length },
     urgency: tally(byField("purchase_timing").map((v) => clusterTiming(v.value_text))),
 
-    clarityStart: tally(
-      clarityMeasured.map((r) => CLARITY_LABEL[r.clarity_start ?? 0] ?? null),
-    ),
+    clarityStart: tally(clarityMeasured.map((r) => CLARITY_LABEL[r.clarity_start ?? 0] ?? null)),
     clarityEnd: tally(clarityMeasured.map((r) => CLARITY_LABEL[r.clarity_end ?? 0] ?? null)),
 
     competitors: tally(byField("competitor_named").map((v) => v.value_text)),
@@ -572,7 +570,9 @@ export async function getDemandIntelligence(
     objectionClusters: tally(byField("objections").map((v) => clusterObjection(v.value_text))),
     lostDemand: { count: lostConversationIds.size, topReason: lostReasonRanked[0]?.key ?? null },
     redFlagRate: rows.filter((r) => (r.red_flag_count ?? 0) > 0).length / rows.length,
-    redFlagCategories: tally(byField("red_flags").map((v) => v.label?.replaceAll("_", " ") ?? null)),
+    redFlagCategories: tally(
+      byField("red_flags").map((v) => v.label?.replaceAll("_", " ") ?? null),
+    ),
 
     objectionCoverage: mean(coverages),
     alternativeOfferRate:

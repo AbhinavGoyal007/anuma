@@ -121,9 +121,7 @@ function Funnel({ leakage }: { leakage: DemandLeakage }) {
               <div className="funnel-row">
                 <span className="funnel-label">
                   {stage.label}
-                  {stage.basis === "claimed" ? (
-                    <span className="funnel-tag">claimed</span>
-                  ) : null}
+                  {stage.basis === "claimed" ? <span className="funnel-tag">claimed</span> : null}
                   {!stage.measured ? (
                     <span className="funnel-tag funnel-tag--none">not measured</span>
                   ) : null}
@@ -223,13 +221,7 @@ function DecisionOrder({ filters }: { filters: DecisionFilter[] }) {
  * underneath rather than left out, because a reader has no way of telling a
  * category that is genuinely quiet from one whose interactions never arrived.
  */
-function Behaviour({
-  mixes,
-  coverage,
-}: {
-  mixes: BehaviourMix[];
-  coverage: CategoryCoverage;
-}) {
+function Behaviour({ mixes, coverage }: { mixes: BehaviourMix[]; coverage: CategoryCoverage }) {
   if (mixes.length === 0) {
     return (
       <>
@@ -241,33 +233,33 @@ function Behaviour({
   return (
     <>
       <ul className="behaviour-list">
-      {mixes.map((mix) => (
-        <li key={mix.category} className={mix.mismatch ? "behaviour--mismatch" : undefined}>
-          <div className="behaviour-head">
-            <span className="behaviour-category">{mix.category}</span>
-            {mix.intendedRole ? (
-              <span className="behaviour-role">managed as {mix.intendedRole}</span>
-            ) : (
-              <span className="behaviour-role behaviour-role--unset">no role set</span>
-            )}
-            <span className="behaviour-observed">{mix.observed} observed</span>
-          </div>
-          <div className="behaviour-bars">
-            {mix.counts.map((entry) => (
-              <span key={entry.behaviour} className="behaviour-chip">
-                {entry.behaviour} <strong>{entry.count}</strong>
-              </span>
-            ))}
-          </div>
-          {mix.mismatch && mix.dominant ? (
-            <p className="behaviour-flag">
-              Customers here mostly behave as a <strong>{mix.dominant}</strong> purchase, which is
-              not what a <strong>{mix.intendedRole}</strong> category assumes — worth investigating
-              how it is ranged and priced.
-            </p>
-          ) : null}
-        </li>
-      ))}
+        {mixes.map((mix) => (
+          <li key={mix.category} className={mix.mismatch ? "behaviour--mismatch" : undefined}>
+            <div className="behaviour-head">
+              <span className="behaviour-category">{mix.category}</span>
+              {mix.intendedRole ? (
+                <span className="behaviour-role">managed as {mix.intendedRole}</span>
+              ) : (
+                <span className="behaviour-role behaviour-role--unset">no role set</span>
+              )}
+              <span className="behaviour-observed">{mix.observed} observed</span>
+            </div>
+            <div className="behaviour-bars">
+              {mix.counts.map((entry) => (
+                <span key={entry.behaviour} className="behaviour-chip">
+                  {entry.behaviour} <strong>{entry.count}</strong>
+                </span>
+              ))}
+            </div>
+            {mix.mismatch && mix.dominant ? (
+              <p className="behaviour-flag">
+                Customers here mostly behave as a <strong>{mix.dominant}</strong> purchase, which is
+                not what a <strong>{mix.intendedRole}</strong> category assumes — worth
+                investigating how it is ranged and priced.
+              </p>
+            ) : null}
+          </li>
+        ))}
       </ul>
       <Coverage coverage={coverage} />
     </>
@@ -288,7 +280,9 @@ function Coverage({ coverage }: { coverage: CategoryCoverage }) {
   return (
     <p className="demand-coverage" role="note">
       {resolved} of {total} interactions are grouped above.
-      {outsideRange > 0 ? ` ${outsideRange} named something outside the categories ANUMA covers.` : ""}
+      {outsideRange > 0
+        ? ` ${outsideRange} named something outside the categories ANUMA covers.`
+        : ""}
       {unresolved > 0 ? (
         <>
           {" "}
@@ -359,11 +353,7 @@ export function DemandIntelligenceView({ data }: { data: DemandIntelligence }) {
 
       <Section label="Demand" title="What customers want">
         <Panel title="What keeps coming up">
-          <Bars
-            items={data.themes}
-            total={n}
-            empty="No recurring themes yet."
-          />
+          <Bars items={data.themes} total={n} empty="No recurring themes yet." />
         </Panel>
         <Panel title="What customers keep asking">
           <Dimensions items={data.questionTopics} />
@@ -387,10 +377,18 @@ export function DemandIntelligenceView({ data }: { data: DemandIntelligence }) {
 
       <Section label="Understanding" title="Did we understand them?">
         <Panel title="Clarity on arrival">
-          <Bars items={data.clarityStart} total={data.clarityImproved.measured} empty="Not measured yet." />
+          <Bars
+            items={data.clarityStart}
+            total={data.clarityImproved.measured}
+            empty="Not measured yet."
+          />
         </Panel>
         <Panel title="Clarity at close">
-          <Bars items={data.clarityEnd} total={data.clarityImproved.measured} empty="Not measured yet." />
+          <Bars
+            items={data.clarityEnd}
+            total={data.clarityImproved.measured}
+            empty="Not measured yet."
+          />
         </Panel>
         <Panel title="Discovery work">
           <p className="demand-highlight">
@@ -416,7 +414,11 @@ export function DemandIntelligenceView({ data }: { data: DemandIntelligence }) {
           <Bars items={data.competitors} total={n} empty="No competitor named yet." />
         </Panel>
         <Panel title="Their products">
-          <Bars items={data.competitorProducts} total={n} empty="No competitor product cited yet." />
+          <Bars
+            items={data.competitorProducts}
+            total={n}
+            empty="No competitor product cited yet."
+          />
         </Panel>
         <Panel title="Shadow prices · customer-claimed">
           <Shadow items={data.shadowPrices} />
