@@ -387,6 +387,7 @@ export type Database = {
           item_count: number
           organization_id: string
           proposed_key: string | null
+          proposed_margin: number | null
           proposed_score: number | null
           status: string
           subgroup_name: string
@@ -401,6 +402,7 @@ export type Database = {
           item_count?: number
           organization_id: string
           proposed_key?: string | null
+          proposed_margin?: number | null
           proposed_score?: number | null
           status?: string
           subgroup_name: string
@@ -415,6 +417,7 @@ export type Database = {
           item_count?: number
           organization_id?: string
           proposed_key?: string | null
+          proposed_margin?: number | null
           proposed_score?: number | null
           status?: string
           subgroup_name?: string
@@ -2496,6 +2499,7 @@ export type Database = {
           organization_id: string
           phrase: string
           proposed_key: string | null
+          proposed_margin: number | null
           proposed_score: number | null
           status: string
           updated_at: string
@@ -2509,6 +2513,7 @@ export type Database = {
           organization_id: string
           phrase: string
           proposed_key?: string | null
+          proposed_margin?: number | null
           proposed_score?: number | null
           status?: string
           updated_at?: string
@@ -2522,6 +2527,7 @@ export type Database = {
           organization_id?: string
           phrase?: string
           proposed_key?: string | null
+          proposed_margin?: number | null
           proposed_score?: number | null
           status?: string
           updated_at?: string
@@ -2875,6 +2881,22 @@ export type Database = {
           item_count: number
           subgroup_name: string
         }[]
+      }
+      confirm_clear_category_mappings: {
+        Args: {
+          p_membership_id: string
+          p_min_margin: number
+          p_organization_id: string
+        }
+        Returns: number
+      }
+      confirm_clear_spoken_mappings: {
+        Args: {
+          p_membership_id: string
+          p_min_margin: number
+          p_organization_id: string
+        }
+        Returns: number
       }
       create_automatic_speaker_mapping: {
         Args: {

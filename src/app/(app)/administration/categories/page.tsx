@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import {
+  confirmClearProposals,
   confirmLabelMapping,
   confirmPhraseMapping,
   refreshCategoryProposals,
@@ -9,6 +10,7 @@ import {
 import { PageHeader } from "@/components/ui/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { getApplicationContext } from "@/modules/identity/application-context";
+import { proposalConfidence } from "@/modules/catalogue/confidence";
 import {
   getCategoryMappingWorkspace,
   MAPPING_PAGE_SIZE,
@@ -35,8 +37,50 @@ import {
  */
 
 type PageProps = {
-  searchParams: Promise<{ error?: string; saved?: string; proposed?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    saved?: string;
+    proposed?: string;
+    confirmed?: string;
+  }>;
 };
+
+/**
+ * Settling every proposal that was never in doubt.
+ *
+ * Offered per queue rather than as one button, because the two queues fail in
+ * different ways and a reader should be told how many rows they are about to
+ * accept and how many they will still have to read.
+ */
+function BulkConfirm({
+  queue,
+  clearTotal,
+  pendingTotal,
+  noun,
+}: {
+  queue: "labels" | "phrases";
+  clearTotal: number;
+  pendingTotal: number;
+  noun: string;
+}) {
+  if (clearTotal === 0) return null;
+  const remaining = pendingTotal - clearTotal;
+  return (
+    <form action={confirmClearProposals} className="mapping-bulk">
+      <input name="queue" type="hidden" value={queue} />
+      <p className="section-copy">
+        {clearTotal} of these {pendingTotal} {noun} have one obvious category, well clear of the
+        runner-up.
+        {remaining > 0
+          ? ` Confirming them leaves ${remaining} where the suggestion is genuinely close to another and is worth your eye.`
+          : ""}
+      </p>
+      <button className="button button-primary" type="submit">
+        Confirm {clearTotal} clear-cut
+      </button>
+    </form>
+  );
+}
 
 const STATUS_LABEL: Record<MappingStatus, string> = {
   proposed: "Waiting",
@@ -89,7 +133,8 @@ function MappingRow({
   context,
   status,
   selected,
-  score,
+  proposedKey,
+  margin,
   categories,
   canEdit,
 }: {
@@ -99,19 +144,21 @@ function MappingRow({
   context: string;
   status: MappingStatus;
   selected: string | null;
-  score: number | null;
+  proposedKey: string | null;
+  margin: number | null;
   categories: CategoryOption[];
   canEdit: boolean;
 }) {
   const contextId = `mapping-context-${id}`;
+  const confidence = proposalConfidence(proposedKey, margin);
   return (
     <li className={`mapping-row mapping-row--${status}`}>
       <div className="mapping-identity">
         <strong className="mapping-title">{title}</strong>
         <small className="mapping-context" id={contextId}>
           {context}
-          {status === "proposed" && score !== null ? (
-            <span className="mapping-score"> · suggested {Math.round(score * 100)}%</span>
+          {status === "proposed" && confidence === "ambiguous" ? (
+            <span className="mapping-flag"> · needs your eye</span>
           ) : null}
         </small>
       </div>
@@ -185,6 +232,11 @@ export default async function CategoryMappingPage({ searchParams }: PageProps) {
           {message.proposed === "0"
             ? "Nothing new to map — every label already has a decision."
             : `${message.proposed} label(s) queued for confirmation.`}
+        </p>
+      ) : null}
+      {message.confirmed ? (
+        <p className="auth-message" role="status">
+          {message.confirmed} mapping(s) confirmed. What is left is what needed a person.
         </p>
       ) : null}
 
@@ -262,6 +314,14 @@ export default async function CategoryMappingPage({ searchParams }: PageProps) {
                   ? ` Showing the top ${MAPPING_PAGE_SIZE}.`
                   : ""}
               </p>
+              {isAdmin ? (
+                <BulkConfirm
+                  clearTotal={labels.clearTotal}
+                  noun="labels"
+                  pendingTotal={labels.pendingTotal}
+                  queue="labels"
+                />
+              ) : null}
               <ul className="mapping-list">
                 {labels.pending.map((row: LabelMapping) => (
                   <MappingRow
@@ -271,7 +331,9 @@ export default async function CategoryMappingPage({ searchParams }: PageProps) {
                     context={`${row.itemCount.toLocaleString()} items`}
                     id={row.id}
                     key={row.id}
-                    score={row.proposedScore}
+                    margin={row.proposedMargin}
+
+                    proposedKey={row.proposedKey}
                     selected={row.anumaCategoryKey ?? row.proposedKey}
                     status={row.status}
                     title={[row.groupName, row.subgroupName].filter(Boolean).join(" › ")}
@@ -293,7 +355,9 @@ export default async function CategoryMappingPage({ searchParams }: PageProps) {
                     context={`${row.itemCount.toLocaleString()} items · ${STATUS_LABEL[row.status]}`}
                     id={row.id}
                     key={row.id}
-                    score={row.proposedScore}
+                    margin={row.proposedMargin}
+
+                    proposedKey={row.proposedKey}
                     selected={row.anumaCategoryKey}
                     status={row.status}
                     title={[row.groupName, row.subgroupName].filter(Boolean).join(" › ")}
@@ -328,22 +392,34 @@ export default async function CategoryMappingPage({ searchParams }: PageProps) {
           </p>
 
           {phrases.pendingTotal > 0 ? (
-            <ul className="mapping-list">
-              {phrases.pending.map((row: PhraseMapping) => (
-                <MappingRow
-                  action={confirmPhraseMapping}
-                  canEdit={isAdmin}
-                  categories={categories}
-                  context={`${row.occurrenceCount} interaction${row.occurrenceCount === 1 ? "" : "s"}`}
-                  id={row.id}
-                  key={row.id}
-                  score={row.proposedScore}
-                  selected={row.anumaCategoryKey}
-                  status={row.status}
-                  title={row.phrase}
+            <>
+              {isAdmin ? (
+                <BulkConfirm
+                  clearTotal={phrases.clearTotal}
+                  noun="phrasings"
+                  pendingTotal={phrases.pendingTotal}
+                  queue="phrases"
                 />
-              ))}
-            </ul>
+              ) : null}
+              <ul className="mapping-list">
+                {phrases.pending.map((row: PhraseMapping) => (
+                  <MappingRow
+                    action={confirmPhraseMapping}
+                    canEdit={isAdmin}
+                    categories={categories}
+                    context={`${row.occurrenceCount} interaction${row.occurrenceCount === 1 ? "" : "s"}`}
+                    id={row.id}
+                    key={row.id}
+                    margin={row.proposedMargin}
+
+                    proposedKey={row.proposedKey}
+                    selected={row.anumaCategoryKey}
+                    status={row.status}
+                    title={row.phrase}
+                  />
+                ))}
+              </ul>
+            </>
           ) : (
             <p className="section-copy">Every phrasing heard so far has a decision.</p>
           )}
@@ -360,7 +436,9 @@ export default async function CategoryMappingPage({ searchParams }: PageProps) {
                     context={`${row.occurrenceCount} interaction${row.occurrenceCount === 1 ? "" : "s"} · ${STATUS_LABEL[row.status]}`}
                     id={row.id}
                     key={row.id}
-                    score={row.proposedScore}
+                    margin={row.proposedMargin}
+
+                    proposedKey={row.proposedKey}
                     selected={row.anumaCategoryKey}
                     status={row.status}
                     title={row.phrase}

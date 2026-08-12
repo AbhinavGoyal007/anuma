@@ -4,6 +4,7 @@ import OpenAI from "openai";
 
 import { getOpenAIEnvironment } from "@/lib/env";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { labelPath, labelSentence } from "@/modules/catalogue/labels";
 import { rankBySimilarity } from "@/modules/catalogue/similarity";
 
 /**
@@ -39,9 +40,28 @@ async function embed(texts: readonly string[]): Promise<number[][]> {
   return vectors;
 }
 
-/** The label as the model sees it: the path, because the parent disambiguates. */
-export function labelPath(groupName: string, subgroupName: string): string {
-  return [groupName, subgroupName].filter((part) => part.trim().length > 0).join(" > ");
+/**
+ * The best category for a label, and how clearly it won.
+ *
+ * The margin matters more than the score. "Mobile Cases" scored 0.499 against
+ * the wrong category while "Copilot+ PC" scored 0.420 against the right one —
+ * but the first was 0.076 clear of its runner-up and the second 0.196. A label
+ * whose top two categories are neck and neck is one the model cannot call, and
+ * saying so is what lets the rest be confirmed in bulk safely.
+ */
+function bestCategory(
+  vector: readonly number[],
+  options: readonly { item: string; vector: readonly number[] }[],
+): { key: string | null; score: number | null; margin: number | null } {
+  const ranked = rankBySimilarity(vector, options, 2);
+  const best = ranked[0];
+  if (!best) return { key: null, score: null, margin: null };
+  const runnerUp = ranked[1];
+  return {
+    key: best.item,
+    score: Number(best.score.toFixed(3)),
+    margin: runnerUp ? Number((best.score - runnerUp.score).toFixed(3)) : null,
+  };
 }
 
 /**
@@ -100,19 +120,20 @@ export async function proposeCategoryMappings(organizationId: string): Promise<P
 
   const options = await ontologyOptions(db);
   const labelVectors = await embed(
-    pending.map((row) => labelPath(row.group_name, row.subgroup_name)),
+    pending.map((row) => labelSentence(row.group_name, row.subgroup_name)),
   );
 
   const rows = pending.map((row, index) => {
-    const best = rankBySimilarity(labelVectors[index]!, options, 1)[0];
+    const best = bestCategory(labelVectors[index]!, options);
     return {
       organization_id: organizationId,
       group_name: row.group_name,
       subgroup_name: row.subgroup_name,
       status: "proposed" as const,
-      proposed_key: best?.item ?? null,
-      proposed_score: best ? Number(best.score.toFixed(3)) : null,
-      anuma_category_key: best?.item ?? null,
+      proposed_key: best.key,
+      proposed_score: best.score,
+      proposed_margin: best.margin,
+      anuma_category_key: best.key,
       item_count: Number(row.item_count),
     };
   });
@@ -161,14 +182,15 @@ export async function proposeSpokenCategoryMappings(
   const phraseVectors = await embed(pending.map((row) => row.phrase));
 
   const rows = pending.map((row, index) => {
-    const best = rankBySimilarity(phraseVectors[index]!, options, 1)[0];
+    const best = bestCategory(phraseVectors[index]!, options);
     return {
       organization_id: organizationId,
       phrase: row.phrase,
       status: "proposed" as const,
-      proposed_key: best?.item ?? null,
-      proposed_score: best ? Number(best.score.toFixed(3)) : null,
-      anuma_category_key: best?.item ?? null,
+      proposed_key: best.key,
+      proposed_score: best.score,
+      proposed_margin: best.margin,
+      anuma_category_key: best.key,
       occurrence_count: Number(row.occurrence_count),
     };
   });

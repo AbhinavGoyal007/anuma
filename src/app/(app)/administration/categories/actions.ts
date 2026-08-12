@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { getApplicationContext } from "@/modules/identity/application-context";
+import { CLEAR_MARGIN } from "@/modules/catalogue/confidence";
 import {
   proposeCategoryMappings,
   proposeSpokenCategoryMappings,
@@ -117,6 +118,37 @@ export async function confirmPhraseMapping(formData: FormData) {
 
   revalidate();
   redirect(`${PAGE}?saved=phrase`);
+}
+
+/**
+ * Confirms every waiting proposal the model was not in two minds about.
+ *
+ * Only rows whose best category beat the runner-up by a clear margin are
+ * included; the rest stay in the queue for a person, which is where the two
+ * accessory labels that this catalogue gets wrong end up. The alternative —
+ * three hundred and seventy-two individual Accepts — is not review, because
+ * nobody reads to the end of it.
+ */
+export async function confirmClearProposals(formData: FormData) {
+  const current = await requireAdmin();
+  const queue = formData.get("queue");
+  if (queue !== "labels" && queue !== "phrases") {
+    redirect(`${PAGE}?error=That+queue+is+not+recognised.`);
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc(
+    queue === "labels" ? "confirm_clear_category_mappings" : "confirm_clear_spoken_mappings",
+    {
+      p_organization_id: current.organization.id,
+      p_min_margin: CLEAR_MARGIN,
+      p_membership_id: current.membership.id,
+    },
+  );
+  if (error) redirect(`${PAGE}?error=Those+mappings+could+not+be+confirmed.`);
+
+  revalidate();
+  redirect(`${PAGE}?confirmed=${data ?? 0}`);
 }
 
 /**

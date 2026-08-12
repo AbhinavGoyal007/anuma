@@ -17,11 +17,7 @@
  * rows at once, rather than a person correcting them one by one.
  */
 
-export type SpecIssue =
-  | "truncated"
-  | "no_spec_section"
-  | "implausible_ram"
-  | "nothing_parsed";
+export type SpecIssue = "truncated" | "no_spec_section" | "implausible_ram" | "nothing_parsed";
 
 export type ParsedSpec = {
   cpu: string | null;
@@ -38,8 +34,10 @@ export type ParsedSpec = {
 /** Memory sizes laptops are actually sold with. Anything else is a misread. */
 const PLAUSIBLE_RAM = new Set([2, 3, 4, 6, 8, 12, 16, 18, 24, 32, 36, 48, 64, 96, 128]);
 
-const CPU = /\b(i[3579]|R[3579]|M[1234]|Ryzen\s*[3579]|Ultra\s*[3579]|Celeron|Pentium|Athlon|Snapdragon)[\w-]*/i;
-const CPU_FAMILY = /\b(i[3579]|R[3579]|M[1234]|Ryzen\s*[3579]|Ultra\s*[3579]|Celeron|Pentium|Athlon|Snapdragon)/i;
+const CPU =
+  /\b(i[3579]|R[3579]|M[1234]|Ryzen\s*[3579]|Ultra\s*[3579]|Celeron|Pentium|Athlon|Snapdragon)[\w-]*/i;
+const CPU_FAMILY =
+  /\b(i[3579]|R[3579]|M[1234]|Ryzen\s*[3579]|Ultra\s*[3579]|Celeron|Pentium|Athlon|Snapdragon)/i;
 
 /** A screen size, in the range laptops are actually made in. */
 function isScreen(value: number, token: string): boolean {
