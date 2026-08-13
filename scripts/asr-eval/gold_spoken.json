@@ -1,0 +1,238 @@
+{
+ "Script 1": {
+  "money": [
+   "80000",
+   "85000"
+  ],
+  "product": [
+   "LOQ"
+  ],
+  "brand": [
+   "Lenovo"
+  ],
+  "graphics": [
+   "RTX 4060"
+  ],
+  "memory": [
+   "16 GB"
+  ],
+  "storage": [
+   "1 TB"
+  ]
+ },
+ "Script 2": {
+  "money": [
+   "65000",
+   "70000",
+   "75000"
+  ],
+  "memory": [
+   "16 GB"
+  ],
+  "product": [
+   "IdeaPad",
+   "Swift"
+  ],
+  "brand": [
+   "Lenovo",
+   "Acer"
+  ]
+ },
+ "Script 3": {
+  "money": [
+   "65000",
+   "70000"
+  ],
+  "product": [
+   "MacBook",
+   "IdeaPad",
+   "Swift"
+  ],
+  "memory": [
+   "16 GB"
+  ],
+  "brand": [
+   "Lenovo",
+   "Acer"
+  ]
+ },
+ "Script 4": {
+  "money": [
+   "75000"
+  ],
+  "brand": [
+   "Hp",
+   "Lenovo"
+  ],
+  "graphics": [
+   "RTX 4050"
+  ],
+  "memory": [
+   "16 GB"
+  ],
+  "product": [
+   "LOQ",
+   "Victus"
+  ]
+ },
+ "Script 5": {
+  "money": [
+   "90000",
+   "95000"
+  ],
+  "memory": [
+   "16 GB",
+   "32 GB"
+  ],
+  "cpu": [
+   "i9"
+  ],
+  "product": [
+   "Swift"
+  ],
+  "brand": [
+   "Acer"
+  ]
+ },
+ "Script 6": {
+  "money": [
+   "55000"
+  ],
+  "memory": [
+   "16 GB"
+  ],
+  "storage": [
+   "512 GB"
+  ],
+  "product": [
+   "IdeaPad",
+   "Swift"
+  ],
+  "brand": [
+   "Lenovo"
+  ]
+ },
+ "Script 7": {
+  "money": [
+   "100000"
+  ],
+  "memory": [
+   "32 GB"
+  ],
+  "storage": [
+   "1 TB"
+  ],
+  "product": [
+   "Swift",
+   "MacBook",
+   "Air"
+  ],
+  "brand": [
+   "Lenovo",
+   "Acer"
+  ]
+ },
+ "Script 8": {
+  "money": [
+   "70000"
+  ],
+  "product": [
+   "Vivobook"
+  ],
+  "brand": [
+   "Lenovo",
+   "Asus"
+  ]
+ },
+ "Script 9": {
+  "money": [
+   "60000",
+   "65000"
+  ],
+  "graphics": [
+   "RTX 4060"
+  ]
+ },
+ "Script 10": {
+  "money": [
+   "80000",
+   "85000"
+  ],
+  "product": [
+   "LOQ",
+   "TUF"
+  ],
+  "memory": [
+   "16 GB"
+  ],
+  "storage": [
+   "1 TB"
+  ],
+  "graphics": [
+   "RTX 4050",
+   "RTX 4060"
+  ]
+ },
+ "Script 11": {
+  "money": [
+   "100000",
+   "110000"
+  ],
+  "brand": [
+   "Apple",
+   "Hp"
+  ],
+  "memory": [
+   "16 GB"
+  ],
+  "product": [
+   "MacBook",
+   "Air"
+  ]
+ },
+ "Script 12": {
+  "brand": [
+   "Hp",
+   "Asus"
+  ],
+  "product": [
+   "Vivobook",
+   "Pavilion",
+   "Envy"
+  ]
+ },
+ "Script 13": {
+  "money": [
+   "100000",
+   "110000"
+  ],
+  "product": [
+   "Zenbook"
+  ],
+  "brand": [
+   "Asus"
+  ],
+  "storage": [
+   "1 TB"
+  ],
+  "memory": [
+   "32 GB",
+   "16 GB"
+  ]
+ },
+ "Script 14": {
+  "money": [
+   "75000",
+   "85000",
+   "90000"
+  ],
+  "brand": [
+   "Dell",
+   "Acer"
+  ],
+  "product": [
+   "Swift",
+   "Inspiron"
+  ]
+ }
+}
