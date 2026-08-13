@@ -21,6 +21,15 @@ const SOURCE_ROOT = resolvePath(import.meta.dirname, "..", "src");
 const CANDIDATES = ["", ".ts", ".tsx", "/index.ts", "/index.tsx"];
 
 export async function resolve(specifier, context, nextResolve) {
+  // Next's request-scoped modules do not exist outside Next. Stubbed rather
+  // than shimmed: the stub throws, so a script that actually depends on a
+  // request fails immediately instead of quietly behaving as an empty session.
+  if (specifier === "next/headers") {
+    return nextResolve(
+      pathToFileURL(resolvePath(import.meta.dirname, "next-headers-stub.mjs")).href,
+      context,
+    );
+  }
   if (specifier.startsWith("@/")) {
     const base = resolvePath(SOURCE_ROOT, specifier.slice(2));
     for (const suffix of CANDIDATES) {

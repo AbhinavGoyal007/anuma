@@ -74,9 +74,13 @@ try {
         : (row.value_text ?? "");
     const script = byScript.get(row.title) ?? new Map();
     const field = script.get(row.field_key) ?? new Map();
-    // A field can hold several values; they are joined so the comparison sees
-    // the whole answer rather than whichever row happened to sort first.
-    field.set(row.provider, [field.get(row.provider), value].filter(Boolean).join(" | "));
+    // A field can hold several values. They are collected and sorted before
+    // comparison, because the order rows come back in is not part of the
+    // answer — "RTX 4060, 1 TB, 16 GB" and "1 TB, 16 GB, RTX 4060" are the same
+    // requirement, and treating them as a disagreement measures the database's
+    // row order rather than the extraction.
+    const existing = field.get(row.provider);
+    field.set(row.provider, existing ? `${existing}\u0000${value}` : value);
     script.set(row.field_key, field);
     byScript.set(row.title, script);
   }
@@ -92,8 +96,15 @@ try {
     const lines: string[] = [];
     for (const [key, byProvider] of [...fields].sort()) {
       if (byProvider.size < 2) continue;
-      const [a, b] = providers.map((p) => byProvider.get(p) ?? "—");
-      const same = (a ?? "").trim().toLowerCase() === (b ?? "").trim().toLowerCase();
+      const canonical = (raw: string | undefined) =>
+        (raw ?? "")
+          .split("\u0000")
+          .map((v) => v.trim().toLowerCase())
+          .filter(Boolean)
+          .sort()
+          .join(" | ");
+      const [a, b] = providers.map((p) => canonical(byProvider.get(p)));
+      const same = a === b;
       if (same) {
         agree += 1;
       } else {

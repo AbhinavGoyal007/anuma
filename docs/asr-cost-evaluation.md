@@ -66,14 +66,50 @@ it; given one turn it guesses.
 Merging turns more aggressively to lengthen them was tested and recovered one
 entity — 82% to 83%. Length is not the problem; isolation is.
 
-**The fix is to stop transcribing turns.** Transcribe the whole recording once,
-for the text, and use diarization only to decide who said which part — the
-approach WhisperX takes. Attaching speakers to whole-file text needs word-level
-timings, which a cheap Whisper pass provides at fifty times realtime. That is a
-real piece of work and it has not been built.
+**The fix was to stop transcribing turns**, and it has been built. The recording
+is transcribed once for the words, and diarization is used only to decide who
+said which part:
 
-**Until it is, Sarvam remains the better choice**, and the cost argument is on
-hold rather than won.
+    Voxtral, whole file        the words, with the conversation as context
+    Whisper turbo, word times  when each word was said
+    pyannote                   who was speaking at each moment
+    alignment                  the words carry the timings, the timings carry
+                               the speakers
+
+That recovers everything the per-turn design lost:
+
+| pipeline | overall | English | Hinglish | Hindi | Hindi-Roman |
+|---|---|---|---|---|---|
+| **Voxtral, aligned (production)** | **81/84 · 96%** | 97% | 95% | 100% | 100% |
+| Sarvam saaras:v3 | 80/84 · 95% | 100% | 95% | 100% | 71% |
+| Voxtral, per turn (abandoned) | 69/84 · 82% | 90% | 77% | 89% | 71% |
+
+Where the two transcripts cannot be aligned — Voxtral answering a Hindi
+recording in Devanagari while the timing pass romanises it, so nothing looks
+alike — the match rate collapses and word-level attribution would be fiction.
+The pipeline detects that and falls back to distributing the text across turns
+in proportion to their length. Crude, but the speaker changes land in roughly
+the right places, which is what the extraction depends on. Two of thirteen
+scripts took that path.
+
+## Tested end to end, through the product
+
+Transcripts alone are a proxy. These were pushed through the application itself —
+stored as real transcription runs, mapped to speakers by the product's own step,
+and extracted into Commercial Interaction Records by the same code a live
+recording uses.
+
+**Every field came out the same as Sarvam: 146 of 146, across four scripts.**
+
+Budgets match the test pack exactly — ₹80,000, ₹65,000, ₹75,000, ₹90,000 — as do
+the categories, decision states, product counts and objection counts. 243
+evidence citations resolve to Voxtral segments, so the path from a dashboard
+figure back to the moment in the audio is intact.
+
+The comparison initially reported thirteen differences. All thirteen were the
+order multi-value fields came back from the database — "RTX 4060, 1 TB, 16 GB"
+against "1 TB, 16 GB, RTX 4060" — which is not part of the answer. Compared as
+sets, the records are identical.
 
 ## The finding
 
@@ -101,9 +137,15 @@ rather than romanise it, so the transcript stops being what was said.
 
 ## Cost
 
-Voxtral-Mini-3B measured **12.9× realtime unbatched** on an RTX A4500. 200 audio
-hours is 15.6 GPU-hours, about $5.30 at community-cloud rates — **≈ ₹470 per
-employee per month against ₹9,100**.
+The production pipeline runs three models, and measures **10.0× realtime
+unbatched** on an A40. 200 audio hours is 20 GPU-hours, about $7.80 at
+community-cloud rates — **≈ ₹690 per employee per month against Sarvam's
+₹9,100, or thirteen times cheaper**.
+
+That is less dramatic than the ₹470 quoted when only transcription was measured,
+and it is the honest figure: it includes the timing pass and the diarization that
+make the output usable. Batching would improve it; speech gating at capture would
+improve it again on always-on audio.
 
 Voxtral-Small-24B was not tested: it needs roughly 48 GB and would cost an
 estimated ₹2,000–4,700 per month, four to ten times Mini for at most three
