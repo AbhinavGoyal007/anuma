@@ -202,6 +202,35 @@ function looksRight(expected: string, actual: string): boolean {
   return overlap(contentWords(expected), contentWords(actual)) >= 0.25;
 }
 
+/**
+ * Concepts the pack names as fields but the product stores as labelled entries.
+ *
+ * The pack has a row called "Portability requirement". The product has no such
+ * field and never will: portability is one dimension a laptop buyer cares
+ * about, alongside battery, weight and screen, and a schema with a column per
+ * dimension stops working the moment the vertical changes. So
+ * `additional_requirements` holds `portability = carried to college daily` and
+ * the dimension lives in the label.
+ *
+ * Looking for a `portability_requirement` field therefore finds nothing and
+ * reports a captured requirement as a lost one. These patterns say which labels
+ * answer which row of the pack.
+ */
+const LABELLED_CONCEPTS: Record<string, RegExp> = {
+  portability_requirement: /portab|weight|light|carry/i,
+  battery_requirement: /batter|backup/i,
+  display_requirement: /display|screen|panel/i,
+  performance_requirement: /performance|speed|processor/i,
+};
+
+/** The fields that carry labelled dimension entries, in search order. */
+const LABELLED_FIELDS = [
+  "additional_requirements",
+  "specification_requirements",
+  "other_constraints",
+  "decision_drivers",
+];
+
 const ALIASES: Record<string, string> = {
   decision_state: "final_decision_state",
   clarity_start: "requirement_clarity_start",
@@ -232,6 +261,7 @@ try {
     {
       title: string;
       field_key: string;
+      label: string | null;
       value_text: string | null;
       value_amount_minor: string | null;
       abstention: string | null;
@@ -246,9 +276,26 @@ try {
         and c.title like 'Script%' and tr.provider = ${values.provider!}
       order by c.title, r.created_at desc
     )
-    select newest.title, v.field_key, v.value_text, v.value_amount_minor, v.abstention
+    select newest.title, v.field_key, v.label, v.value_text, v.value_amount_minor, v.abstention
     from newest join interaction_field_values v on v.interaction_record_id = newest.record_id
   `;
+
+  /** Every labelled entry per script, so a pack concept can be looked up by label. */
+  const labelled = new Map<string, { field: string; label: string; value: string }[]>();
+  for (const row of rows) {
+    if (row.abstention || !row.value_text) continue;
+    if (!LABELLED_FIELDS.includes(row.field_key)) continue;
+    const list = labelled.get(row.title) ?? [];
+    list.push({
+      field: row.field_key,
+      // An unlabelled entry in a labelled field still describes its dimension in
+      // the value itself — "Portability and battery life for weekly travel" —
+      // so the value is searched when there is no label to search.
+      label: row.label ?? row.value_text,
+      value: row.value_text,
+    });
+    labelled.set(row.title, list);
+  }
 
   const extracted = new Map<string, Map<string, string>>();
   for (const row of rows) {
@@ -294,8 +341,28 @@ try {
     };
     for (const [key, expected] of Object.entries(gold[script]!)) {
       const stored = ALIASES[key] ?? key;
-      const actual = (fields.get(stored) ?? fields.get(key) ?? "").trim();
-      const present = statedInDialogue(stored, expected, dialogue);
+      let actual = (fields.get(stored) ?? fields.get(key) ?? "").trim();
+
+      // A concept with no field of its own is answered by the labelled entries.
+      const concept = LABELLED_CONCEPTS[stored];
+      if (!actual && concept) {
+        actual = (labelled.get(script) ?? [])
+          .filter((entry) => concept.test(entry.label) || concept.test(entry.value))
+          .map((entry) => entry.value)
+          .join(" | ");
+      }
+      // The key itself saying "None" settles the question before the dialogue
+      // is consulted. `brand_preferences` is the case that matters: a
+      // salesperson naming Acer and Lenovo puts both brands in the dialogue,
+      // and searching for brand words then concludes a preference was stated
+      // when the key explicitly records that none was. The key is the authority
+      // on what the customer wanted; the dialogue only shows what was said.
+      const keyExpectsNothing = /^(none|none stated|not stated|n\/a|no|—|-)\b/i.test(
+        expected.trim(),
+      );
+      const present = keyExpectsNothing
+        ? false
+        : statedInDialogue(stored, expected, dialogue);
 
       let verdict: Verdict;
       if (INFERRED.has(stored)) {

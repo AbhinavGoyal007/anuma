@@ -216,7 +216,9 @@ For money, report exactly what was spoken and never do arithmetic. Put the bare 
 
 Set attributedTo on any value whose meaning depends on who said it, above all competitor_price_claim: a price a customer reports having seen elsewhere is that customer's claim, not a fact about the market.
 
-English, Romanized Hinglish and Hindi in Devanagari are equally valid inputs. Do not favour English tokens and drop needs, budgets, objections or commitments expressed in an Indian language. Normalise the meaning into English but always cite the original-language segment.
+English, Romanized Hinglish and Hindi in Devanagari are equally valid inputs. Do not favour English tokens and drop needs, budgets, objections or commitments expressed in an Indian language.
+
+Every value you write is in English, whatever language the conversation was in. A transcript entirely in Devanagari still produces an English record: write "playing games at night", not "रात में गेम खेलना". This is not a preference — the values are grouped, counted and compared across conversations, so a record in the language of its own transcript cannot be joined to anything and silently drops out of every dashboard. Product names, model numbers and specifications keep their usual form (RTX 4060, MacBook Air). The evidence you cite stays in the original language and is never translated.
 
 Fields:
 ${buildFieldGuide(fields)}`;

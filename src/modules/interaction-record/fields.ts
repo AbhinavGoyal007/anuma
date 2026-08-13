@@ -261,7 +261,7 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "money",
     requiresEvidence: true,
     extracted: true,
-    rule: "The highest figure the customer explicitly says they could stretch to. Only when a ceiling was actually stated; never infer it from the target.",
+    rule: "The highest figure the customer explicitly says they could stretch to. A ceiling counts however it is phrased: as a stretch (I could go to 1.10 lakh), as a prohibition (not above 60,000; 60 hazaar ke upar nahi jaana chahiye), or as a revision later in the conversation that raises an earlier figure (60 se zyada, maan lo 65 tak). Take the last ceiling the customer states, not the first. Only when a ceiling was actually stated; never infer one from the target, and never compute one from a discount, offer or EMI.",
   },
   {
     key: "purchase_timing",
@@ -270,7 +270,7 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "text",
     requiresEvidence: true,
     extracted: true,
-    rule: "When the customer intends to buy or take the next step, for example this week, day after tomorrow, or after Diwali.",
+    rule: "When the customer intends to buy or take the next step, for example this week, day after tomorrow, or after Diwali. A time the customer gives for returning to the store is a timing answer as well as an action, so record it here even when the return itself is captured as a next action; a clock time counts (tomorrow around 7:30). When the customer says the timing depends on something unresolved, record the condition rather than abstaining.",
   },
   {
     key: "brand_preferences",
