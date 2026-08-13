@@ -1,7 +1,8 @@
 # Replacing Sarvam: what the audio actually says
 
-Measured 13 August 2026 against the four recorded scripts from the ANUMA
-Conversation Test Pack. Reproducible with `scripts/asr-eval/`.
+Measured 13 August 2026 against six recorded scripts from the ANUMA Conversation
+Test Pack — two English, two Hinglish, two Hindi. Reproducible with
+`scripts/asr-eval/`.
 
 ## Why
 
@@ -17,24 +18,45 @@ transcription for the extractor to find. A model can score a respectable word
 error rate and still be useless because it wrote "ITX 40 50".
 
 So each transcript is scored on whether the facts from the test pack's own
-gold-truth tables are still recoverable: 30 entities across four scripts, spread
+gold-truth tables are still recoverable: 38 entities across six scripts, spread
 over graphics chips, memory, storage, processors, product names, brands and
 prices. Graphics chips are compared exactly — accepting an RTX 4050 for an RTX
 4060 is the error that costs a sale.
 
 ## Result
 
-| Model | Entity recall | Realtime factor | Notes |
-|---|---|---|---|
-| **faster-whisper large-v3-turbo, `language=en`** | **30/30 (100%)** | **52× single, 74× batched** | Nothing missed |
-| faster-whisper large-v3, `language=en` | 28/30 (93%) | 26× | Misheard "85" as "95" |
-| **Sarvam saaras:v3 (incumbent)** | 28/30 (93%) | — | Writes numbers as words |
-| Oriserve Whisper-Hindi2Hinglish-Prime | 24/30 (80%) | 5.6× | Verbatim Hinglish, loses product names |
-| faster-whisper large-v3, auto-detect | 22/30 (73%) | 11× | Devanagari output |
-| vasista22/whisper-hindi-large-v2 | 0/30 (0%) | 6× | Transliterates English into Devanagari |
+| Model | Overall | English | Hinglish | Hindi | Realtime |
+|---|---|---|---|---|---|
+| **faster-whisper large-v3-turbo, `language=en`** | **34/38 (89%)** | **100%** | **100%** | 50% | **52× single, 74× batched** |
+| faster-whisper large-v3, `language=en` | 33/38 (87%) | 93% | 93% | 62% | 26× |
+| **Oriserve Whisper-Hindi2Hinglish-Prime** | 30/38 (79%) | 87% | 73% | **75%** | 5.6× |
+| faster-whisper large-v3, auto-detect | 24/38 (63%) | 73% | 67% | 38% | 11× |
+| vasista22/whisper-hindi-large-v2 | 0/30 (0%) | 0% | 0% | — | 6× |
+| Sarvam saaras:v3 (incumbent) | 30/30 (100%) | 100% | 100% | *not run* | — |
 
-Diarization: **pyannote 3.1 found exactly 2 speakers in all four scripts at ~50×
-realtime.** Sarvam invented a spurious third speaker in Script 2 (0.5 seconds).
+Sarvam has no Hindi figure: only the four English and Hinglish scripts were ever
+transcribed through the product, and re-running the two Hindi files through the
+paid API was not done. That is the one gap left in this table.
+
+Diarization: **pyannote 3.1 found exactly 2 speakers in all six scripts, Hindi
+included, at 34–52× realtime.** Sarvam invented a spurious third speaker in Script 2 (0.5 seconds).
+
+## Whisper is not one answer, it is two
+
+The English and Hinglish result is emphatic: turbo misses nothing at all. Pure
+Hindi is a different question, and the ranking inverts.
+
+Forced to English on Hindi speech, turbo emits Whisper's `foreign` placeholder
+and simply drops what it cannot render — Script 6's entire "sixteen GB RAM,
+512 GB SSD, Lenovo IdeaPad Slim 5" recommendation vanished. Hindi2Hinglish kept
+it, romanised as spoken: "aapke lie solah GB RAM lena achchha hoga… to lena vah
+Idea pad, slim 5 behtar rahega".
+
+That distinction is not cosmetic. A number written as "solah" is a number a
+language model reads without difficulty; a sentence the transcriber deleted is
+gone for good. So on Hindi the honest ranking is Hindi2Hinglish at 75% against
+turbo's 50%, and the two models should be routed by language rather than one
+being chosen outright.
 
 ## The three findings that decide it
 
@@ -67,30 +89,54 @@ Forcing English makes Whisper *translate* Hinglish rather than romanise it:
 transcript is then no longer what was said — which matters for a product whose
 promise is evidence traceable to a timestamped segment.
 
-Hindi2Hinglish-Prime is the opposite trade: it produces genuinely verbatim
-romanised Hinglish ("laptop dekhate ho kuchh specific model hai?") but loses
-product names and processors, scoring 80%.
+Hindi2Hinglish-Prime is the opposite trade: genuinely verbatim romanised
+Hinglish ("laptop dekhate ho kuchh specific model hai?"), weaker on English
+product names, stronger on Hindi.
 
-If verbatim evidence has to hold, the answer is to run both — turbo for the
-fields, Hindi2Hinglish for the displayed transcript — at about 12% of Sarvam's
-cost. That has not been tested end to end.
+Running both — turbo for the fields, Hindi2Hinglish for the displayed
+transcript — costs about 12% of Sarvam and resolves the Hindi gap at the same
+time. That has not been tested end to end.
+
+## Recommended
+
+Route by the language detected on the first pass:
+
+| Spoken | Model | Recall |
+|---|---|---|
+| English, Hinglish | large-v3-turbo, `language=en` | 100% |
+| Hindi | Whisper-Hindi2Hinglish-Prime | 75% |
+
+A single model, if routing is not wanted, is turbo at 89% overall — accepting
+that pure-Hindi conversations lose about half their facts.
 
 ## What this evaluation cannot tell you
 
-**There is no Hindi audio in it.** Scripts 3, 6 and 9 are the Devanagari ones and
-were never recorded, so every measurement here is English or Roman-script
-Hinglish. Whisper is most likely to fail on pure Hindi, and that case is
-untested. Recording those three scripts is about eight minutes of work and would
-roughly double what this evaluation establishes.
+**Sarvam's Hindi is untested.** It holds a perfect score on the four scripts the
+product actually transcribed, and no figure at all on the two Hindi ones. Until
+that is filled in, "Whisper beats Sarvam" is established for English and
+Hinglish only.
 
-**The sample is fourteen minutes.** Enough to rank models decisively when the gap
-is 100% against 73%. Not enough to separate two models a point apart.
+**The sample is twenty minutes.** Enough to rank models decisively when the gap
+is 100% against 50%. Not enough to separate two models a point apart, and the
+Hindi conclusion rests on eight entities across two files.
 
 **Silero VAD needs no work.** faster-whisper already runs `silero_vad_v6.onnx`
 when `vad_filter=True`, which every measurement above used. The ffmpeg silence
 trimming in `preprocess-audio.ts` exists because Sarvam bills per second
 submitted; once transcription is self-hosted the cost is GPU time, not audio
 seconds, and that step becomes largely redundant.
+
+## Three bugs found in the scorer, not the models
+
+Worth recording, because each one had made every model look worse than it was.
+
+Money was required in full digits when the floor says "budget 65 hai". The digit
+normaliser collapsed spaces between numbers, welding "4050 16GB" into
+"405016gb". And Hindi numerals were not accepted at all, so a transcript saying
+"solah GB RAM" scored as having lost the memory — which penalised precisely the
+model that had preserved it.
+
+The last one changed a recommendation, not just a number.
 
 ## Reproducing
 
