@@ -11,6 +11,7 @@ Usage:
 """
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -39,7 +40,7 @@ MANIFEST = sys.argv[4] if len(sys.argv) > 4 else None
 RATE = 16_000
 VOXTRAL = "mistralai/Voxtral-Mini-3B-2507"
 MIN_TURN = 0.4
-MERGE_GAP = 0.8
+MERGE_GAP = float(os.environ.get("MERGE_GAP", "0.8"))
 
 OUT = Path("/workspace/eval/out") / TAG
 OUT.mkdir(parents=True, exist_ok=True)
@@ -49,8 +50,6 @@ processor = AutoProcessor.from_pretrained(VOXTRAL)
 voxtral = VoxtralForConditionalGeneration.from_pretrained(
     VOXTRAL, dtype=torch.bfloat16, device_map="cuda"
 )
-import os  # noqa: E402
-
 diarizer = DiarizationPipeline.from_pretrained(
     "pyannote/speaker-diarization-3.1", token=os.environ["HF_TOKEN"]
 )

@@ -37,6 +37,44 @@ sale.
 Diarization: **pyannote 3.1 found exactly two speakers in every script**, Hindi
 included, at 34–52× realtime. Sarvam invented a spurious third in Script 2.
 
+## The production pipeline is worse than the benchmark, and worse than Sarvam
+
+Everything above measured **whole-file** transcription: hand Voxtral a
+conversation, get prose back. The product cannot use prose — it needs diarized,
+timestamped segments — so the worker diarizes first and transcribes each speaker
+turn on its own.
+
+Running all thirteen scripts through that shape, which is what production would
+actually do:
+
+| pipeline | overall | English | Hinglish | Hindi |
+|---|---|---|---|---|
+| Voxtral, whole file | 81/84 · **96%** | 97% | 95% | 100% |
+| Sarvam saaras:v3 | 80/84 · 95% | 100% | 95% | 100% |
+| **Voxtral, per turn (production)** | **69/84 · 82%** | 90% | 77% | 89% |
+
+**Fourteen points, and it puts Voxtral below the incumbent.** Switching to it as
+built would lose accuracy, not hold it.
+
+The cause is specific. Of the twelve facts the per-turn pipeline loses, **ten are
+product or brand names** — IdeaPad, Swift, Victus, Vivobook, Envy, Asus, Lenovo,
+Acer. Turns are a median of 5.6 seconds and a third are under three, and a proper
+noun heard in a five-second fragment has nothing to anchor it. Given the whole
+conversation the model hears the same product named repeatedly and converges on
+it; given one turn it guesses.
+
+Merging turns more aggressively to lengthen them was tested and recovered one
+entity — 82% to 83%. Length is not the problem; isolation is.
+
+**The fix is to stop transcribing turns.** Transcribe the whole recording once,
+for the text, and use diarization only to decide who said which part — the
+approach WhisperX takes. Attaching speakers to whole-file text needs word-level
+timings, which a cheap Whisper pass provides at fifty times realtime. That is a
+real piece of work and it has not been built.
+
+**Until it is, Sarvam remains the better choice**, and the cost argument is on
+hold rather than won.
+
 ## The finding
 
 **Voxtral-Mini-3B matches Sarvam at about one twentieth of the cost.** Not
