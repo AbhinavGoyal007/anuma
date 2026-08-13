@@ -149,11 +149,64 @@ This removes an entire class of error — every downstream figure that depends o
 which half of the conversation was the representative — for about thirty seconds
 of setup per person.
 
+## Measured: gating tested both ways
+
+The recommendation above was that speech gating is worth real effort. It was
+then measured, on an A40, against the four scripts that exist as both a
+role-play recording and a simulated shift — the conversation embedded in room
+tone taken from the same file, at 12% speech density.
+
+| pipeline | entity recall | realtime | diarization | transcription | VAD |
+|---|---|---|---|---|---|
+| role-play, no gating | 26/29 · 90% | 11.8× | 16s | 56s | — |
+| role-play, gated | 27/29 · 93% | 10.3× | 14s | 59s | 9s |
+| shift, no gating | 27/29 · 93% | 40.4× | 117s | 57s | — |
+| **shift, gated** | 26/29 · 90% | **52.6×** | **12s** | 53s | 69s |
+
+Three things follow.
+
+**Gating costs no accuracy.** All four sit at 90–93%, which on 29 entities is one
+entity of spread. Nothing is lost by not transcribing what nobody said.
+
+**On conversation-dense audio gating is a pessimisation.** The role-play
+recordings are 86–90% speech, so there is nothing to remove; Silero's two seconds
+per file exceed the two seconds of diarization it saves, and the pipeline gets
+14% slower. Gating a recording that is already a conversation is work for its own
+sake.
+
+**On shift-shaped audio it is decisive, and diarization is why.** Diarization
+falls from 117s to 12s — a tenth — because pyannote no longer walks two hours of
+room tone. Transcription barely moves, because it only ever saw the turns.
+
+**But the VAD must not run on the GPU server.** In the gated shift run, Silero on
+CPU took 69 of the 134 seconds — half the pipeline, spent deciding what not to
+look at. Moved to the device, where the audio already is, the same work costs the
+server nothing and the throughput roughly doubles again.
+
+## What it costs
+
+At 200 audio-hours per employee per month, measured throughput, A40 community
+pricing:
+
+| | ₹ per employee per month |
+|---|---|
+| Sarvam, all 200 hours submitted (today) | **9,100** |
+| Sarvam, gated at capture | 1,092 |
+| Voxtral, no gating | 170 |
+| Voxtral, gated on the GPU server | 130 |
+| **Voxtral, gated on the device** | **64** |
+
+Gating at capture is worth **2.7×** on top of the model change, and the two
+together are **143×** cheaper than today. Note that gating helps Sarvam
+proportionally more — it bills per second submitted, so not submitting silence is
+a direct refund — but even Sarvam with perfect gating costs seventeen times
+Voxtral without any.
+
 ## Ranked
 
 | | Change | Effort | Worth |
 |---|---|---|---|
-| 1 | VAD-gated capture + conversation segmentation | High | 4–6× cost reduction; nothing else comes close |
+| 1 | VAD gating **on the device** | High | Measured 2.7×. On the server it is only 1.3×, because the VAD then costs half the pipeline |
 | 2 | Quality gate at ingest | Low | Stops silent corruption of the aggregates |
 | 3 | Speaker enrolment | Medium | Removes a class of attribution error |
 | 4 | A/B the capture constraints | Low | Unknown until measured; could be significant |
@@ -161,11 +214,26 @@ of setup per person.
 | 6 | Overlap flagging | Low | Honesty about a known failure |
 | — | **Denoising** | — | **Do not. Research says it hurts.** |
 | — | **Replacing the −35 dB VAD** | — | **Not today.** Revisit under always-on capture |
+| — | **Gating conversation-dense audio** | — | **Do not.** Measured 14% *slower* with nothing gained |
 
-## What still needs measuring
+## What the microphone costs
 
-The evaluation that chose Voxtral ran on WhatsApp-processed audio. Before
-committing to it in production, re-run the harness on recordings the product
-captured itself — the files are already there, and the scoring is already
-written. That is the honest test of whether 96% survives contact with a real
-microphone.
+The evaluation that chose Voxtral ran on WhatsApp-processed audio. Re-running it
+on the product's own recordings of the same four scripts answers what that was
+worth:
+
+| capture path | SNR | entity recall |
+|---|---|---|
+| WhatsApp voice note | 40.3 dB | 28/29 · **97%** |
+| The product's own capture | 22.7 dB | 26–27/29 · **90–93%** |
+
+**The capture path costs four to seven points of recall** — more than any
+processing decision in this document, and more than the difference between the
+transcription models that were compared. It is the largest remaining lever on
+accuracy, and it is the one nobody has tried to move: the browser constraints in
+`audio-capture-panel.tsx` have never been A/B tested.
+
+Two caveats on that comparison. It rests on 29 entities across four scripts, so a
+one-entity difference is noise. And the two recordings of each script are
+different performances, not the same audio through two paths, so some of the gap
+is the take rather than the microphone.
