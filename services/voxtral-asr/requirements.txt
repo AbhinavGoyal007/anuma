@@ -1,0 +1,13 @@
+# Voxtral needs transformers 5.x; mistral-common carries its audio request format.
+transformers>=5.0
+mistral-common[audio]>=1.8
+accelerate>=1.0
+pyannote.audio>=4.0
+soundfile>=0.12
+numpy>=1.26
+hf-transfer>=0.1
+# Only used by the always-on pod path.
+fastapi>=0.115
+uvicorn>=0.30
+# Only used by the serverless path.
+runpod>=1.7

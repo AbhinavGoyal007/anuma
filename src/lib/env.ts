@@ -52,7 +52,11 @@ const trustedServerEnvironmentSchema = publicEnvironmentSchema.extend({
    * type. Both providers stay implemented and switching is a restart, not a
    * migration — run rows record which one produced each transcript.
    */
-  TRANSCRIPTION_PROVIDER: z.enum(["sarvam", "openai"]).default("sarvam"),
+  TRANSCRIPTION_PROVIDER: z.enum(["sarvam", "openai", "voxtral"]).default("sarvam"),
+  // The self-hosted transcription worker. Required only when the provider is
+  // voxtral; see services/voxtral-asr.
+  VOXTRAL_ENDPOINT_URL: z.string().url().optional(),
+  VOXTRAL_ENDPOINT_TOKEN: z.string().optional(),
 });
 
 const openAIEnvironmentSchema = trustedServerEnvironmentSchema.extend({
@@ -87,6 +91,8 @@ export function getTrustedServerEnvironment(): TrustedServerEnvironment {
     AUDIO_TRIM_ENABLED: process.env.AUDIO_TRIM_ENABLED,
     AUDIO_TRIM_TEMPO: process.env.AUDIO_TRIM_TEMPO,
     TRANSCRIPTION_PROVIDER: process.env.TRANSCRIPTION_PROVIDER,
+    VOXTRAL_ENDPOINT_URL: process.env.VOXTRAL_ENDPOINT_URL,
+    VOXTRAL_ENDPOINT_TOKEN: process.env.VOXTRAL_ENDPOINT_TOKEN,
   });
 }
 

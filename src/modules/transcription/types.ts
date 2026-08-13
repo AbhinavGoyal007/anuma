@@ -27,7 +27,7 @@ export type NormalizedTranscript = {
   providerMetadata: Record<string, unknown>;
 };
 
-export type ProviderKey = "sarvam" | "openai";
+export type ProviderKey = "sarvam" | "openai" | "voxtral";
 
 /**
  * A provider that queues work and is polled for a result.

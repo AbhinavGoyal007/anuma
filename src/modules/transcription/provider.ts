@@ -3,6 +3,7 @@ import "server-only";
 import { getTrustedServerEnvironment } from "@/lib/env";
 import { OpenAISpeechToTextProvider } from "@/modules/transcription/openai-provider";
 import { SarvamSpeechToTextProvider } from "@/modules/transcription/sarvam-provider";
+import { VoxtralSpeechToTextProvider } from "@/modules/transcription/voxtral-provider";
 import type { SpeechToTextProvider } from "@/modules/transcription/types";
 
 /**
@@ -13,7 +14,12 @@ import type { SpeechToTextProvider } from "@/modules/transcription/types";
  * that a run already in flight is never handed a different provider halfway.
  */
 export function speechToTextProvider(): SpeechToTextProvider {
-  return getTrustedServerEnvironment().TRANSCRIPTION_PROVIDER === "openai"
-    ? new OpenAISpeechToTextProvider()
-    : new SarvamSpeechToTextProvider();
+  switch (getTrustedServerEnvironment().TRANSCRIPTION_PROVIDER) {
+    case "openai":
+      return new OpenAISpeechToTextProvider();
+    case "voxtral":
+      return new VoxtralSpeechToTextProvider();
+    default:
+      return new SarvamSpeechToTextProvider();
+  }
 }
