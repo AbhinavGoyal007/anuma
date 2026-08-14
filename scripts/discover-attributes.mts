@@ -54,10 +54,13 @@ const SAMPLE_SIZE = 40;
 /**
  * The smallest node worth discovering attributes for.
  *
- * Below this the judging cannot reach its own minimum sample, so the call would
- * be spent to produce something that must be rejected regardless.
+ * Sized to the judge's own floor rather than to a comfortable catalogue. A
+ * motorcycle dealer's entire range is fourteen models across four groups, and a
+ * threshold set for electronics skipped every one of them while happily
+ * describing their helmets — so the nodes that carry the business were the exact
+ * ones excluded.
  */
-const MINIMUM_NODE_SIZE = 60;
+const MINIMUM_NODE_SIZE = 8;
 
 const sql = postgres(process.env.SUPABASE_DB_URL!, { prepare: false, max: 4 });
 

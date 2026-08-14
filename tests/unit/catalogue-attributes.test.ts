@@ -170,9 +170,46 @@ describe("believing an attribute with nobody to ask", () => {
     expect(judgeAttribute(numeric(), readings, 1000).reason).toBe("low_coverage");
   });
 
-  it("rejects a sample too small to describe a convention", () => {
-    const readings = Array.from({ length: 12 }, () => reading(8));
+  it("rejects a sample below the floor any statistic needs", () => {
+    const readings = Array.from({ length: 5 }, (_, index) => reading(6 + index));
     expect(judgeAttribute(numeric(), readings, 20).reason).toBe("too_few_readings");
+  });
+
+  it("believes a small high-value range when nearly all of it agrees", () => {
+    // A motorcycle dealer's entire 650cc line is twenty-three bikes. A threshold
+    // sized for an electronics catalogue skipped every model they sell and
+    // described their helmets instead.
+    const engine = numeric({
+      key: "engine_capacity",
+      unitTokens: ["cc"],
+      unit: "cc",
+      range: { min: 100, max: 2000 },
+    });
+    const readings = Array.from({ length: 20 }, (_, index) => ({
+      key: "engine_capacity",
+      valueText: null,
+      valueNumeric: [349, 443, 452, 648][index % 4]!,
+      unit: "cc",
+    }));
+    expect(judgeAttribute(engine, readings, 23).usable).toBe(true);
+  });
+
+  it("holds a small sample to a higher share before believing it", () => {
+    // The same twenty readings out of a hundred products are a pattern in a
+    // fraction of the node, not a convention the node follows.
+    const engine = numeric({
+      key: "engine_capacity",
+      unitTokens: ["cc"],
+      unit: "cc",
+      range: { min: 100, max: 2000 },
+    });
+    const readings = Array.from({ length: 20 }, (_, index) => ({
+      key: "engine_capacity",
+      valueText: null,
+      valueNumeric: [349, 648][index % 2]!,
+      unit: "cc",
+    }));
+    expect(judgeAttribute(engine, readings, 100).reason).toBe("low_coverage");
   });
 
   it("rejects an attribute every product shares, which narrows nothing", () => {

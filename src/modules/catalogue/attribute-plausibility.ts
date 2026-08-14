@@ -52,6 +52,27 @@ import type { ExtractedAttribute } from "@/modules/catalogue/attribute-extract";
 export const MINIMUM_COVERAGE = 0.2;
 
 /**
+ * What a small node must reach instead, and where "small" begins.
+ *
+ * Written after this rejected an entire motorcycle dealer. Their range is
+ * fourteen models in four groups — twenty-three 650cc twins, sixteen 350cc
+ * cruisers, eight adventure tourers — while their helmets and spares run to
+ * hundreds of rows. A flat minimum sized for an electronics catalogue discovered
+ * attributes for the helmets and learned nothing about the motorcycles, which is
+ * the whole business. High-value ranges are small ranges in most of retail:
+ * cars, bikes, furniture, jewellery.
+ *
+ * Lowering the floor alone would trade that for believing coincidences. The rule
+ * instead is that the less data there is, the more of it must agree — twenty of
+ * twenty-three motorcycles stating an engine size is strong evidence, where the
+ * same twenty out of four hundred would be a pattern in a fraction of the node.
+ * The spread check still applies underneath, so a small node cannot buy its way
+ * past a reading that is not a measurement.
+ */
+export const SMALL_NODE_READINGS = 30;
+export const SMALL_NODE_COVERAGE = 0.6;
+
+/**
  * How far a real dimension's values may spread, high end over low.
  *
  * Measured between the tenth and ninetieth percentiles so a single stray reading
@@ -64,13 +85,12 @@ export const MINIMUM_COVERAGE = 0.2;
 export const MAXIMUM_SPREAD = 20;
 
 /**
- * Readings needed before spread means anything.
+ * The fewest readings from which any statistic here means anything.
  *
- * Ten values agreeing is a small sample agreeing with itself. The check is a
- * statement about a convention, and a convention needs enough rows to have been
- * observed rather than assumed.
+ * A floor rather than a sample size: below this neither percentile has enough
+ * values behind it to describe a band, whatever share of the node they are.
  */
-export const MINIMUM_SAMPLE = 30;
+export const MINIMUM_SAMPLE = 8;
 
 export type PlausibilityVerdict = {
   usable: boolean;
@@ -127,7 +147,9 @@ export function judgeAttribute(
   if (mine.length < MINIMUM_SAMPLE) {
     return { ...base, usable: false, reason: "too_few_readings" };
   }
-  if (coverage < MINIMUM_COVERAGE) {
+  const required =
+    mine.length < SMALL_NODE_READINGS ? SMALL_NODE_COVERAGE : MINIMUM_COVERAGE;
+  if (coverage < required) {
     return { ...base, usable: false, reason: "low_coverage" };
   }
   // An attribute every product shares tells a shopper nothing and narrows
