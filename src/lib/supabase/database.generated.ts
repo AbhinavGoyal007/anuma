@@ -244,12 +244,57 @@ export type Database = {
           },
         ]
       }
+      catalogue_item_attributes: {
+        Row: {
+          attribute_key: string
+          extracted_at: string
+          extractor_version: string
+          id: string
+          item_id: string
+          organization_id: string
+          unit: string | null
+          value_numeric: number | null
+          value_text: string | null
+        }
+        Insert: {
+          attribute_key: string
+          extracted_at?: string
+          extractor_version: string
+          id?: string
+          item_id: string
+          organization_id: string
+          unit?: string | null
+          value_numeric?: number | null
+          value_text?: string | null
+        }
+        Update: {
+          attribute_key?: string
+          extracted_at?: string
+          extractor_version?: string
+          id?: string
+          item_id?: string
+          organization_id?: string
+          unit?: string | null
+          value_numeric?: number | null
+          value_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalogue_item_attributes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       catalogue_items: {
         Row: {
           brand_id: string | null
           brand_name: string | null
           content_hash: string
           created_at: string
+          currency_code: string | null
           dept_id: string | null
           dept_name: string | null
           description: string
@@ -259,7 +304,9 @@ export type Database = {
           id: string
           item_id: string
           last_seen_import: string | null
+          msrp_minor: number | null
           organization_id: string
+          price_minor: number | null
           spec_colour: string | null
           spec_completeness: number | null
           spec_cpu: string | null
@@ -281,6 +328,7 @@ export type Database = {
           brand_name?: string | null
           content_hash: string
           created_at?: string
+          currency_code?: string | null
           dept_id?: string | null
           dept_name?: string | null
           description?: string
@@ -290,7 +338,9 @@ export type Database = {
           id?: string
           item_id: string
           last_seen_import?: string | null
+          msrp_minor?: number | null
           organization_id: string
+          price_minor?: number | null
           spec_colour?: string | null
           spec_completeness?: number | null
           spec_cpu?: string | null
@@ -312,6 +362,7 @@ export type Database = {
           brand_name?: string | null
           content_hash?: string
           created_at?: string
+          currency_code?: string | null
           dept_id?: string | null
           dept_name?: string | null
           description?: string
@@ -321,7 +372,9 @@ export type Database = {
           id?: string
           item_id?: string
           last_seen_import?: string | null
+          msrp_minor?: number | null
           organization_id?: string
+          price_minor?: number | null
           spec_colour?: string | null
           spec_completeness?: number | null
           spec_cpu?: string | null
@@ -362,11 +415,65 @@ export type Database = {
           },
         ]
       }
+      catalogue_source_columns: {
+        Row: {
+          accepted: boolean
+          distinct_values: number | null
+          id: string
+          inferred_at: string
+          null_share: number | null
+          organization_id: string
+          rejection_reason: string | null
+          role: string
+          sample_values: string[] | null
+          source_column: string
+          unit: string | null
+          value_kind: string | null
+        }
+        Insert: {
+          accepted?: boolean
+          distinct_values?: number | null
+          id?: string
+          inferred_at?: string
+          null_share?: number | null
+          organization_id: string
+          rejection_reason?: string | null
+          role: string
+          sample_values?: string[] | null
+          source_column: string
+          unit?: string | null
+          value_kind?: string | null
+        }
+        Update: {
+          accepted?: boolean
+          distinct_values?: number | null
+          id?: string
+          inferred_at?: string
+          null_share?: number | null
+          organization_id?: string
+          rejection_reason?: string | null
+          role?: string
+          sample_values?: string[] | null
+          source_column?: string
+          unit?: string | null
+          value_kind?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "catalogue_source_columns_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       catalogue_staging: {
         Row: {
           brand_id: string | null
           brand_name: string | null
           content_hash: string
+          currency_code: string | null
           dept_id: string | null
           dept_name: string | null
           description: string
@@ -374,7 +481,9 @@ export type Database = {
           group_name: string | null
           import_id: string
           item_id: string
+          msrp_minor: number | null
           organization_id: string
+          price_minor: number | null
           subgroup_id: string | null
           subgroup_name: string | null
         }
@@ -382,6 +491,7 @@ export type Database = {
           brand_id?: string | null
           brand_name?: string | null
           content_hash: string
+          currency_code?: string | null
           dept_id?: string | null
           dept_name?: string | null
           description?: string
@@ -389,7 +499,9 @@ export type Database = {
           group_name?: string | null
           import_id: string
           item_id: string
+          msrp_minor?: number | null
           organization_id: string
+          price_minor?: number | null
           subgroup_id?: string | null
           subgroup_name?: string | null
         }
@@ -397,6 +509,7 @@ export type Database = {
           brand_id?: string | null
           brand_name?: string | null
           content_hash?: string
+          currency_code?: string | null
           dept_id?: string | null
           dept_name?: string | null
           description?: string
@@ -404,11 +517,87 @@ export type Database = {
           group_name?: string | null
           import_id?: string
           item_id?: string
+          msrp_minor?: number | null
           organization_id?: string
+          price_minor?: number | null
           subgroup_id?: string | null
           subgroup_name?: string | null
         }
         Relationships: []
+      }
+      category_attributes: {
+        Row: {
+          attribute_key: string
+          comparison: string
+          coverage: number | null
+          discovered_at: string
+          distinct_values: number | null
+          extractor_version: string
+          id: string
+          judged_at: string | null
+          kind: string
+          node_key: string
+          organization_id: string
+          range_max: number | null
+          range_min: number | null
+          rejection_reason: string | null
+          spread: number | null
+          status: string
+          unit: string | null
+          unit_tokens: string[]
+          vocabulary: Json
+        }
+        Insert: {
+          attribute_key: string
+          comparison: string
+          coverage?: number | null
+          discovered_at?: string
+          distinct_values?: number | null
+          extractor_version: string
+          id?: string
+          judged_at?: string | null
+          kind: string
+          node_key: string
+          organization_id: string
+          range_max?: number | null
+          range_min?: number | null
+          rejection_reason?: string | null
+          spread?: number | null
+          status?: string
+          unit?: string | null
+          unit_tokens?: string[]
+          vocabulary?: Json
+        }
+        Update: {
+          attribute_key?: string
+          comparison?: string
+          coverage?: number | null
+          discovered_at?: string
+          distinct_values?: number | null
+          extractor_version?: string
+          id?: string
+          judged_at?: string | null
+          kind?: string
+          node_key?: string
+          organization_id?: string
+          range_max?: number | null
+          range_min?: number | null
+          rejection_reason?: string | null
+          spread?: number | null
+          status?: string
+          unit?: string | null
+          unit_tokens?: string[]
+          vocabulary?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_attributes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       category_mappings: {
         Row: {
@@ -1599,6 +1788,51 @@ export type Database = {
           },
         ]
       }
+      inventory: {
+        Row: {
+          as_of: string
+          created_at: string
+          id: string
+          item_id: string
+          location_id: string | null
+          organization_id: string
+          stock: number
+        }
+        Insert: {
+          as_of?: string
+          created_at?: string
+          id?: string
+          item_id: string
+          location_id?: string | null
+          organization_id: string
+          stock: number
+        }
+        Update: {
+          as_of?: string
+          created_at?: string
+          id?: string
+          item_id?: string
+          location_id?: string | null
+          organization_id?: string
+          stock?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       locations: {
         Row: {
           business_code: string | null
@@ -2097,6 +2331,45 @@ export type Database = {
             referencedColumns: ["organization_id", "id"]
           },
         ]
+      }
+      product_knowledge: {
+        Row: {
+          brand: string
+          brand_key: string
+          created_at: string
+          descriptors: string[]
+          id: string
+          model: string
+          model_key: string
+          recognised: boolean
+          source_model: string
+          suited_to: string[]
+        }
+        Insert: {
+          brand: string
+          brand_key: string
+          created_at?: string
+          descriptors?: string[]
+          id?: string
+          model: string
+          model_key: string
+          recognised?: boolean
+          source_model: string
+          suited_to?: string[]
+        }
+        Update: {
+          brand?: string
+          brand_key?: string
+          created_at?: string
+          descriptors?: string[]
+          id?: string
+          model?: string
+          model_key?: string
+          recognised?: boolean
+          source_model?: string
+          suited_to?: string[]
+        }
+        Relationships: []
       }
       recordings: {
         Row: {

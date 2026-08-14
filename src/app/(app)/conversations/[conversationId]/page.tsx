@@ -3,7 +3,9 @@ import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { AssortmentPanel } from "@/components/conversations/assortment-panel";
+import { OpportunityPanel } from "@/components/conversations/opportunity-panel";
 import { getConversationAssortment } from "@/modules/catalogue/assortment";
+import { getConversationOpportunity } from "@/modules/catalogue/opportunity";
 import { AudioCapturePanel } from "@/components/conversations/audio-capture-panel";
 import { ConversationEvidence } from "@/components/conversations/conversation-evidence";
 import { CustomerConsentPanel } from "@/components/conversations/customer-consent-panel";
@@ -49,6 +51,52 @@ async function AssortmentSection({
 }) {
   const assortment = await getConversationAssortment(organizationId, conversationId);
   return <AssortmentPanel assortment={assortment} />;
+}
+
+/** Holds the panel's place while the binding and the stock are read. */
+function OpportunityPanelSkeleton() {
+  return (
+    <section className="product-panel" aria-busy="true" aria-label="Checking what could have sold">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Against the range</p>
+          <h2>Could we have sold something?</h2>
+        </div>
+      </div>
+      <div className="loading-line loading-line-short" />
+      <div className="loading-line" />
+    </section>
+  );
+}
+
+async function OpportunitySection({
+  conversationId,
+  organizationId,
+}: {
+  conversationId: string;
+  organizationId: string;
+}) {
+  try {
+    const opportunity = await getConversationOpportunity(organizationId, conversationId);
+    return <OpportunityPanel opportunity={opportunity} />;
+  } catch {
+    // Binding reaches an embedding service. A conversation page is still worth
+    // reading when that is unavailable, so the failure is confined to its panel.
+    return (
+      <section className="product-panel" aria-labelledby="opportunity-error">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Against the range</p>
+            <h2 id="opportunity-error">Could we have sold something?</h2>
+          </div>
+        </div>
+        <p className="demand-empty">
+          This could not be checked just now. Nothing is wrong with the conversation — reload to try
+          again.
+        </p>
+      </section>
+    );
+  }
 }
 
 export default async function ConversationPage({ params, searchParams }: ConversationPageProps) {
@@ -187,9 +235,17 @@ export default async function ConversationPage({ params, searchParams }: Convers
           is the one panel the rest of the page does not depend on — so the
           record renders immediately and this arrives when it is ready. */}
       {interactionRecord?.status === "completed" ? (
-        <Suspense fallback={<AssortmentPanelSkeleton />}>
-          <AssortmentSection conversationId={conversation.id} organizationId={organization.id} />
-        </Suspense>
+        <>
+          <Suspense fallback={<OpportunityPanelSkeleton />}>
+            <OpportunitySection
+              conversationId={conversation.id}
+              organizationId={organization.id}
+            />
+          </Suspense>
+          <Suspense fallback={<AssortmentPanelSkeleton />}>
+            <AssortmentSection conversationId={conversation.id} organizationId={organization.id} />
+          </Suspense>
+        </>
       ) : null}
       {canCoach && interactionRecord?.status === "completed" ? (
         <CoachingPanel moments={coachingMoments} />

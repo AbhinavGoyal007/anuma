@@ -271,11 +271,11 @@ try {
     await sql`insert into public.catalogue_staging ${sql(staged.slice(index, index + 1000))}`;
   }
   await sql`select set_config('statement_timeout', '3600s', false)`;
-  const [applied] = await sql<
-    { added_count: number; changed_count: number; delisted_count: number }[]
-  >`select * from public.apply_catalogue_import(${importId}::uuid)`;
+  const [applied] = await sql<{ added: number; changed: number; delisted: number }[]>`
+    select * from public.apply_catalogue_import(${importId}::uuid)
+  `;
   console.log(
-    `\napplied: added ${applied?.added_count ?? 0}, changed ${applied?.changed_count ?? 0}, delisted ${applied?.delisted_count ?? 0}`,
+    `\napplied: added ${applied?.added ?? 0}, changed ${applied?.changed ?? 0}, delisted ${applied?.delisted ?? 0}`,
   );
 
   // Attributes the retailer declared as columns. No discovery, no model: the
