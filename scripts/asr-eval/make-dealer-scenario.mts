@@ -166,16 +166,16 @@ try {
     select item_id, description, subgroup_name from catalogue_items
     where organization_id = ${organization.id} and valid_to is null
   `;
+  // Stock keyed off the dealer's own model codes, because that is all their
+  // export contains. Every 650 the customer was never shown was on the floor.
   const stockOf = (description: string): number => {
-    if (/Interceptor 650/.test(description)) return 3;
-    if (/Super Meteor 650/.test(description)) return 2;
-    if (/Shotgun 650/.test(description)) return 1;
-    if (/Bear 650/.test(description)) return 2;
-    if (/Classic 650/.test(description)) return 1;
-    if (/Continental GT 650/.test(description)) return 1;
-    // The 350s and the adventure bikes are on the floor in the usual numbers;
-    // gear and spares are stocked deep. Some colours are simply out.
-    if (/Motorcycle|Royal Enfield (Hunter|Bullet|Classic 350|Meteor|Goan|Scram|Himalayan|Guerrilla)/.test(description)) {
+    if (/\bINT650\b/.test(description)) return 3;
+    if (/\bSM650\b/.test(description)) return 2;
+    if (/\bSHTGN650\b/.test(description)) return 1;
+    if (/\bBEAR650\b/.test(description)) return 2;
+    if (/\bCLS650\b/.test(description)) return 1;
+    if (/\bCGT650\b/.test(description)) return 1;
+    if (/^RE (HNTR|BUL|CLS|MTR|GOAN|SCRM|HIM|GRLA)/.test(description)) {
       return description.length % 3 === 0 ? 0 : 2;
     }
     return description.length % 5;
