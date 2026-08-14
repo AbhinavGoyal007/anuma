@@ -137,10 +137,12 @@ export async function bindPhrasesToValues(
       .sort((a, b) => b.score - a.score);
 
     const best = ranked[0]!;
+    // The contest is between *attributes*, not between values. "Hybrid",
+    // "Hybrid Fuel" and "Gas/Electric Hybrid" are one retailer's three
+    // spellings of one idea, and scoring them against each other made the
+    // margin between two spellings look like uncertainty about what the
+    // customer meant — it rejected "hybrid powertrain" outright.
     const runnerUp = ranked.find((entry) => entry.value.attributeKey !== best.value.attributeKey);
-    // The margin that matters is against the best *different* attribute. Two
-    // shades of the same colour competing says nothing about whether the phrase
-    // is about colour.
     const margin = best.score - (runnerUp?.score ?? 0);
 
     if (best.score < BINDING_FLOOR) {
@@ -164,6 +166,24 @@ export async function bindPhrasesToValues(
       };
     }
 
+    // Every value of the winning attribute that still beats the best value of
+    // any other attribute. A value that outscores everything the catalogue
+    // records about anything else is about this attribute, whatever its
+    // spelling.
+    //
+    // A fixed window around the top score was too tight for the case that
+    // matters. Three dealers in one feed write "SUVs" and the fourth writes
+    // "Sport Utility"; the second scored just outside a tenth of the first and
+    // was dropped, which excluded that dealer's own cars from a report about
+    // that dealer's own missed sale. Retailers disagree with themselves about
+    // wording constantly, and a customer asking for an SUV means both.
+    const ceiling = Math.max(BINDING_FLOOR, runnerUp?.score ?? BINDING_FLOOR);
+    const acceptable = ranked
+      .filter(
+        (entry) => entry.value.attributeKey === best.value.attributeKey && entry.score > ceiling,
+      )
+      .map((entry) => entry.value.value);
+
     return {
       bound: true,
       phrase,
@@ -175,6 +195,7 @@ export async function bindPhrasesToValues(
         comparison: "equals",
         valueText: best.value.value,
         valueNumeric: null,
+        valueTextAnyOf: acceptable,
       },
     };
   });

@@ -31,6 +31,7 @@ import {
   parseMoney,
   resolveConflicts,
   type ColumnVerdict,
+  type ProposedColumn,
 } from "@/modules/catalogue/column-roles";
 import { contentHash, parseDelimited } from "@/modules/catalogue/csv";
 import { ATTRIBUTE_EXTRACTOR_VERSION } from "@/modules/catalogue/attribute-schema";
@@ -40,6 +41,7 @@ const { values } = parseArgs({
     file: { type: "string" },
     org: { type: "string" },
     "dry-run": { type: "boolean", default: false },
+    reinfer: { type: "boolean", default: false },
     currency: { type: "string" },
   },
 });
@@ -94,11 +96,42 @@ try {
   const step = Math.max(1, Math.floor(rows.length / 40));
   const sample = rows.filter((_, index) => index % step === 0).slice(0, 40);
 
-  const proposed = await proposeColumnRoles({
-    filename: basename(values.file!),
-    columns,
-    rows: sample,
-  });
+  // A mapping already agreed for this retailer is reused rather than asked
+  // again. The same Delaware file came back with bodystyle as a category on one
+  // run and as an attribute on the next, which silently emptied the taxonomy and
+  // left every product ungrouped — a load that reported success and produced a
+  // catalogue nobody could search. The file has not changed between uploads;
+  // only the model's answer did, and re-deriving it every time makes a
+  // retailer's catalogue reshape itself on a schedule.
+  const stored = values.reinfer
+    ? []
+    : await sql<
+        { source_column: string; role: string; value_kind: string | null; unit: string | null }[]
+      >`
+        select source_column, role, value_kind, unit
+        from public.catalogue_source_columns
+        where organization_id = ${organization.id} and accepted
+      `;
+  const reusable = stored.filter((row) => columns.includes(row.source_column));
+
+  const proposed =
+    reusable.length > 0
+      ? reusable.map((row) => ({
+          column: row.source_column,
+          role: row.role as ProposedColumn["role"],
+          valueKind: (row.value_kind ?? undefined) as ProposedColumn["valueKind"],
+          unit: row.unit,
+        }))
+      : await proposeColumnRoles({
+          filename: basename(values.file!),
+          columns,
+          rows: sample,
+        });
+  console.log(
+    reusable.length > 0
+      ? `Reusing the mapping agreed for this retailer (${reusable.length} columns).\n`
+      : "No mapping on file; reading the columns.\n",
+  );
 
   const verdicts: ColumnVerdict[] = resolveConflicts(
     proposed.map((proposal) => {

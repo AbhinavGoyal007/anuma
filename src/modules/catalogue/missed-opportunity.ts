@@ -41,6 +41,16 @@ export type Requirement = {
   comparison: "at_least" | "at_most" | "equals";
   valueText: string | null;
   valueNumeric: number | null;
+  /**
+   * Every value that satisfies this requirement, when more than one does.
+   *
+   * A customer asking for a hybrid will take `Hybrid Fuel`, `Gas/Electric
+   * Hybrid` or a plug-in; a retailer writes all three and means one thing.
+   * Binding to a single winner made the answer depend on which spelling that
+   * retailer happened to use most, and made the margin between two spellings of
+   * the same idea look like uncertainty about what the customer meant.
+   */
+  valueTextAnyOf?: string[];
 };
 
 export type ItemAssessment = {
@@ -94,10 +104,14 @@ function assess(item: StockedItem, requirements: readonly Requirement[]): ItemAs
       continue;
     }
 
-    if (requirement.valueText !== null && reading.valueText !== null) {
-      const satisfied = reading.valueText.toLowerCase() === requirement.valueText.toLowerCase();
-      (satisfied ? met : failed).push(requirement.key);
-      continue;
+    if (reading.valueText !== null) {
+      const accepted = (requirement.valueTextAnyOf ?? [requirement.valueText ?? ""])
+        .filter((value) => value.length > 0)
+        .map((value) => value.toLowerCase());
+      if (accepted.length > 0) {
+        (accepted.includes(reading.valueText.toLowerCase()) ? met : failed).push(requirement.key);
+        continue;
+      }
     }
 
     unknown.push(requirement.key);
@@ -126,11 +140,50 @@ function distinctiveTokens(name: string): string[] {
  * that treated one as the other would report the missed bike as already shown —
  * turning the finding into its opposite.
  */
-function wasNamed(item: StockedItem, spokenNames: readonly string[]): boolean {
+/**
+ * Whether what was said rules this row out despite naming its model.
+ *
+ * A dealer feed's description column holds "Escape", and the salesperson showed
+ * "the Ford Escape gas model". Matching on the model alone marks every Escape as
+ * shown, including the hybrids — which are the cars the customer actually wanted
+ * and never saw, so the finding disappears into its own evidence.
+ *
+ * The words the retailer uses for their own attribute values settle it: if the
+ * sentence names a value this row does not hold, it was describing a different
+ * one.
+ */
+function contradicted(
+  item: StockedItem,
+  spoken: string,
+  vocabulary: ReadonlyMap<string, readonly string[]>,
+): boolean {
+  const sentence = ` ${spoken.toLowerCase()} `;
+  for (const reading of item.attributes) {
+    if (reading.valueText === null) continue;
+    const values = vocabulary.get(reading.key);
+    if (!values) continue;
+    const named = values.filter((value) => {
+      const word = value.toLowerCase().trim();
+      return word.length > 2 && sentence.includes(` ${word} `);
+    });
+    if (named.length === 0) continue;
+    if (!named.some((value) => value.toLowerCase() === reading.valueText!.toLowerCase())) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function wasNamed(
+  item: StockedItem,
+  spokenNames: readonly string[],
+  vocabulary: ReadonlyMap<string, readonly string[]>,
+): boolean {
   const itemTokens = distinctiveTokens(item.description);
   if (itemTokens.length === 0) return false;
 
   return spokenNames.some((name) => {
+    if (contradicted(item, name, vocabulary)) return false;
     const spoken = distinctiveTokens(name);
     if (spoken.length === 0) return false;
     // Containment either way, because which string is longer depends on the
@@ -157,15 +210,20 @@ export function findMissedOpportunity(input: {
   spokenNames: readonly string[];
   /** Whether the record says the store could not supply what was wanted. */
   claimedUnavailable: boolean;
+  /** Each attribute and the values this retailer writes for it. */
+  vocabulary?: ReadonlyMap<string, readonly string[]>;
 }): MissedOpportunity {
+  const vocabulary = input.vocabulary ?? new Map<string, readonly string[]>();
   const qualifying = input.stocked
     .filter((item) => item.stock > 0)
     .map((item) => assess(item, input.requirements))
     .filter((assessment) => assessment.failed.length === 0);
 
-  const shown = qualifying.filter((assessment) => wasNamed(assessment.item, input.spokenNames));
+  const shown = qualifying.filter((assessment) =>
+    wasNamed(assessment.item, input.spokenNames, vocabulary),
+  );
   const neverShown = qualifying.filter(
-    (assessment) => !wasNamed(assessment.item, input.spokenNames),
+    (assessment) => !wasNamed(assessment.item, input.spokenNames, vocabulary),
   );
 
   return {

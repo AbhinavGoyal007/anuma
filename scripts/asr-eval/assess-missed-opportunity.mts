@@ -94,7 +94,21 @@ try {
     comparison: "equals",
   }));
 
+  // The category the customer asked for, against the retailer's own taxonomy.
+  // Nobody says "Sport Utility"; they say SUV, and one dealer in this feed
+  // writes each. Bound the same way as any other requirement rather than by a
+  // vocabulary of ours, because the retailer's words are the only ones there
+  // are — and left unscoped when it cannot be settled, since narrowing to the
+  // wrong branch hides the answer more thoroughly than not narrowing at all.
+  // The category the customer named is bound like any other requirement.
+  // Whether a retailer files body style as a taxonomy level or as a column is
+  // their choice — the Delaware feed's own role assignment moved between two
+  // runs of the same file — so binding it against everything the catalogue
+  // holds works either way, instead of only when it landed where we expected.
+  const spokenCategory = textFor("purchase_category")[0] ?? null;
+
   const phrases = [
+    ...(spokenCategory ? [spokenCategory] : []),
     ...textFor("specification_requirements"),
     ...textFor("additional_requirements"),
     ...textFor("other_constraints"),
@@ -171,9 +185,22 @@ try {
     requirements,
     spokenNames: [...textFor("products_recommended"), ...textFor("products_considered")],
     claimedUnavailable: textFor("stock_status").some((value) => /unavailable/i.test(value)),
+    vocabulary: (() => {
+      const byAttribute = new Map<string, string[]>();
+      for (const row of vocabulary) {
+        const list = byAttribute.get(row.attribute_key) ?? [];
+        list.push(row.value_text);
+        byAttribute.set(row.attribute_key, list);
+      }
+      return byAttribute;
+    })(),
   });
 
-  console.log(`scope            ${values.node ?? "whole catalogue"}`);
+  console.log(
+    `scope            ${
+      values.node ?? "whole catalogue" 
+    }`,
+  );
   console.log(`vocabulary       ${catalogueValues.length} distinct values`);
   console.log(`in stock         ${stocked.filter((item) => item.stock > 0).length} of ${stocked.length}\n`);
 
