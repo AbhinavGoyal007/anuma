@@ -51,6 +51,17 @@ export type Requirement = {
    * the same idea look like uncertainty about what the customer meant.
    */
   valueTextAnyOf?: string[];
+  /**
+   * Other attributes that answer this requirement just as well.
+   *
+   * Two attributes can record the same fact. A Delaware dealer writes `SUVs` in
+   * their bodystyle column, and what is known about a Ford Escape independently
+   * says SUV — so a customer asking for one matches on either. Scoring those
+   * against each other treated the agreement as a tie and refused to bind
+   * anything, which made the requirement disappear the moment a second source
+   * confirmed it. Corroboration is not ambiguity.
+   */
+  alternatives?: { key: string; valueTextAnyOf: string[] }[];
 };
 
 export type ItemAssessment = {
@@ -87,31 +98,65 @@ function assess(item: StockedItem, requirements: readonly Requirement[]): ItemAs
   const unknown: string[] = [];
 
   for (const requirement of requirements) {
-    const reading = item.attributes.find((attribute) => attribute.key === requirement.key);
-    if (!reading) {
+    // A product can hold several values of one attribute at once — an Escape
+    // PHEV is a compact SUV and a plug-in hybrid and a hybrid — so any of them
+    // satisfying the requirement satisfies it.
+    const keys = [requirement.key, ...(requirement.alternatives ?? []).map((a) => a.key)];
+    const readings = item.attributes.filter((attribute) => keys.includes(attribute.key));
+    if (readings.length === 0) {
       unknown.push(requirement.key);
       continue;
     }
 
-    if (requirement.valueNumeric !== null && reading.valueNumeric !== null) {
-      const satisfied =
-        requirement.comparison === "at_least"
-          ? reading.valueNumeric >= requirement.valueNumeric
-          : requirement.comparison === "at_most"
-            ? reading.valueNumeric <= requirement.valueNumeric
-            : reading.valueNumeric === requirement.valueNumeric;
-      (satisfied ? met : failed).push(requirement.key);
-      continue;
-    }
-
-    if (reading.valueText !== null) {
-      const accepted = (requirement.valueTextAnyOf ?? [requirement.valueText ?? ""])
-        .filter((value) => value.length > 0)
-        .map((value) => value.toLowerCase());
-      if (accepted.length > 0) {
-        (accepted.includes(reading.valueText.toLowerCase()) ? met : failed).push(requirement.key);
+    if (requirement.valueNumeric !== null) {
+      const numbers = readings
+        .map((reading) => reading.valueNumeric)
+        .filter((value): value is number => value !== null);
+      if (numbers.length > 0) {
+        const satisfied = numbers.some((value) =>
+          requirement.comparison === "at_least"
+            ? value >= requirement.valueNumeric!
+            : requirement.comparison === "at_most"
+              ? value <= requirement.valueNumeric!
+              : value === requirement.valueNumeric,
+        );
+        (satisfied ? met : failed).push(requirement.key);
         continue;
       }
+    }
+
+    // Every place this requirement could be answered: its own attribute, and
+    // any other recording the same fact.
+    const places = [
+      { key: requirement.key, values: requirement.valueTextAnyOf ?? [requirement.valueText ?? ""] },
+      ...(requirement.alternatives ?? []).map((alternative) => ({
+        key: alternative.key,
+        values: alternative.valueTextAnyOf,
+      })),
+    ];
+
+    let anyReading = false;
+    let satisfied = false;
+    for (const place of places) {
+      const accepted = place.values
+        .filter((value) => value.length > 0)
+        .map((value) => value.toLowerCase());
+      if (accepted.length === 0) continue;
+      const texts = item.attributes
+        .filter((attribute) => attribute.key === place.key)
+        .map((attribute) => attribute.valueText)
+        .filter((value): value is string => value !== null);
+      if (texts.length === 0) continue;
+      anyReading = true;
+      if (texts.some((value) => accepted.includes(value.toLowerCase()))) {
+        satisfied = true;
+        break;
+      }
+    }
+
+    if (anyReading) {
+      (satisfied ? met : failed).push(requirement.key);
+      continue;
     }
 
     unknown.push(requirement.key);

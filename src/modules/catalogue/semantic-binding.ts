@@ -79,6 +79,17 @@ export const BINDING_MARGIN = 0.1;
  */
 export const BINDING_FLOOR = 0.35;
 
+/**
+ * How well two attributes must both score before their agreement counts.
+ *
+ * Corroboration is two sources confidently saying the same thing. Two sources
+ * each barely clearing the floor and landing a hundredth apart are not agreeing;
+ * they are both guessing, and treating that as agreement bound "back-seat space
+ * for two children in car seats" to a two-door car and excluded every vehicle on
+ * the lot. Set well above the floor so only confident pairs qualify.
+ */
+export const CORROBORATION_FLOOR = 0.55;
+
 export type SemanticBinding =
   | {
       bound: true;
@@ -155,7 +166,19 @@ export async function bindPhrasesToValues(
         margin,
       };
     }
-    if (margin < BINDING_MARGIN) {
+    // A close second from another attribute is only a problem when it is a
+    // different idea. Two attributes both scoring high on the same phrase are
+    // usually two records of one fact — a dealer's bodystyle column saying SUVs
+    // and world knowledge about a Ford Escape saying SUV — and treating that
+    // agreement as a tie made the requirement vanish the moment a second source
+    // confirmed it. Corroboration is carried as an alternative instead.
+    const corroborating =
+      runnerUp !== undefined &&
+      best.score >= CORROBORATION_FLOOR &&
+      runnerUp.score >= CORROBORATION_FLOOR &&
+      margin < BINDING_MARGIN;
+
+    if (margin < BINDING_MARGIN && !corroborating) {
       return {
         bound: false,
         phrase,
@@ -184,6 +207,24 @@ export async function bindPhrasesToValues(
       )
       .map((entry) => entry.value.value);
 
+    // Every other attribute whose best value also clears the floor and sits
+    // close to the winner: the same fact recorded twice.
+    const alternatives = corroborating
+      ? [...new Set(ranked.map((entry) => entry.value.attributeKey))]
+          .filter((key) => key !== best.value.attributeKey)
+          .map((key) => ({
+            key,
+            valueTextAnyOf: ranked
+              .filter(
+                (entry) =>
+                  entry.value.attributeKey === key &&
+                  entry.score >= Math.max(BINDING_FLOOR, best.score - BINDING_MARGIN),
+              )
+              .map((entry) => entry.value.value),
+          }))
+          .filter((alternative) => alternative.valueTextAnyOf.length > 0)
+      : undefined;
+
     return {
       bound: true,
       phrase,
@@ -196,6 +237,7 @@ export async function bindPhrasesToValues(
         valueText: best.value.value,
         valueNumeric: null,
         valueTextAnyOf: acceptable,
+        ...(alternatives && alternatives.length > 0 ? { alternatives } : {}),
       },
     };
   });

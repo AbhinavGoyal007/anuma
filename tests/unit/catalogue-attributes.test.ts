@@ -264,3 +264,74 @@ describe("contradicting a salesperson", () => {
     expect(result.falselyUnavailable).toBe(true);
   });
 });
+
+describe("a product being several things at once", () => {
+  const escape = {
+    itemId: "phev",
+    description: "Escape",
+    nodeKey: "SUVs",
+    stock: 1,
+    attributes: [
+      { key: "known_kind", valueText: "SUV", valueNumeric: null },
+      { key: "known_kind", valueText: "plug-in hybrid", valueNumeric: null },
+      { key: "known_kind", valueText: "hybrid", valueNumeric: null },
+      { key: "fueltype", valueText: "Hybrid Fuel", valueNumeric: null },
+      { key: "price_minor", valueText: null, valueNumeric: 3324800 },
+    ],
+  };
+
+  it("matches on any value the product holds for one attribute", () => {
+    // An Escape PHEV is a compact SUV and a plug-in hybrid and a hybrid.
+    const result = findMissedOpportunity({
+      stocked: [escape],
+      requirements: [
+        {
+          key: "known_kind",
+          comparison: "equals",
+          valueText: "hybrid",
+          valueNumeric: null,
+          valueTextAnyOf: ["hybrid", "plug-in hybrid"],
+        },
+      ],
+      spokenNames: [],
+      claimedUnavailable: false,
+    });
+    expect(result.qualifying).toHaveLength(1);
+  });
+
+  it("accepts a requirement answered by a corroborating attribute", () => {
+    // The dealer's own column and world knowledge record the same fact. Scoring
+    // them against each other used to make the requirement vanish.
+    const result = findMissedOpportunity({
+      stocked: [escape],
+      requirements: [
+        {
+          key: "bodystyle",
+          comparison: "equals",
+          valueText: "SUVs",
+          valueNumeric: null,
+          valueTextAnyOf: ["SUVs"],
+          alternatives: [{ key: "known_kind", valueTextAnyOf: ["SUV"] }],
+        },
+      ],
+      spokenNames: [],
+      claimedUnavailable: false,
+    });
+    expect(result.qualifying).toHaveLength(1);
+  });
+
+  it("does not count the gas model as having shown the hybrid", () => {
+    // The dealer feed's description column holds only "Escape", so matching on
+    // the model marked every Escape as shown — including the hybrids, which are
+    // the cars the customer wanted and never saw.
+    const result = findMissedOpportunity({
+      stocked: [escape],
+      requirements: [],
+      spokenNames: ["Ford Escape gas model"],
+      claimedUnavailable: false,
+      vocabulary: new Map([["fueltype", ["Gas", "Hybrid Fuel", "Electric"]]]),
+    });
+    expect(result.shown).toHaveLength(0);
+    expect(result.neverShown).toHaveLength(1);
+  });
+});
