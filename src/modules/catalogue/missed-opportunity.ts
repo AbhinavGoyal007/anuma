@@ -127,10 +127,26 @@ function distinctiveTokens(name: string): string[] {
  * turning the finding into its opposite.
  */
 function wasNamed(item: StockedItem, spokenNames: readonly string[]): boolean {
-  const description = item.description.toLowerCase();
+  const itemTokens = distinctiveTokens(item.description);
+  if (itemTokens.length === 0) return false;
+
   return spokenNames.some((name) => {
-    const tokens = distinctiveTokens(name);
-    return tokens.length > 0 && tokens.every((token) => description.includes(token));
+    const spoken = distinctiveTokens(name);
+    if (spoken.length === 0) return false;
+    // Containment either way, because which string is longer depends on the
+    // retailer's file rather than on what happened in the shop. A dealer feed
+    // whose description column holds "Escape" is named by a salesperson saying
+    // "the Ford Escape gas model"; an electronics catalogue whose description
+    // is "HP 16H1023DX Envy i9/16GB/1TB" is named by someone saying "the HP
+    // Envy i9". Requiring the spoken words to contain the row reported every
+    // product as never shown against the first, which turns a report about what
+    // a salesperson missed into a list of their entire stock.
+    const spokenSet = new Set(spoken);
+    const itemSet = new Set(itemTokens);
+    return (
+      itemTokens.every((token) => spokenSet.has(token)) ||
+      spoken.every((token) => itemSet.has(token))
+    );
   });
 }
 
