@@ -71,8 +71,7 @@ type Vehicle = Record<string, string | null>;
 const vehicles: Vehicle[] = JSON.parse(raw);
 
 const clean = (value: string | null | undefined) => (value ?? "").trim();
-const escape = (field: string) =>
-  /[",\n]/.test(field) ? `"${field.replace(/"/g, '""')}"` : field;
+const escape = (field: string) => (/[",\n]/.test(field) ? `"${field.replace(/"/g, '""')}"` : field);
 
 /** A short, stable id for a text value, so the taxonomy has ids as the loader expects. */
 const codeFor = (() => {
@@ -128,8 +127,16 @@ for (const column of ["price", "msrp", "fueltype", "mileage", "type", "date_in_s
 }
 
 const itemHeader = [
-  "ITEM_ID", "ITEM_DESC", "DEPT_ID", "DEPT_NAME", "BRAND_ID",
-  "BRAND_NAME", "GROUP_ID", "GROUP_NAME", "SUBGROUP_ID", "SUBGROUP_NAME",
+  "ITEM_ID",
+  "ITEM_DESC",
+  "DEPT_ID",
+  "DEPT_NAME",
+  "BRAND_ID",
+  "BRAND_NAME",
+  "GROUP_ID",
+  "GROUP_NAME",
+  "SUBGROUP_ID",
+  "SUBGROUP_NAME",
 ];
 mkdirSync(dirname(values.out!), { recursive: true });
 writeFileSync(

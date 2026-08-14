@@ -176,7 +176,12 @@ try {
     `\nidentifier=${identifier.column}` +
       `  description=${description >= 0 ? columns[description] : "none"}` +
       `  price=${price >= 0 ? columns[price] : "none"}` +
-      `\ncategories=${[category1, category2, category3].filter((i) => i >= 0).map((i) => columns[i]).join(" > ") || "none"}` +
+      `\ncategories=${
+        [category1, category2, category3]
+          .filter((i) => i >= 0)
+          .map((i) => columns[i])
+          .join(" > ") || "none"
+      }` +
       `\nattributes=${attributeColumns.map((a) => a.verdict.column).join(", ") || "none"}`,
   );
 
@@ -310,9 +315,7 @@ try {
     for (let index = 0; index < list.length; index += 2000) {
       await sql`
         insert into public.catalogue_item_attributes ${sql(list.slice(index, index + 2000))}
-        on conflict (organization_id, item_id, attribute_key) do update set
-          value_text = excluded.value_text, value_numeric = excluded.value_numeric,
-          unit = excluded.unit, extracted_at = now()
+        on conflict do nothing
       `;
     }
     console.log(`declared attributes stored: ${list.length.toLocaleString()}`);

@@ -47,9 +47,15 @@ const DIALOGUE: [speaker: "R" | "C", line: string][] = [
   ["R", "Solo ride karte hain ya pillion ke saath?"],
   ["C", "Zyada tar wife ke saath. Woh peeche baithti hai, toh uska comfort important hai."],
   ["R", "Samajh gaya sir. Budget kya soch rahe hain?"],
-  ["C", "Around three lakh fifty. Agar bike sahi hui toh three seventy tak jaa sakta hoon, on-road."],
+  [
+    "C",
+    "Around three lakh fifty. Agar bike sahi hui toh three seventy tak jaa sakta hoon, on-road.",
+  ],
   ["R", "Theek hai. Engine mein kya preference hai?"],
-  ["C", "650 chahiye. 350 pe highway pe vibration bahut aata hai, maine friend ki Classic chalayi hai."],
+  [
+    "C",
+    "650 chahiye. 350 pe highway pe vibration bahut aata hai, maine friend ki Classic chalayi hai.",
+  ],
   ["R", "Bilkul sahi. Toh main aapko Interceptor 650 dikhata hoon. Canyon Red mein available hai."],
   ["C", "Haan ye dekhi hai maine online. Seat kaisi hai long ride ke liye?"],
   ["R", "Interceptor roadster hai sir, seating slightly forward-leaning hai."],
@@ -59,8 +65,14 @@ const DIALOGUE: [speaker: "R" | "C", line: string][] = [
   ["R", "Windscreen accessory available hai sir, alag se lagana padega."],
   ["C", "Matlab base bike touring ke liye nahi hai, accessories daalke banani padegi."],
   ["R", "Kuch had tak, haan."],
-  ["C", "Koi aur 650 hai jo directly touring ke liye bani ho? Cruiser type, jismein aaram se baith sakein?"],
-  ["R", "650 mein humare paas bas Interceptor aur Continental GT hai sir. GT toh aur bhi sporty hai, cafe racer."],
+  [
+    "C",
+    "Koi aur 650 hai jo directly touring ke liye bani ho? Cruiser type, jismein aaram se baith sakein?",
+  ],
+  [
+    "R",
+    "650 mein humare paas bas Interceptor aur Continental GT hai sir. GT toh aur bhi sporty hai, cafe racer.",
+  ],
   ["C", "Toh kuch nahi hai mere liye?"],
   ["R", "Filhaal 650 mein yahi do hain. Aap 350 Meteor dekh lijiye, cruiser hai, comfortable hai."],
   ["C", "Nahi, 350 nahi chahiye. Vibration ka issue hai highway pe, wahi to problem hai."],
@@ -198,7 +210,9 @@ try {
   );
   console.log(`conversation  ${conversationId}`);
   console.log(`transcript    ${values.out} (${entries.length} turns)`);
-  console.log(`inventory     ${rows.length} rows, ${rows.filter((r) => r.stock > 0).length} in stock`);
+  console.log(
+    `inventory     ${rows.length} rows, ${rows.filter((r) => r.stock > 0).length} in stock`,
+  );
   console.log(`650cc twins on the floor: ${inStock650.length}`);
   for (const item of inStock650.slice(0, 8)) console.log(`   ${item.description}`);
 } finally {

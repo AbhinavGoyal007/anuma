@@ -52,12 +52,16 @@ const EVIDENCE: Record<string, RegExp> = {
   portability_requirement:
     /\b(light|lighter|weight|heavy|carry|portable|portability|kg|gram)\b|हल्क|वजन|भारी|किलो/i,
   target_budget: /\b(budget|price|cost|under|around)\b|₹|बजट|कीमत|हजार|हज़ार|रुपय/i,
-  maximum_budget: /\b(stretch|maximum|max|up to|above|beyond|push|extra)\b|ज्यादा|ज़्यादा|ऊपर|अधिक/i,
-  purchase_timing: /\b(today|tomorrow|week|month|now|urgent|wednesday|soon|deadline)\b|आज|कल|हफ्ते|जल्दी/i,
+  maximum_budget:
+    /\b(stretch|maximum|max|up to|above|beyond|push|extra)\b|ज्यादा|ज़्यादा|ऊपर|अधिक/i,
+  purchase_timing:
+    /\b(today|tomorrow|week|month|now|urgent|wednesday|soon|deadline)\b|आज|कल|हफ्ते|जल्दी/i,
   brand_preferences: /\b(lenovo|hp|dell|asus|acer|apple|msi|samsung|brand)\b|ब्रांड|लेनोवो|एचपी/i,
-  competitor_named: /\b(amazon|flipkart|croma|reliance|vijay sales|online)\b|अमेज़न|फ्लिपकार्ट|ऑनलाइन/i,
+  competitor_named:
+    /\b(amazon|flipkart|croma|reliance|vijay sales|online)\b|अमेज़न|फ्लिपकार्ट|ऑनलाइन/i,
   finance_requested: /\b(emi|instal|finance|credit|hdfc|card)\b|ईएमआई|किस्त/i,
-  promotion_discussed: /\b(offer|cashback|discount|promotion|deal|exchange|bonus)\b|ऑफर|छूट|कैशबैक/i,
+  promotion_discussed:
+    /\b(offer|cashback|discount|promotion|deal|exchange|bonus)\b|ऑफर|छूट|कैशबैक/i,
   stock_status: /\b(stock|available|availability|out of|unit|inventory)\b|स्टॉक|उपलब्ध/i,
   product_demo_performed: /\b(demo|show|see|try|display unit|hands on)\b|दिखा|देख/i,
   cross_sell_offered: /\b(bag|mouse|antivirus|accessor|cover|sleeve)\b|बैग|माउस/i,
@@ -102,17 +106,43 @@ const INFERRED = new Set([
  * digits found neither and reported both as values the extractor made up.
  */
 const NUMBER_WORDS: Record<string, number> = {
-  zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7,
-  eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13,
-  fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18,
-  nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60,
-  seventy: 70, eighty: 80, ninety: 90,
+  zero: 0,
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+  thirteen: 13,
+  fourteen: 14,
+  fifteen: 15,
+  sixteen: 16,
+  seventeen: 17,
+  eighteen: 18,
+  nineteen: 19,
+  twenty: 20,
+  thirty: 30,
+  forty: 40,
+  fifty: 50,
+  sixty: 60,
+  seventy: 70,
+  eighty: 80,
+  ninety: 90,
 };
 
 /** Every value the spelled-out numbers in a phrase could represent. */
 function spelledNumbers(text: string): Set<string> {
   const found = new Set<string>();
-  const tokens = text.toLowerCase().replace(/-/g, " ").split(/[^a-z]+/);
+  const tokens = text
+    .toLowerCase()
+    .replace(/-/g, " ")
+    .split(/[^a-z]+/);
   let running = 0;
   let current = 0;
   const flush = () => {
@@ -141,9 +171,40 @@ function spelledNumbers(text: string): Set<string> {
 }
 
 const STOPWORDS = new Set([
-  "the", "a", "an", "and", "or", "of", "to", "for", "in", "on", "with", "is",
-  "are", "was", "were", "be", "been", "not", "no", "yes", "at", "as", "by",
-  "if", "it", "its", "this", "that", "but", "from", "any", "all", "more", "than",
+  "the",
+  "a",
+  "an",
+  "and",
+  "or",
+  "of",
+  "to",
+  "for",
+  "in",
+  "on",
+  "with",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "not",
+  "no",
+  "yes",
+  "at",
+  "as",
+  "by",
+  "if",
+  "it",
+  "its",
+  "this",
+  "that",
+  "but",
+  "from",
+  "any",
+  "all",
+  "more",
+  "than",
 ]);
 
 function contentWords(text: string): Set<string> {
@@ -360,19 +421,14 @@ try {
       const keyExpectsNothing = /^(none|none stated|not stated|n\/a|no|—|-)\b/i.test(
         expected.trim(),
       );
-      const present = keyExpectsNothing
-        ? false
-        : statedInDialogue(stored, expected, dialogue);
+      const present = keyExpectsNothing ? false : statedInDialogue(stored, expected, dialogue);
 
       let verdict: Verdict;
       if (INFERRED.has(stored)) {
         // A conclusion, not a quotation. Judged only against the answer key.
-        verdict = !actual
-          ? "missed"
-          : looksRight(expected, actual)
-            ? "captured"
-            : "unjudged";
-      } else if (present && actual) verdict = looksRight(expected, actual) ? "captured" : "unjudged";
+        verdict = !actual ? "missed" : looksRight(expected, actual) ? "captured" : "unjudged";
+      } else if (present && actual)
+        verdict = looksRight(expected, actual) ? "captured" : "unjudged";
       else if (present && !actual) verdict = "missed";
       else if (!present && !actual) verdict = "correctly-silent";
       else verdict = "invented";

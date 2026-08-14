@@ -46,9 +46,7 @@ const client = new SarvamAIClient({
 });
 
 type Manifest = { recordings: { file: string; title: string; durationMs: number }[] };
-const manifest: Manifest = JSON.parse(
-  await readFile(join(values.audio!, "manifest.json"), "utf8"),
-);
+const manifest: Manifest = JSON.parse(await readFile(join(values.audio!, "manifest.json"), "utf8"));
 await mkdir(values.out!, { recursive: true });
 
 /** Poll rather than assume: a four-minute file takes tens of seconds. */
@@ -151,8 +149,7 @@ for (const record of manifest.recordings) {
           title: record.title,
           audioSeconds: Math.round(audioSeconds * 10) / 10,
           wallSeconds: Math.round((Date.now() - startedAt) / 100) / 10,
-          realtimeFactor:
-            Math.round((audioSeconds / ((Date.now() - startedAt) / 1000)) * 10) / 10,
+          realtimeFactor: Math.round((audioSeconds / ((Date.now() - startedAt) / 1000)) * 10) / 10,
           segments: [],
           text,
           raw: payload,

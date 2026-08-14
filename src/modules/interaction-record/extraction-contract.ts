@@ -69,8 +69,16 @@ export const extractedValueSchema = z.object({
    * instead of the exact shape, which is a formatting slip, not bad data.
    */
   label: z.string().nullable(),
-  /** Transcript segments that support this value. */
-  evidenceSegmentIds: z.array(z.string()).max(8),
+  /**
+   * Transcript segments that support this value.
+   *
+   * Trimmed rather than rejected. Eight is what the record shows and what is
+   * worth storing, but a model citing twelve has found more support than asked
+   * for, not bad support — and rejecting on the count threw away an entire
+   * conversation's record over one generous list. The same reasoning as `label`
+   * above: a formatting overrun is not a data error.
+   */
+  evidenceSegmentIds: z.array(z.string()).transform((ids) => ids.slice(0, 8)),
   /** Set instead of a value when the conversation does not settle the field. */
   abstention: z.enum(abstentionReasons).nullable(),
 });

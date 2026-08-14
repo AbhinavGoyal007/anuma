@@ -45,7 +45,10 @@ const DIALOGUE: [speaker: "R" | "C", line: string][] = [
   ["R", "Understood. And what were you thinking budget-wise?"],
   ["C", "We'd like to stay around thirty-five thousand. Forty is really the ceiling."],
   ["R", "That's workable. Any preference on the powertrain?"],
-  ["C", "I'd really like a hybrid. Gas is killing us, I'm doing about eighteen thousand miles a year."],
+  [
+    "C",
+    "I'd really like a hybrid. Gas is killing us, I'm doing about eighteen thousand miles a year.",
+  ],
   ["R", "Okay. Let me show you the Escape, it's our most popular SUV."],
   ["C", "Is this one a hybrid?"],
   ["R", "This particular one is the gas model. Twenty-eight seven."],
@@ -59,7 +62,10 @@ const DIALOGUE: [speaker: "R" | "C", line: string][] = [
   ["R", "Not really in the SUV range at that number today."],
   ["C", "Hmm. Okay."],
   ["R", "I can take your details and call you when one comes in?"],
-  ["C", "Sure. Honestly I might check the Honda dealer in Newark too, my brother got a CR-V there."],
+  [
+    "C",
+    "Sure. Honestly I might check the Honda dealer in Newark too, my brother got a CR-V there.",
+  ],
   ["R", "Of course. Would you like to drive the gas Escape while you're here?"],
   ["C", "Not today, I think. If it's not a hybrid it's not really what we came for."],
   ["R", "Understood. Let me get your number."],

@@ -28,10 +28,8 @@ import {
   type Requirement,
   type StockedItem,
 } from "@/modules/catalogue/missed-opportunity";
-import {
-  bindPhrasesToValues,
-  type CatalogueValue,
-} from "@/modules/catalogue/semantic-binding";
+import { bindPhrasesToValues, type CatalogueValue } from "@/modules/catalogue/semantic-binding";
+import { bindRequirements, type BindableAttribute } from "@/modules/catalogue/requirement-binding";
 
 const { values } = parseArgs({
   options: {
@@ -78,8 +76,19 @@ try {
     return row ? Number(row.value_amount_minor) : null;
   };
 
-  // The vocabulary this retailer actually uses, one row per distinct value.
-  // Bounded by the catalogue's variety, not its size.
+  // The category first, and everything else inside it. Matching against a whole
+  // catalogue does not work: across 180,000 rows of electronics "washing
+  // machine" bound to a carpet washer and "8 kg capacity" to a carrycase.
+  const spokenCategory = textFor("purchase_category")[0] ?? null;
+  const [categoryResolution] = spokenCategory
+    ? await sql<{ resolved_label: string }[]>`
+        select resolved_label from public.category_resolutions
+        where organization_id = ${organization.id} and phrase = ${spokenCategory.trim().toLowerCase()}
+        limit 1
+      `
+    : [];
+  const scopeLabel = categoryResolution?.resolved_label ?? spokenCategory;
+
   const vocabulary = await sql<{ attribute_key: string; value_text: string }[]>`
     select distinct a.attribute_key, a.value_text
     from public.catalogue_item_attributes a
@@ -87,6 +96,7 @@ try {
       on i.organization_id = a.organization_id and i.item_id = a.item_id and i.valid_to is null
     where a.organization_id = ${organization.id} and a.value_text is not null
       ${values.node ? sql`and concat_ws(' > ', i.dept_name, i.group_name, i.subgroup_name) = ${values.node}` : sql``}
+      ${scopeLabel ? sql`and (i.dept_name ilike ${scopeLabel} or i.group_name ilike ${scopeLabel} or i.subgroup_name ilike ${scopeLabel})` : sql``}
   `;
   const catalogueValues: CatalogueValue[] = vocabulary.map((row) => ({
     attributeKey: row.attribute_key,
@@ -100,13 +110,6 @@ try {
   // vocabulary of ours, because the retailer's words are the only ones there
   // are — and left unscoped when it cannot be settled, since narrowing to the
   // wrong branch hides the answer more thoroughly than not narrowing at all.
-  // The category the customer named is bound like any other requirement.
-  // Whether a retailer files body style as a taxonomy level or as a column is
-  // their choice — the Delaware feed's own role assignment moved between two
-  // runs of the same file — so binding it against everything the catalogue
-  // holds works either way, instead of only when it landed where we expected.
-  const spokenCategory = textFor("purchase_category")[0] ?? null;
-
   const phrases = [
     ...(spokenCategory ? [spokenCategory] : []),
     ...textFor("specification_requirements"),
@@ -116,16 +119,45 @@ try {
   ];
 
   const bindings = await bindPhrasesToValues(phrases, catalogueValues);
+
+  // Numeric attributes hold a magnitude and no text, so a vocabulary match
+  // cannot see them at all. Read literally instead.
+  const numericRows = await sql<
+    { attribute_key: string; unit: string | null; comparison: string }[]
+  >`
+    select distinct attribute_key, unit, comparison from public.category_attributes
+    where organization_id = ${organization.id} and status = 'active' and kind = 'numeric'
+  `;
+  const numericAttributes: BindableAttribute[] = numericRows.map((row) => ({
+    key: row.attribute_key,
+    kind: "numeric",
+    comparison: row.comparison as BindableAttribute["comparison"],
+    unit: row.unit,
+    vocabulary: {},
+  }));
+  const numericBindings = bindRequirements(
+    phrases.filter((phrase) => /\d/.test(phrase)),
+    numericAttributes,
+  );
+
   const bound = bindings.filter((binding) => binding.bound);
-  const unbound = bindings.filter((binding) => !binding.bound);
+  const unbound = bindings.filter(
+    (binding) =>
+      !binding.bound &&
+      !numericBindings.some((numeric) => numeric.bound && numeric.phrase === binding.phrase),
+  );
 
   const budget = budgetConstraint({
     targetMinor: moneyFor("target_budget"),
     maximumMinor: moneyFor("maximum_budget"),
   });
 
+  const boundKeys = new Set(bound.map((binding) => (binding.bound ? binding.requirement.key : "")));
   const requirements: Requirement[] = [
     ...bound.map((binding) => (binding.bound ? binding.requirement : null)!),
+    ...numericBindings.flatMap((binding) =>
+      binding.bound && !boundKeys.has(binding.requirement.key) ? [binding.requirement] : [],
+    ),
     ...(budget ? [budget] : []),
   ];
 
@@ -160,6 +192,7 @@ try {
     ) as stock on true
     where item.organization_id = ${organization.id} and item.valid_to is null
       ${values.node ? sql`and concat_ws(' > ', item.dept_name, item.group_name, item.subgroup_name) = ${values.node}` : sql``}
+      ${scopeLabel ? sql`and (item.dept_name ilike ${scopeLabel} or item.group_name ilike ${scopeLabel} or item.subgroup_name ilike ${scopeLabel})` : sql``}
   `;
 
   const stocked: StockedItem[] = stockRows.map((row) => ({
@@ -196,13 +229,11 @@ try {
     })(),
   });
 
-  console.log(
-    `scope            ${
-      values.node ?? "whole catalogue" 
-    }`,
-  );
+  console.log(`scope            ${values.node ?? "whole catalogue"}`);
   console.log(`vocabulary       ${catalogueValues.length} distinct values`);
-  console.log(`in stock         ${stocked.filter((item) => item.stock > 0).length} of ${stocked.length}\n`);
+  console.log(
+    `in stock         ${stocked.filter((item) => item.stock > 0).length} of ${stocked.length}\n`,
+  );
 
   console.log(`Bound (${bound.length}):`);
   for (const binding of bound) {
@@ -211,12 +242,21 @@ try {
       `   "${binding.phrase.slice(0, 44)}"\n      -> ${binding.requirement.key} = ${binding.requirement.valueText}  (score ${binding.score.toFixed(2)}, margin ${binding.margin.toFixed(2)} over ${binding.runnerUp})`,
     );
   }
-  if (budget) console.log(`   budget -> price_minor at_most ${(budget.valueNumeric! / 100).toLocaleString()}`);
+  for (const binding of numericBindings) {
+    if (binding.bound)
+      console.log(`   "${binding.phrase.slice(0, 44)}"\n      -> ${binding.matchedOn}`);
+  }
+  if (budget)
+    console.log(
+      `   budget -> price_minor at_most ${(budget.valueNumeric! / 100).toLocaleString()}`,
+    );
 
   console.log(`\nCould not express (${unbound.length}):`);
   for (const binding of unbound) {
     if (binding.bound) continue;
-    console.log(`   "${binding.phrase.slice(0, 52)}" — ${binding.reason} (best ${binding.best ?? "none"}, ${binding.score.toFixed(2)})`);
+    console.log(
+      `   "${binding.phrase.slice(0, 52)}" — ${binding.reason} (best ${binding.best ?? "none"}, ${binding.score.toFixed(2)})`,
+    );
   }
 
   console.log(`\nqualifying and in stock   ${result.qualifying.length}`);

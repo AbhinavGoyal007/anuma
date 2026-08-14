@@ -125,7 +125,9 @@ try {
         descriptions: sample.map((item) => item.description),
       });
     } catch (error) {
-      console.log(`  ${node.node_key.slice(0, 52).padEnd(54)} proposal failed: ${String(error).slice(0, 60)}`);
+      console.log(
+        `  ${node.node_key.slice(0, 52).padEnd(54)} proposal failed: ${String(error).slice(0, 60)}`,
+      );
       continue;
     }
 
@@ -184,14 +186,23 @@ try {
           extractor_version: ATTRIBUTE_EXTRACTOR_VERSION,
         })),
     );
-    for (let index = 0; index < rows.length; index += 2000) {
-      const chunk = rows.slice(index, index + 2000);
+    // An attribute can now hold several values per item, so uniqueness is on the
+    // value and there is no single row to update. Readings for these keys are
+    // cleared and rewritten, which also drops values a corrected definition no
+    // longer produces — leaving those behind is how a fixed rule keeps showing
+    // its old answer.
+    if (keep.size > 0) {
       await sql`
-        insert into public.catalogue_item_attributes ${sql(chunk)}
-        on conflict (organization_id, item_id, attribute_key) do update set
-          value_text = excluded.value_text, value_numeric = excluded.value_numeric,
-          unit = excluded.unit, extractor_version = excluded.extractor_version,
-          extracted_at = now()
+        delete from public.catalogue_item_attributes
+        where organization_id = ${organization.id}
+          and attribute_key = any(${[...keep]})
+          and item_id = any(${items.map((item) => item.item_id)})
+      `;
+    }
+    for (let index = 0; index < rows.length; index += 2000) {
+      await sql`
+        insert into public.catalogue_item_attributes ${sql(rows.slice(index, index + 2000))}
+        on conflict do nothing
       `;
     }
     valuesWritten += rows.length;

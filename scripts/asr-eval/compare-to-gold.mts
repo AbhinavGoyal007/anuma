@@ -83,10 +83,48 @@ const ENUM_SYNONYMS: Record<string, string[]> = {
 
 /** Words that carry no distinguishing weight when comparing two phrasings. */
 const STOPWORDS = new Set([
-  "the", "a", "an", "and", "or", "of", "to", "for", "in", "on", "with", "is",
-  "are", "was", "were", "be", "been", "not", "no", "yes", "at", "as", "by",
-  "if", "it", "its", "this", "that", "but", "from", "any", "all", "more",
-  "than", "then", "so", "up", "out", "about", "into", "over", "after",
+  "the",
+  "a",
+  "an",
+  "and",
+  "or",
+  "of",
+  "to",
+  "for",
+  "in",
+  "on",
+  "with",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "not",
+  "no",
+  "yes",
+  "at",
+  "as",
+  "by",
+  "if",
+  "it",
+  "its",
+  "this",
+  "that",
+  "but",
+  "from",
+  "any",
+  "all",
+  "more",
+  "than",
+  "then",
+  "so",
+  "up",
+  "out",
+  "about",
+  "into",
+  "over",
+  "after",
 ]);
 
 function words(text: string): Set<string> {
@@ -218,7 +256,9 @@ try {
     (a, b) => Number(a.split(" ")[1]) - Number(b.split(" ")[1]),
   );
 
-  console.log(`${"script".padEnd(11)}${"fields".padStart(7)}${"match".padStart(8)}${"differ".padStart(8)}${"review".padStart(8)}`);
+  console.log(
+    `${"script".padEnd(11)}${"fields".padStart(7)}${"match".padStart(8)}${"differ".padStart(8)}${"review".padStart(8)}`,
+  );
   console.log("-".repeat(42));
 
   for (const script of scripts) {
@@ -263,7 +303,9 @@ try {
   if (values.verbose && problems.length) {
     console.log(`\nEverything not an outright match:\n\n${problems.join("\n")}`);
   } else if (problems.length) {
-    console.log(`\nFirst 15 of ${problems.length} needing attention:\n\n${problems.slice(0, 15).join("\n")}`);
+    console.log(
+      `\nFirst 15 of ${problems.length} needing attention:\n\n${problems.slice(0, 15).join("\n")}`,
+    );
   }
 } finally {
   await sql.end();

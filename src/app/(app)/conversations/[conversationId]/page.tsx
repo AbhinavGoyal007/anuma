@@ -76,27 +76,34 @@ async function OpportunitySection({
   conversationId: string;
   organizationId: string;
 }) {
+  // Binding reaches an embedding service. A conversation page is still worth
+  // reading when that is unavailable, so the failure is confined to this panel —
+  // and only the fetch is guarded, because a component returned from inside a
+  // catch renders later and its own errors escape the block entirely.
+  let opportunity: Awaited<ReturnType<typeof getConversationOpportunity>> | undefined;
+  let failed = false;
   try {
-    const opportunity = await getConversationOpportunity(organizationId, conversationId);
-    return <OpportunityPanel opportunity={opportunity} />;
+    opportunity = await getConversationOpportunity(organizationId, conversationId);
   } catch {
-    // Binding reaches an embedding service. A conversation page is still worth
-    // reading when that is unavailable, so the failure is confined to its panel.
-    return (
-      <section className="product-panel" aria-labelledby="opportunity-error">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Against the range</p>
-            <h2 id="opportunity-error">Could we have sold something?</h2>
-          </div>
-        </div>
-        <p className="demand-empty">
-          This could not be checked just now. Nothing is wrong with the conversation — reload to try
-          again.
-        </p>
-      </section>
-    );
+    failed = true;
   }
+
+  if (!failed) return <OpportunityPanel opportunity={opportunity ?? null} />;
+
+  return (
+    <section className="product-panel" aria-labelledby="opportunity-error">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Against the range</p>
+          <h2 id="opportunity-error">Could we have sold something?</h2>
+        </div>
+      </div>
+      <p className="demand-empty">
+        This could not be checked just now. Nothing is wrong with the conversation — reload to try
+        again.
+      </p>
+    </section>
+  );
 }
 
 export default async function ConversationPage({ params, searchParams }: ConversationPageProps) {
@@ -237,10 +244,7 @@ export default async function ConversationPage({ params, searchParams }: Convers
       {interactionRecord?.status === "completed" ? (
         <>
           <Suspense fallback={<OpportunityPanelSkeleton />}>
-            <OpportunitySection
-              conversationId={conversation.id}
-              organizationId={organization.id}
-            />
+            <OpportunitySection conversationId={conversation.id} organizationId={organization.id} />
           </Suspense>
           <Suspense fallback={<AssortmentPanelSkeleton />}>
             <AssortmentSection conversationId={conversation.id} organizationId={organization.id} />

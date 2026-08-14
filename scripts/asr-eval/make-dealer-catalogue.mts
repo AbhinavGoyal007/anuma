@@ -56,48 +56,132 @@ type Model = {
 };
 
 const MODELS: Model[] = [
-  { code: "HNTR350", cc: 349, group: "Roadster", subgroup: "350cc Roadster", subgroupId: "M0101",
+  {
+    code: "HNTR350",
+    cc: 349,
+    group: "Roadster",
+    subgroup: "350cc Roadster",
+    subgroupId: "M0101",
     trims: ["FCTRY", "DAPPER", "REBEL"],
-    colours: ["BLK", "RBL BLU", "DPR GRY", "LDN RED", "RIO WHT"] },
-  { code: "BUL350", cc: 349, group: "Cruiser", subgroup: "350cc Cruiser", subgroupId: "M0102",
+    colours: ["BLK", "RBL BLU", "DPR GRY", "LDN RED", "RIO WHT"],
+  },
+  {
+    code: "BUL350",
+    cc: 349,
+    group: "Cruiser",
+    subgroup: "350cc Cruiser",
+    subgroupId: "M0102",
     trims: ["STD", "MILTRY", "BLK GOLD"],
-    colours: ["BTL GRN", "MIL SLV", "JET BLK", "MRN"] },
-  { code: "CLS350", cc: 349, group: "Cruiser", subgroup: "350cc Cruiser", subgroupId: "M0102",
+    colours: ["BTL GRN", "MIL SLV", "JET BLK", "MRN"],
+  },
+  {
+    code: "CLS350",
+    cc: 349,
+    group: "Cruiser",
+    subgroup: "350cc Cruiser",
+    subgroupId: "M0102",
     trims: ["HALCYON", "SIGNALS", "CHROME", "DARK"],
-    colours: ["RDTCH RED", "HLCN GRN", "CHRM BRNZ", "STLTH BLK", "MDRS RED"] },
-  { code: "MTR350", cc: 349, group: "Cruiser", subgroup: "350cc Cruiser", subgroupId: "M0102",
+    colours: ["RDTCH RED", "HLCN GRN", "CHRM BRNZ", "STLTH BLK", "MDRS RED"],
+  },
+  {
+    code: "MTR350",
+    cc: 349,
+    group: "Cruiser",
+    subgroup: "350cc Cruiser",
+    subgroupId: "M0102",
     trims: ["FIREBALL", "STELLAR", "AURORA", "SUPERNOVA"],
-    colours: ["FRBL YLW", "STLR BLU", "SPRNVA BRN", "AURORA BLK"] },
-  { code: "GOAN350", cc: 349, group: "Cruiser", subgroup: "350cc Cruiser", subgroupId: "M0102",
+    colours: ["FRBL YLW", "STLR BLU", "SPRNVA BRN", "AURORA BLK"],
+  },
+  {
+    code: "GOAN350",
+    cc: 349,
+    group: "Cruiser",
+    subgroup: "350cc Cruiser",
+    subgroupId: "M0102",
     trims: ["STD", "CHROME"],
-    colours: ["PRPL HAZE", "SHACK BLK", "RAVE RED"] },
-  { code: "SCRM440", cc: 443, group: "Adventure", subgroup: "Adventure Tourer", subgroupId: "M0103",
+    colours: ["PRPL HAZE", "SHACK BLK", "RAVE RED"],
+  },
+  {
+    code: "SCRM440",
+    cc: 443,
+    group: "Adventure",
+    subgroup: "Adventure Tourer",
+    subgroupId: "M0103",
     trims: ["FORCE", "TRAIL"],
-    colours: ["FRC BLU", "TEAL", "TRL GRN", "SLV SPRT"] },
-  { code: "HIM450", cc: 452, group: "Adventure", subgroup: "Adventure Tourer", subgroupId: "M0103",
+    colours: ["FRC BLU", "TEAL", "TRL GRN", "SLV SPRT"],
+  },
+  {
+    code: "HIM450",
+    cc: 452,
+    group: "Adventure",
+    subgroup: "Adventure Tourer",
+    subgroupId: "M0103",
     trims: ["BASE", "PASS", "SUMMIT"],
-    colours: ["KAZA BRN", "HANLE BLK", "SLT POPPY", "KAMET WHT"] },
-  { code: "GRLA450", cc: 452, group: "Roadster", subgroup: "350cc Roadster", subgroupId: "M0101",
+    colours: ["KAZA BRN", "HANLE BLK", "SLT POPPY", "KAMET WHT"],
+  },
+  {
+    code: "GRLA450",
+    cc: 452,
+    group: "Roadster",
+    subgroup: "350cc Roadster",
+    subgroupId: "M0101",
     trims: ["ANALOGUE", "DASH", "FLASH"],
-    colours: ["PLAYA BLK", "BRAVA BLU", "YLW RBN", "SMK SLV"] },
-  { code: "INT650", cc: 648, group: "Twin", subgroup: "650cc Twin", subgroupId: "M0104",
+    colours: ["PLAYA BLK", "BRAVA BLU", "YLW RBN", "SMK SLV"],
+  },
+  {
+    code: "INT650",
+    cc: 648,
+    group: "Twin",
+    subgroup: "650cc Twin",
+    subgroupId: "M0104",
     trims: ["STD", "CUSTOM", "CHROME"],
-    colours: ["CNYN RED", "BKR EXPRS", "SNST STRP", "BCN BLU"] },
-  { code: "CGT650", cc: 648, group: "Twin", subgroup: "650cc Twin", subgroupId: "M0104",
+    colours: ["CNYN RED", "BKR EXPRS", "SNST STRP", "BCN BLU"],
+  },
+  {
+    code: "CGT650",
+    cc: 648,
+    group: "Twin",
+    subgroup: "650cc Twin",
+    subgroupId: "M0104",
     trims: ["STD", "CUSTOM", "CHROME"],
-    colours: ["RCKR RED", "BRT RCNG GRN", "APEX GRY", "SLPSTRM BLU"] },
-  { code: "SM650", cc: 648, group: "Twin", subgroup: "650cc Twin", subgroupId: "M0104",
+    colours: ["RCKR RED", "BRT RCNG GRN", "APEX GRY", "SLPSTRM BLU"],
+  },
+  {
+    code: "SM650",
+    cc: 648,
+    group: "Twin",
+    subgroup: "650cc Twin",
+    subgroupId: "M0104",
     trims: ["ASTRAL", "INTERSTELLAR", "CELESTIAL"],
-    colours: ["ASTRL BLK", "INTSTLR GRY", "CLSTL RED", "ASTRL BLU"] },
-  { code: "SHTGN650", cc: 648, group: "Twin", subgroup: "650cc Twin", subgroupId: "M0104",
+    colours: ["ASTRL BLK", "INTSTLR GRY", "CLSTL RED", "ASTRL BLU"],
+  },
+  {
+    code: "SHTGN650",
+    cc: 648,
+    group: "Twin",
+    subgroup: "650cc Twin",
+    subgroupId: "M0104",
     trims: ["STD", "CUSTOM"],
-    colours: ["SHT MTL GRY", "PLSMA BLU", "GRN DRILL", "STNCL WHT"] },
-  { code: "BEAR650", cc: 648, group: "Twin", subgroup: "650cc Twin", subgroupId: "M0104",
+    colours: ["SHT MTL GRY", "PLSMA BLU", "GRN DRILL", "STNCL WHT"],
+  },
+  {
+    code: "BEAR650",
+    cc: 648,
+    group: "Twin",
+    subgroup: "650cc Twin",
+    subgroupId: "M0104",
     trims: ["STD", "TWO FOUR NINE"],
-    colours: ["BRDWLK WHT", "PTRL GRN", "WLD HNY"] },
-  { code: "CLS650", cc: 648, group: "Twin", subgroup: "650cc Twin", subgroupId: "M0104",
+    colours: ["BRDWLK WHT", "PTRL GRN", "WLD HNY"],
+  },
+  {
+    code: "CLS650",
+    cc: 648,
+    group: "Twin",
+    subgroup: "650cc Twin",
+    subgroupId: "M0104",
     trims: ["HALCYON", "CHROME"],
-    colours: ["VLLM RED", "TEAL", "BLK CHRM"] },
+    colours: ["VLLM RED", "TEAL", "BLK CHRM"],
+  },
 ];
 
 const rows: string[][] = [];
@@ -113,9 +197,14 @@ for (const model of MODELS) {
       rows.push([
         next(),
         cut(`RE ${model.code} ${trim} ${colour} ABS`),
-        "M01", "Motorcycles", "RE01", "Royal Enfield",
-        `M01${model.group === "Twin" ? "04" : "01"}`, model.group,
-        model.subgroupId, model.subgroup,
+        "M01",
+        "Motorcycles",
+        "RE01",
+        "Royal Enfield",
+        `M01${model.group === "Twin" ? "04" : "01"}`,
+        model.group,
+        model.subgroupId,
+        model.subgroup,
       ]);
     }
   }
@@ -130,8 +219,14 @@ for (const helmet of HELMETS) {
       rows.push([
         next(),
         cut(`RE HLMT ${helmet} FF ${colour} ${size}`),
-        "G01", "Riding Gear", "RE01", "Royal Enfield",
-        "G0101", "Helmets", "G010101", "Full Face Helmets",
+        "G01",
+        "Riding Gear",
+        "RE01",
+        "Royal Enfield",
+        "G0101",
+        "Helmets",
+        "G010101",
+        "Full Face Helmets",
       ]);
     }
   }
@@ -144,8 +239,14 @@ for (const jacket of JACKETS) {
       rows.push([
         next(),
         cut(`RE JKT ${jacket} ${colour} ${size}`),
-        "G01", "Riding Gear", "RE01", "Royal Enfield",
-        "G0102", "Apparel", "G010201", "Riding Jackets",
+        "G01",
+        "Riding Gear",
+        "RE01",
+        "Royal Enfield",
+        "G0102",
+        "Apparel",
+        "G010201",
+        "Riding Jackets",
       ]);
     }
   }
@@ -157,8 +258,14 @@ for (const grade of ["10W30", "10W50", "15W50", "20W50"]) {
       rows.push([
         next(),
         cut(`RE ENG OIL ${grade} ${kind} ${litres}`),
-        "S01", "Service Parts", "RE01", "Royal Enfield",
-        "S0101", "Lubricants", "S010101", "Engine Oil",
+        "S01",
+        "Service Parts",
+        "RE01",
+        "Royal Enfield",
+        "S0101",
+        "Lubricants",
+        "S010101",
+        "Engine Oil",
       ]);
     }
   }
@@ -169,41 +276,76 @@ for (const grade of ["10W30", "10W50", "15W50", "20W50"]) {
 let material = 1900000;
 for (const model of MODELS) {
   for (const part of [
-    "AIR FILTER", "OIL FILTER", "BRK PAD SET FRT", "BRK PAD SET RR",
-    "CLUTCH CABLE", "CHAIN SPRCKT KIT", "SPARK PLUG", "HEADLAMP ASSY",
-    "MIRROR SET", "SIDE STAND", "FUEL TANK CAP", "SEAT ASSY",
+    "AIR FILTER",
+    "OIL FILTER",
+    "BRK PAD SET FRT",
+    "BRK PAD SET RR",
+    "CLUTCH CABLE",
+    "CHAIN SPRCKT KIT",
+    "SPARK PLUG",
+    "HEADLAMP ASSY",
+    "MIRROR SET",
+    "SIDE STAND",
+    "FUEL TANK CAP",
+    "SEAT ASSY",
   ]) {
     material += 13;
     rows.push([
       next(),
       cut(`${material} ${part} ${model.code}`),
-      "S01", "Service Parts", "RE01", "Royal Enfield",
-      "S0102", "Spares", "S010201", "Motorcycle Spares",
+      "S01",
+      "Service Parts",
+      "RE01",
+      "Royal Enfield",
+      "S0102",
+      "Spares",
+      "S010201",
+      "Motorcycle Spares",
     ]);
   }
 }
 
 for (const model of MODELS) {
   for (const accessory of [
-    "TOURING SEAT", "WNDSCRN SHORT", "WNDSCRN TALL", "ENGINE GUARD",
-    "PANNIER SET 30L", "TOP BOX 40L", "BAR END MIRROR", "SUMP GUARD",
-    "BACKREST PILLION", "FLY SCREEN",
+    "TOURING SEAT",
+    "WNDSCRN SHORT",
+    "WNDSCRN TALL",
+    "ENGINE GUARD",
+    "PANNIER SET 30L",
+    "TOP BOX 40L",
+    "BAR END MIRROR",
+    "SUMP GUARD",
+    "BACKREST PILLION",
+    "FLY SCREEN",
   ]) {
     rows.push([
       next(),
       cut(`RE ACC ${accessory} ${model.code}`),
-      "A01", "Accessories", "RE01", "Royal Enfield",
-      "A0101", "Motorcycle Accessories", "A010101", "Genuine Accessories",
+      "A01",
+      "Accessories",
+      "RE01",
+      "Royal Enfield",
+      "A0101",
+      "Motorcycle Accessories",
+      "A010101",
+      "Genuine Accessories",
     ]);
   }
 }
 
 const header = [
-  "ITEM_ID", "ITEM_DESC", "DEPT_ID", "DEPT_NAME", "BRAND_ID",
-  "BRAND_NAME", "GROUP_ID", "GROUP_NAME", "SUBGROUP_ID", "SUBGROUP_NAME",
+  "ITEM_ID",
+  "ITEM_DESC",
+  "DEPT_ID",
+  "DEPT_NAME",
+  "BRAND_ID",
+  "BRAND_NAME",
+  "GROUP_ID",
+  "GROUP_NAME",
+  "SUBGROUP_ID",
+  "SUBGROUP_NAME",
 ];
-const escape = (field: string) =>
-  /[",\n]/.test(field) ? `"${field.replace(/"/g, '""')}"` : field;
+const escape = (field: string) => (/[",\n]/.test(field) ? `"${field.replace(/"/g, '""')}"` : field);
 writeFileSync(
   values.out!,
   `${[header, ...rows].map((row) => row.map(escape).join(",")).join("\n")}\n`,

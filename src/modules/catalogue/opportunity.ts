@@ -7,10 +7,8 @@ import {
   type Requirement,
   type StockedItem,
 } from "@/modules/catalogue/missed-opportunity";
-import {
-  bindPhrasesToValues,
-  type CatalogueValue,
-} from "@/modules/catalogue/semantic-binding";
+import { bindPhrasesToValues, type CatalogueValue } from "@/modules/catalogue/semantic-binding";
+import { bindRequirements, type BindableAttribute } from "@/modules/catalogue/requirement-binding";
 
 /**
  * What this customer could have been shown, and what could not be checked.
@@ -40,6 +38,8 @@ export type OpportunityRequirement = {
 };
 
 export type ConversationOpportunity = {
+  /** The part of the range this was judged against, in the retailer's words. */
+  scope: string | null;
   /** Requirements the catalogue could express, and what they became. */
   checked: OpportunityRequirement[];
   /** Requirements nothing in the catalogue records. */
@@ -92,11 +92,51 @@ export async function getConversationOpportunity(
     return row?.value_amount_minor ? Number(row.value_amount_minor) : null;
   };
 
+  // The category first, and everything else inside it.
+  //
+  // Matching a requirement against a whole catalogue does not scale and does not
+  // work. Against 180,000 rows of electronics it bound "washing machine" to a
+  // carpet washer, "8 kg capacity" to a carrycase, and returned a hundred and
+  // eight thousand qualifying products — the size of the shelf, dressed as an
+  // answer. A shopper's other requirements only mean anything within the kind of
+  // thing they came for: eight kilos is a drum to someone buying a washing
+  // machine and nothing at all to someone buying a phone.
+  const spokenCategory = textFor("purchase_category")[0] ?? null;
+  const { data: resolution } = spokenCategory
+    ? await supabase
+        .from("category_resolutions")
+        .select("resolved_label")
+        .eq("organization_id", organizationId)
+        .eq("phrase", spokenCategory.trim().toLowerCase())
+        .maybeSingle()
+    : { data: null };
+
+  const scopeLabel = resolution?.resolved_label ?? spokenCategory;
+  const scoped = supabase
+    .from("catalogue_items")
+    .select("item_id, description, price_minor")
+    .eq("organization_id", organizationId)
+    .is("valid_to", null);
+  const { data: items } = scopeLabel
+    ? await scoped
+        .or(
+          [
+            `dept_name.ilike.${scopeLabel}`,
+            `group_name.ilike.${scopeLabel}`,
+            `subgroup_name.ilike.${scopeLabel}`,
+          ].join(","),
+        )
+        .limit(4000)
+    : await scoped.limit(1500);
+  if (!items || items.length === 0) return null;
+  const scopedIds = new Set(items.map((item) => item.item_id));
+
   const { data: vocabularyRows } = await supabase
     .from("catalogue_item_attributes")
-    .select("attribute_key, value_text")
+    .select("attribute_key, value_text, item_id")
     .eq("organization_id", organizationId)
-    .not("value_text", "is", null);
+    .not("value_text", "is", null)
+    .in("item_id", [...scopedIds].slice(0, 1000));
   if (!vocabularyRows || vocabularyRows.length === 0) return null;
 
   // Distinct values only. A catalogue of two hundred thousand rows still has a
@@ -120,30 +160,51 @@ export async function getConversationOpportunity(
   }
 
   const phrases = [
-    ...textFor("purchase_category"),
     ...textFor("specification_requirements"),
     ...textFor("additional_requirements"),
     ...textFor("other_constraints"),
   ];
 
   const bindings = await bindPhrasesToValues(phrases, catalogueValues);
+
+  // Numeric attributes carry a magnitude and no text, so they are invisible to
+  // a vocabulary match — "8 kg capacity" had nothing to bind to even though the
+  // capacity of every washing machine in the range was sitting in the column
+  // beside it. Magnitudes are read literally instead, which is also the only
+  // honest way to compare them: eight kilos is not *like* seven kilos.
+  const { data: numericDefinitions } = await supabase
+    .from("category_attributes")
+    .select("attribute_key, unit, comparison")
+    .eq("organization_id", organizationId)
+    .eq("status", "active")
+    .eq("kind", "numeric");
+  const numericAttributes: BindableAttribute[] = (numericDefinitions ?? []).map((row) => ({
+    key: row.attribute_key,
+    kind: "numeric",
+    comparison: row.comparison as BindableAttribute["comparison"],
+    unit: row.unit,
+    vocabulary: {},
+  }));
+  const numericBindings = bindRequirements(
+    phrases.filter((phrase) => /\d/.test(phrase)),
+    numericAttributes,
+  );
+
   const budget = budgetConstraint({
     targetMinor: moneyFor("target_budget"),
     maximumMinor: moneyFor("maximum_budget"),
   });
 
+  const boundKeys = new Set(
+    bindings.flatMap((binding) => (binding.bound ? [binding.requirement.key] : [])),
+  );
   const requirements: Requirement[] = [
     ...bindings.flatMap((binding) => (binding.bound ? [binding.requirement] : [])),
+    ...numericBindings.flatMap((binding) =>
+      binding.bound && !boundKeys.has(binding.requirement.key) ? [binding.requirement] : [],
+    ),
     ...(budget ? [budget] : []),
   ];
-
-  const { data: items } = await supabase
-    .from("catalogue_items")
-    .select("item_id, description, price_minor")
-    .eq("organization_id", organizationId)
-    .is("valid_to", null)
-    .limit(2000);
-  if (!items) return null;
 
   const attributesByItem = new Map<
     string,
@@ -153,7 +214,8 @@ export async function getConversationOpportunity(
     .from("catalogue_item_attributes")
     .select("item_id, attribute_key, value_text, value_numeric")
     .eq("organization_id", organizationId)
-    .limit(20000);
+    .in("item_id", [...scopedIds])
+    .limit(40000);
   for (const row of attributeRows ?? []) {
     const list = attributesByItem.get(row.item_id) ?? [];
     list.push({
@@ -168,7 +230,8 @@ export async function getConversationOpportunity(
     .from("inventory")
     .select("item_id, stock")
     .eq("organization_id", organizationId)
-    .limit(20000);
+    .in("item_id", [...scopedIds])
+    .limit(40000);
   const stockByItem = new Map((stockRows ?? []).map((row) => [row.item_id, row.stock]));
 
   const stocked: StockedItem[] = items.map((item) => ({
@@ -196,13 +259,23 @@ export async function getConversationOpportunity(
   });
 
   return {
-    checked: bindings.map((binding) => ({
-      phrase: binding.phrase,
-      matchedTo: binding.bound
-        ? `${binding.requirement.key.replace(/_/g, " ")}: ${binding.requirement.valueText}`
-        : null,
-    })),
-    uncheckable: bindings.filter((binding) => !binding.bound).map((binding) => binding.phrase),
+    scope: scopeLabel,
+    checked: phrases.map((phrase) => {
+      const text = bindings.find((binding) => binding.phrase === phrase && binding.bound);
+      const numeric = numericBindings.find((binding) => binding.phrase === phrase && binding.bound);
+      const matched = text?.bound ? text : numeric?.bound ? numeric : null;
+      return {
+        phrase,
+        matchedTo: matched
+          ? `${matched.requirement.key.replace(/_/g, " ")}: ${matched.requirement.valueText ?? matched.requirement.valueNumeric}`
+          : null,
+      };
+    }),
+    uncheckable: phrases.filter(
+      (phrase) =>
+        !bindings.some((binding) => binding.phrase === phrase && binding.bound) &&
+        !numericBindings.some((binding) => binding.phrase === phrase && binding.bound),
+    ),
     budgetMinor: budget?.valueNumeric ?? null,
     qualifyingCount: result.qualifying.length,
     shownCount: result.shown.length,
