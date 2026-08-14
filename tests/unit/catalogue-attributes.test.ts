@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { extractAttributes } from "@/modules/catalogue/attribute-extract";
 import { judgeAttribute } from "@/modules/catalogue/attribute-plausibility";
+import { findMissedOpportunity } from "@/modules/catalogue/missed-opportunity";
 import {
   isUsableDefinition,
   nodeKey,
@@ -217,5 +218,49 @@ describe("believing an attribute with nobody to ask", () => {
     expect(judgeAttribute(numeric(), readings, 100).reason).toBe(
       "single_value_no_discrimination",
     );
+  });
+});
+
+describe("contradicting a salesperson", () => {
+  const car = (description: string, stock: number) => ({
+    itemId: description,
+    description,
+    nodeKey: "Ford > Sport Utility > Escape",
+    stock,
+    attributes: [],
+  });
+
+  it("does not call a claim false when nothing was checked", () => {
+    // The Delaware feed carries fuel type and price as columns the catalogue
+    // cannot hold, so a customer asking for a hybrid under $40,000 binds no
+    // requirement at all. Every car on the lot then trivially qualifies, and
+    // this used to report the salesperson had been wrong — on a shelf count.
+    const result = findMissedOpportunity({
+      stocked: [car("2025 Ford Escape ST-Line Gas", 1), car("2025 Ford Escape Active Gas", 1)],
+      requirements: [],
+      spokenNames: [],
+      claimedUnavailable: true,
+    });
+    expect(result.falselyUnavailable).toBe(false);
+  });
+
+  it("calls it false only when something checkable was in stock", () => {
+    const result = findMissedOpportunity({
+      stocked: [
+        {
+          itemId: "phev",
+          description: "2025 Ford Escape PHEV",
+          nodeKey: "Ford > Sport Utility > Escape",
+          stock: 1,
+          attributes: [{ key: "fuel_type", valueText: "hybrid", valueNumeric: null }],
+        },
+      ],
+      requirements: [
+        { key: "fuel_type", comparison: "equals", valueText: "hybrid", valueNumeric: null },
+      ],
+      spokenNames: [],
+      claimedUnavailable: true,
+    });
+    expect(result.falselyUnavailable).toBe(true);
   });
 });

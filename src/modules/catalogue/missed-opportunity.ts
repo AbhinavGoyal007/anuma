@@ -156,6 +156,15 @@ export function findMissedOpportunity(input: {
     qualifying,
     shown,
     neverShown,
-    falselyUnavailable: input.claimedUnavailable && qualifying.length > 0,
+    // Contradicting a salesperson requires having checked something. With no
+    // requirement bound, every row in stock trivially "qualifies" and this fired
+    // on the size of the shelf — against a real Ford feed it announced a false
+    // "we did have it" while having verified neither the hybrid the customer
+    // asked for nor his budget, because the feed's fuel type and price columns
+    // are not in the catalogue at all. Being accidentally right there is worse
+    // than being wrong: the same code accuses a salesperson who was telling the
+    // truth, and that accusation is the one thing this product cannot get wrong.
+    falselyUnavailable:
+      input.claimedUnavailable && input.requirements.length > 0 && qualifying.length > 0,
   };
 }
