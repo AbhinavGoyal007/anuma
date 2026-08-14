@@ -52,6 +52,17 @@ export function normalizeCategoryPhrase(text: string): string {
 export function resolveSpokenCategories(
   phraseByConversation: ReadonlyMap<string, string>,
   decisions: readonly SpokenDecision[],
+  /**
+   * The retailer's own label for a phrase, where one has been resolved.
+   *
+   * Demand used to group only through a fixed list of seventeen electronics
+   * categories, so a car dealer's customer saying "SUV" matched nothing and
+   * their dashboard was empty. A retailer's own vocabulary is the only one there
+   * is, and a phrase that resolves to none of it still groups under itself —
+   * the customer's words are a worse label than the retailer's and a far better
+   * one than no row at all.
+   */
+  retailerLabels: ReadonlyMap<string, string> = new Map(),
 ): CategoryResolution {
   const confirmed = new Map<string, string>();
   const outsideRangePhrases = new Set<string>();
@@ -75,12 +86,17 @@ export function resolveSpokenCategories(
     const phrase = normalizeCategoryPhrase(rawPhrase);
     if (phrase.length === 0) continue;
 
-    const key = confirmed.get(phrase);
-    if (key !== undefined) {
+    const key = confirmed.get(phrase) ?? retailerLabels.get(phrase) ?? null;
+    if (key !== null) {
       keyByConversation.set(conversationId, key);
     } else if (outsideRangePhrases.has(phrase)) {
       outsideRange += 1;
     } else {
+      // Grouped under the customer's own phrase, and still counted as
+      // unresolved. A retailer whose catalogue does not name what was asked for
+      // should see the demand and be told it was not matched to their range —
+      // not lose the row and be told nothing.
+      keyByConversation.set(conversationId, phrase);
       unresolved.set(phrase, (unresolved.get(phrase) ?? 0) + 1);
     }
   }

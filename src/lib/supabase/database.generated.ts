@@ -676,6 +676,44 @@ export type Database = {
           },
         ]
       }
+      category_resolutions: {
+        Row: {
+          id: string
+          margin: number
+          organization_id: string
+          phrase: string
+          resolved_at: string
+          resolved_label: string
+          score: number
+        }
+        Insert: {
+          id?: string
+          margin: number
+          organization_id: string
+          phrase: string
+          resolved_at?: string
+          resolved_label: string
+          score: number
+        }
+        Update: {
+          id?: string
+          margin?: number
+          organization_id?: string
+          phrase?: string
+          resolved_at?: string
+          resolved_label?: string
+          score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_resolutions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       category_roles: {
         Row: {
           category: string

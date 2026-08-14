@@ -76,8 +76,10 @@ describe("grouping what customers asked for", () => {
       decisions,
     );
 
-    // The proposal said "laptop". It is not used.
-    expect(resolution.keyByConversation.size).toBe(0);
+    // The proposal said "laptop". It is still not used — the interaction groups
+    // under what the customer said, never under a category nobody confirmed.
+    expect(resolution.keyByConversation.get("c1")).toBe("flight ticket to shanghai, china");
+    expect(resolution.keyByConversation.get("c1")).not.toBe("laptop");
     expect(resolution.unresolved.get("flight ticket to shanghai, china")).toBe(1);
   });
 
@@ -91,7 +93,11 @@ describe("grouping what customers asked for", () => {
       decisions,
     );
 
-    expect(resolution.keyByConversation.size).toBe(1);
+    // Every interaction is placed, and the two nobody matched to the range are
+    // still reported as unmatched — a retailer sees the demand and is told it
+    // was not found in their catalogue.
+    expect(resolution.keyByConversation.get("c1")).toBe("laptop");
+    expect(resolution.keyByConversation.get("c2")).toBe("washing machine");
     expect(resolution.unresolved.get("washing machine")).toBe(2);
   });
 
@@ -100,8 +106,23 @@ describe("grouping what customers asked for", () => {
       { phrase: "tablet", anumaCategoryKey: null, status: "confirmed" },
     ]);
 
-    expect(resolution.keyByConversation.size).toBe(0);
+    // Confirmed with no category is not a mapping to nothing. It groups under
+    // the customer's own word rather than creating an unnamed bucket.
+    expect(resolution.keyByConversation.get("c1")).toBe("tablet");
     expect(resolution.unresolved.get("tablet")).toBe(1);
+  });
+
+  it("prefers the retailer's own word for a phrase over the customer's", () => {
+    // A car dealer's customer says "SUV". That is on nobody's fixed list, and
+    // grouping only through one left their dashboard empty.
+    const resolution = resolveSpokenCategories(
+      conversations([["c1", "SUV"]]),
+      [],
+      new Map([["suv", "Sport Utility"]]),
+    );
+
+    expect(resolution.keyByConversation.get("c1")).toBe("Sport Utility");
+    expect(resolution.unresolved.size).toBe(0);
   });
 
   it("normalises only case and surrounding space, matching the SQL summary", () => {

@@ -153,7 +153,18 @@ export async function bindPhrasesToValues(
     // spellings of one idea, and scoring them against each other made the
     // margin between two spellings look like uncertainty about what the
     // customer meant — it rejected "hybrid powertrain" outright.
-    const runnerUp = ranked.find((entry) => entry.value.attributeKey !== best.value.attributeKey);
+    // Against the best value of a *different* attribute where there is one:
+    // values of the same attribute are usually one retailer's several spellings
+    // of one idea, and scoring those against each other reads as uncertainty.
+    //
+    // Where every value shares one key they are not spellings, they are rivals —
+    // a list of categories competing for the same phrase — and there is no other
+    // attribute to measure against. Falling back to zero made the margin equal
+    // the score, which is no check at all: it let "2 bhk flat" resolve to "Flat
+    // Monitor" at 0.37 in an electronics catalogue, on the word flat. The
+    // second-best value is the honest comparison there.
+    const runnerUp =
+      ranked.find((entry) => entry.value.attributeKey !== best.value.attributeKey) ?? ranked[1];
     const margin = best.score - (runnerUp?.score ?? 0);
 
     if (best.score < BINDING_FLOOR) {

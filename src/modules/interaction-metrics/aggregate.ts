@@ -488,6 +488,16 @@ export async function getDemandIntelligence(
     supabase.from("anuma_categories").select("key, label"),
   ]);
 
+  // What this retailer's own catalogue calls each phrase, resolved by measuring
+  // rather than by anyone confirming it.
+  const { data: retailerResolutions } = await supabase
+    .from("category_resolutions")
+    .select("phrase, resolved_label")
+    .eq("organization_id", organizationId);
+  const retailerLabels = new Map(
+    (retailerResolutions ?? []).map((row) => [row.phrase, row.resolved_label]),
+  );
+
   const resolution = resolveSpokenCategories(
     phraseByConversation,
     (spokenResult.data ?? []).map((row) => ({
@@ -495,8 +505,12 @@ export async function getDemandIntelligence(
       anumaCategoryKey: row.anuma_category_key,
       status: row.status as SpokenMappingStatus,
     })),
+    retailerLabels,
   );
 
+  // A key with no label in the shared ontology is the retailer's own word for a
+  // category, or the customer's, and both read better on a dashboard than a
+  // blank.
   const labelByKey = new Map((ontologyResult.data ?? []).map((r) => [r.key, r.label]));
   // Roles are stated against an ANUMA category key, so a change in the
   // retailer's or the customer's wording never detaches a role from its category.
