@@ -38,6 +38,9 @@ function seededExtractionFields(): ExtractionField[] {
       is_system: seed.is_system,
       is_enabled: seed.is_enabled,
       sort_order: seed.sort_order,
+      task: seed.task,
+      scope: seed.scope,
+      speaker_source: seed.speaker_source,
     };
     return rowToExtractionField(row);
   });
@@ -74,7 +77,7 @@ describe("a custom field flows through the dynamic contract", () => {
     const fieldEnum = schema.properties.values.items.properties.field.enum;
     expect(fieldEnum).toEqual(["wall_mount_interest"]);
     expect(buildExtractionSystemPrompt([custom])).toContain(
-      "- wall_mount_interest [evidence_extracted, one entry per instance, use valueText]:",
+      "- wall_mount_interest [EVIDENCE_EXTRACTED, SCOPE FULL, one entry per instance, use valueText]:",
     );
   });
 

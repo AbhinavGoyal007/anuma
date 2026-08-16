@@ -25,6 +25,9 @@ export type FieldDefinitionRow = Pick<
   | "is_system"
   | "is_enabled"
   | "sort_order"
+  | "task"
+  | "scope"
+  | "speaker_source"
 >;
 
 /** A definition as the page shows it — the row, nothing derived. */
@@ -79,6 +82,11 @@ export function rowToExtractionField(row: FieldDefinitionRow): ExtractionField {
     values: row.enum_values && row.enum_values.length > 0 ? row.enum_values : undefined,
     labelled: row.labelled,
     requiresEvidence: row.requires_evidence,
+    // Undefined rather than null where a row predates these columns, so an
+    // older library still builds the same prompt as the static registry.
+    task: (row.task as ExtractionField["task"] | null) ?? undefined,
+    scope: (row.scope as ExtractionField["scope"] | null) ?? undefined,
+    speakerSource: (row.speaker_source as ExtractionField["speakerSource"] | null) ?? undefined,
     rule: row.definition,
   };
 }

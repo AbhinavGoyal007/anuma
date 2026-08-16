@@ -19,14 +19,17 @@ import { sourceClasses } from "@/modules/interaction-record/source-class";
 
 describe("the atomic field registry", () => {
   it("holds the canonical set", () => {
-    // 43 = the guide's 40, minus the two laptop-only fields (portability,
-    // battery), plus the one category-adaptive field that replaced them, plus
-    // cross-sell, upsell, red-flags and customer questions added for
-    // rep-execution and category-architecture intelligence.
+    // 52 = the previous 43 plus the nine the v1.1 extraction spec adds. Those
+    // nine exist to separate things the flat set conflated: what the customer
+    // finally preferred from what was merely recommended, how they answered each
+    // recommendation and each offer rather than only that one was made, whether
+    // a question was actually answered, what they said would let them proceed,
+    // whether the representative ever asked for the business, and the single
+    // best-evidenced reason a sale did not happen.
     // Changes here are deliberate: the schema stays stable so records stay
     // comparable, and a field is added on purpose or not at all.
-    expect(atomicFields).toHaveLength(43);
-    expect(atomicFieldKeys).toHaveLength(43);
+    expect(atomicFields).toHaveLength(52);
+    expect(atomicFieldKeys).toHaveLength(52);
   });
 
   it("carries no laptop-specific requirement fields", () => {
@@ -102,7 +105,7 @@ describe("what the model is allowed to produce", () => {
   });
 
   it("splits cleanly into extracted and system-supplied", () => {
-    expect(extractedFields.length + systemFields.length).toBe(43);
+    expect(extractedFields.length + systemFields.length).toBe(52);
     expect(systemFields).toHaveLength(6);
   });
 

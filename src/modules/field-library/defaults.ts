@@ -21,6 +21,9 @@ export type FieldDefinitionSeed = {
   enum_values: string[];
   labelled: boolean;
   requires_evidence: boolean;
+  task: string | null;
+  scope: string | null;
+  speaker_source: string | null;
   is_system: boolean;
   is_enabled: boolean;
   sort_order: number;
@@ -44,6 +47,9 @@ export function defaultFieldDefinitions(): FieldDefinitionSeed[] {
     enum_values: field.values ? [...field.values] : [],
     labelled: field.labelled ?? false,
     requires_evidence: field.requiresEvidence,
+    task: field.task ?? null,
+    scope: field.scope ?? null,
+    speaker_source: field.speakerSource ?? null,
     // Every seeded field is canonical: identity protected, disable-not-delete.
     is_system: true,
     is_enabled: true,

@@ -1419,8 +1419,11 @@ export type Database = {
           labelled: boolean
           organization_id: string
           requires_evidence: boolean
+          scope: string | null
           sort_order: number
           source_class: Database["public"]["Enums"]["fact_source_class"]
+          speaker_source: string | null
+          task: string | null
           updated_at: string
           value_kind: string
         }
@@ -1441,8 +1444,11 @@ export type Database = {
           labelled?: boolean
           organization_id: string
           requires_evidence?: boolean
+          scope?: string | null
           sort_order?: number
           source_class?: Database["public"]["Enums"]["fact_source_class"]
+          speaker_source?: string | null
+          task?: string | null
           updated_at?: string
           value_kind?: string
         }
@@ -1463,8 +1469,11 @@ export type Database = {
           labelled?: boolean
           organization_id?: string
           requires_evidence?: boolean
+          scope?: string | null
           sort_order?: number
           source_class?: Database["public"]["Enums"]["fact_source_class"]
+          speaker_source?: string | null
+          task?: string | null
           updated_at?: string
           value_kind?: string
         }

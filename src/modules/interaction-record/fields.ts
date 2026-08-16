@@ -61,6 +61,18 @@ export const atomicFieldKeys = [
   "next_action",
   "final_decision_state",
   "commercial_outcome",
+  // From the v1.1 extraction spec: the fields that separate what the customer
+  // settled on from what was merely discussed, and what actually blocked a sale
+  // from what was merely complained about.
+  "final_preferred_product",
+  "recommendation_response",
+  "commercial_offer_made",
+  "commercial_offer_response",
+  "question_response_status",
+  "customer_commitment_signals",
+  "close_attempts",
+  "customer_purchase_conditions",
+  "primary_non_conversion_reason",
 ] as const;
 
 export type AtomicFieldKey = (typeof atomicFieldKeys)[number];
@@ -105,6 +117,16 @@ export type AtomicField = {
   requiresEvidence: boolean;
   /** Whether the model produces this, as opposed to the system supplying it. */
   extracted: boolean;
+  /**
+   * What kind of work the field asks for, and which part of the conversation
+   * settles it. Both are shown to the model per field, because a judgement read
+   * as a quotation, or a closing state inferred from an opening one, are the two
+   * ways a record stops meaning what it says.
+   */
+  task?: "extract" | "extract_list" | "evaluate" | "classify" | "verified";
+  scope?: "opening" | "closing" | "full";
+  /** Who the field reads from, where that changes the answer. */
+  speakerSource?: "customer" | "representative" | "any";
   /** The precise extraction definition — this is the text the model is given. */
   rule: string;
 };
@@ -120,6 +142,22 @@ export const clarityLevels = ["none", "low", "medium", "high"] as const;
 export const stockStatuses = ["available", "unavailable", "partially_available"] as const;
 export const objectionResponses = ["full", "partial", "none"] as const;
 export const applicability = ["yes", "no", "not_applicable"] as const;
+/** Why a conversation did not convert, where the evidence supports one reason. */
+export const nonConversionReasons = [
+  "price",
+  "product_fit",
+  "stock",
+  "competitor",
+  "finance",
+  "delivery_installation",
+  "timing",
+  "decision_dependency",
+  "trust",
+  "low_intent",
+  "frontline_execution",
+  "other",
+] as const;
+
 export const finalDecisionStates = [
   "purchased",
   "researching",
@@ -185,6 +223,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "text",
     requiresEvidence: true,
     extracted: true,
+    task: "extract",
+    scope: "full",
+    speakerSource: "any",
     rule: "Each distinct language actually spoken in the conversation, for example Hindi, English, or code-mixed Hinglish.",
   },
   {
@@ -194,6 +235,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "number",
     requiresEvidence: true,
     extracted: true,
+    task: "evaluate",
+    scope: "full",
+    speakerSource: "customer",
     rule: "The number of customers or decision-participants present, judged from what is said, not from the speaker count. Abstain if uncertain.",
   },
   {
@@ -203,6 +247,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "text",
     requiresEvidence: true,
     extracted: true,
+    task: "extract",
+    scope: "full",
+    speakerSource: "any",
     rule: "The single product category the customer is shopping for, for example laptop, refrigerator, or 2 BHK flat.",
   },
   {
@@ -213,6 +260,9 @@ export const atomicFields: readonly AtomicField[] = [
     values: arrivalIntentStates,
     requiresEvidence: true,
     extracted: true,
+    task: "classify",
+    scope: "opening",
+    speakerSource: "customer",
     rule: "How decided the customer already was on arrival: exploratory, comparing, specific_product, or ready_to_buy. Judge from the opening exchange.",
   },
   {
@@ -222,6 +272,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "text",
     requiresEvidence: true,
     extracted: true,
+    task: "extract",
+    scope: "opening",
+    speakerSource: "customer",
     rule: "The customer's own first stated ask, as the gist of their opening words.",
   },
   {
@@ -232,6 +285,9 @@ export const atomicFields: readonly AtomicField[] = [
     labelled: true,
     requiresEvidence: true,
     extracted: true,
+    task: "extract_list",
+    scope: "full",
+    speakerSource: "customer",
     rule: "Each distinct question the customer asks, as the gist of what they wanted to know, with a short snake_case label naming its topic: price, specification, comparison, availability, warranty, finance, usage, delivery, offer, or other. One entry per question. Only questions the customer asks — never the representative's questions, and never a statement rephrased as a question.",
   },
 
@@ -243,6 +299,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "text",
     requiresEvidence: true,
     extracted: true,
+    task: "extract_list",
+    scope: "full",
+    speakerSource: "customer",
     rule: "Each distinct purpose the product must serve, for example college, coding, gaming, or daily commute. One entry per use case.",
   },
   {
@@ -252,6 +311,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "money",
     requiresEvidence: true,
     extracted: true,
+    task: "extract",
+    scope: "full",
+    speakerSource: "customer",
     rule: "The spend figure the customer first states as their intended budget.",
   },
   {
@@ -261,6 +323,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "money",
     requiresEvidence: true,
     extracted: true,
+    task: "extract",
+    scope: "full",
+    speakerSource: "customer",
     rule: "The highest figure the customer explicitly says they could stretch to. A ceiling counts however it is phrased: as a stretch (I could go to 1.10 lakh), as a prohibition (not above 60,000; 60 hazaar ke upar nahi jaana chahiye), or as a revision later in the conversation that raises an earlier figure (60 se zyada, maan lo 65 tak). Take the last ceiling the customer states, not the first. Only when a ceiling was actually stated; never infer one from the target, and never compute one from a discount, offer or EMI.",
   },
   {
@@ -270,6 +335,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "text",
     requiresEvidence: true,
     extracted: true,
+    task: "extract",
+    scope: "full",
+    speakerSource: "customer",
     rule: "When the customer intends to buy or take the next step, for example this week, day after tomorrow, or after Diwali. A time the customer gives for returning to the store is a timing answer as well as an action, so record it here even when the return itself is captured as a next action; a clock time counts (tomorrow around 7:30). When the customer says the timing depends on something unresolved, record the condition rather than abstaining.",
   },
   {
@@ -279,6 +347,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "entity",
     requiresEvidence: true,
     extracted: true,
+    task: "extract_list",
+    scope: "full",
+    speakerSource: "customer",
     rule: "Each brand the customer explicitly says they want or prefer. A brand merely discussed is not a brand preferred.",
   },
   {
@@ -288,6 +359,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "entity",
     requiresEvidence: true,
     extracted: true,
+    task: "extract_list",
+    scope: "full",
+    speakerSource: "customer",
     rule: "Each hard technical specification the customer names explicitly, for example RTX 4060, 16 GB, 2 BHK, ready-to-move, or diesel. One entry each, kept as the customer's own terms.",
   },
   {
@@ -298,6 +372,9 @@ export const atomicFields: readonly AtomicField[] = [
     labelled: true,
     requiresEvidence: true,
     extracted: true,
+    task: "extract_list",
+    scope: "full",
+    speakerSource: "customer",
     rule: "Category-relevant requirements that are not hard named specs. First infer the product category, then capture each preference the customer expresses on a dimension that matters for that category, as a dimension label plus its value: for a laptop portability=important or battery_life=6+ hours; for property floor_preference=high or facing=east; for a car fuel_type=diesel or seating=7. Use a short snake_case label for the dimension. One entry per requirement.",
   },
   {
@@ -307,6 +384,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "text",
     requiresEvidence: true,
     extracted: true,
+    task: "extract_list",
+    scope: "full",
+    speakerSource: "customer",
     rule: "Each additional hard constraint not covered by another field, for example under 2 kg, a specific colour, or a specific locality. One entry each.",
   },
 
@@ -318,6 +398,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "text",
     requiresEvidence: true,
     extracted: true,
+    task: "evaluate",
+    scope: "full",
+    speakerSource: "customer",
     rule: "The one or few factors that most influence this customer's choice, shown by what they repeat or stress, for example value for money, gaming performance, or brand trust. Base this on repeated or explicit evidence, not a single passing mention.",
   },
   {
@@ -328,6 +411,9 @@ export const atomicFields: readonly AtomicField[] = [
     values: requirementOrigins,
     requiresEvidence: true,
     extracted: true,
+    task: "evaluate",
+    scope: "full",
+    speakerSource: "any",
     rule: "Whether the core requirement was stated (the customer arrived with it), discovered (found during the conversation), or inferred (the representative deduced it).",
   },
   {
@@ -338,6 +424,9 @@ export const atomicFields: readonly AtomicField[] = [
     values: clarityLevels,
     requiresEvidence: true,
     extracted: true,
+    task: "classify",
+    scope: "opening",
+    speakerSource: "customer",
     rule: "How clearly the customer knew what they wanted at the very opening: none, low, medium, or high. Judge on the opening exchange only.",
   },
   {
@@ -348,6 +437,9 @@ export const atomicFields: readonly AtomicField[] = [
     values: clarityLevels,
     requiresEvidence: true,
     extracted: true,
+    task: "classify",
+    scope: "closing",
+    speakerSource: "customer",
     rule: "How clearly the customer knew what they wanted by the close, same scale. Judge on the closing exchange only.",
   },
 
@@ -359,6 +451,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "entity",
     requiresEvidence: true,
     extracted: true,
+    task: "extract_list",
+    scope: "full",
+    speakerSource: "any",
     rule: "Each specific product weighed as an option during the conversation, whether or not the representative pitched it. One entry each.",
   },
   {
@@ -368,6 +463,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "entity",
     requiresEvidence: true,
     extracted: true,
+    task: "extract_list",
+    scope: "full",
+    speakerSource: "representative",
     rule: "Each specific product the representative actively put forward as a recommendation. One entry each.",
   },
   {
@@ -377,6 +475,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "text",
     requiresEvidence: true,
     extracted: true,
+    task: "extract_list",
+    scope: "full",
+    speakerSource: "representative",
     rule: "For each recommendation, the reason the representative gives that ties the product to this customer's need. Not a bare specification restated.",
   },
   {
@@ -387,6 +488,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "money",
     requiresEvidence: true,
     extracted: true,
+    task: "extract_list",
+    scope: "full",
+    speakerSource: "representative",
     rule: "Each price the representative quotes for a store product. Prefer the system price; use the spoken figure when only spoken.",
   },
 
@@ -398,6 +502,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "entity",
     requiresEvidence: true,
     extracted: true,
+    task: "extract_list",
+    scope: "full",
+    speakerSource: "any",
     rule: "Each competing seller the customer references, for example Amazon, Flipkart, Croma, or another dealer. One entry each.",
   },
   {
@@ -407,6 +514,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "entity",
     requiresEvidence: true,
     extracted: true,
+    task: "extract_list",
+    scope: "full",
+    speakerSource: "any",
     rule: "The specific product the customer attributes to a competitor: brand and model where stated, otherwise the category. Do not invent a model the customer did not say.",
   },
   {
@@ -416,6 +526,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "money",
     requiresEvidence: true,
     extracted: true,
+    task: "extract_list",
+    scope: "full",
+    speakerSource: "any",
     rule: "Each price the customer claims a competitor is offering, recorded as the customer's claim and never as a verified price.",
   },
 
@@ -429,6 +542,9 @@ export const atomicFields: readonly AtomicField[] = [
     values: stockStatuses,
     requiresEvidence: false,
     extracted: true,
+    task: "extract",
+    scope: "full",
+    speakerSource: "any",
     rule: "Whether the wanted product is available at this store: available, unavailable, or partially_available. Inventory system preferred; what was said is a fallback, not a substitute.",
   },
   {
@@ -438,6 +554,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "text",
     requiresEvidence: true,
     extracted: true,
+    task: "extract_list",
+    scope: "full",
+    speakerSource: "any",
     rule: "Each offer discussed, for example cashback, exchange bonus, bank or card offer, or festive discount. One entry each.",
   },
   {
@@ -447,6 +566,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "text",
     requiresEvidence: true,
     extracted: true,
+    task: "extract_list",
+    scope: "full",
+    speakerSource: "customer",
     rule: "Each financing option the customer asks about or that is discussed, for example EMI, a specific bank, a tenure, or no-cost EMI. One entry each.",
   },
 
@@ -458,6 +580,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "text",
     requiresEvidence: true,
     extracted: true,
+    task: "extract_list",
+    scope: "full",
+    speakerSource: "customer",
     rule: "Each distinct concern the customer raises that resists the purchase, for example price, weight, warranty, or delivery time. One object per concern; never merge two concerns into one.",
   },
   {
@@ -468,6 +593,9 @@ export const atomicFields: readonly AtomicField[] = [
     values: objectionResponses,
     requiresEvidence: true,
     extracted: true,
+    task: "evaluate",
+    scope: "full",
+    speakerSource: "representative",
     rule: "For each objection, how fully the representative addressed it: full, partial, or none. Requires evidence for both the objection and the response.",
   },
   {
@@ -478,6 +606,9 @@ export const atomicFields: readonly AtomicField[] = [
     values: applicability,
     requiresEvidence: true,
     extracted: true,
+    task: "evaluate",
+    scope: "full",
+    speakerSource: "representative",
     rule: "Whether the representative offered a suitable alternative when the customer's preferred product could not fit: yes, no, or not_applicable. It is only 'needed' when the preferred product failed a requirement.",
   },
   {
@@ -489,6 +620,9 @@ export const atomicFields: readonly AtomicField[] = [
     values: applicability,
     requiresEvidence: true,
     extracted: true,
+    task: "evaluate",
+    scope: "full",
+    speakerSource: "any",
     rule: "Whether the representative demonstrated or physically showed the product: yes, no, or not_applicable. Evidence where audible; a visual-only demo needs manual confirmation.",
   },
   {
@@ -528,6 +662,9 @@ export const atomicFields: readonly AtomicField[] = [
     valueKind: "text",
     requiresEvidence: true,
     extracted: true,
+    task: "extract_list",
+    scope: "closing",
+    speakerSource: "any",
     rule: "Each concrete next step agreed, for example the customer to visit Saturday, or the representative to send details on WhatsApp. One entry each.",
   },
   {
@@ -538,6 +675,9 @@ export const atomicFields: readonly AtomicField[] = [
     values: finalDecisionStates,
     requiresEvidence: true,
     extracted: true,
+    task: "classify",
+    scope: "closing",
+    speakerSource: "customer",
     rule: "Where the customer landed by the end: purchased, researching, deferred, rejected, or follow_up_scheduled. Based on the closing evidence.",
   },
   {
@@ -549,6 +689,111 @@ export const atomicFields: readonly AtomicField[] = [
     requiresEvidence: false,
     extracted: false,
     rule: "POS, or an explicitly confirmed outcome. Never read from the conversation alone.",
+  },
+  {
+    key: "final_preferred_product",
+    sourceClass: "evaluated",
+    cardinality: "single",
+    valueKind: "text",
+    requiresEvidence: true,
+    extracted: true,
+    task: "evaluate",
+    scope: "closing",
+    speakerSource: "customer",
+    rule: "The product the customer clearly prefers by the end, requiring explicit preference, selection or a clear comparative choice. The most discussed product is not the preferred one, and neither is the recommended one. If two options remain equally preferred, abstain as ambiguous rather than choosing.",
+  },
+  {
+    key: "recommendation_response",
+    sourceClass: "evaluated",
+    cardinality: "multiple",
+    valueKind: "text",
+    labelled: true,
+    requiresEvidence: true,
+    extracted: true,
+    task: "evaluate",
+    speakerSource: "customer",
+    rule: "How the customer answered each recommendation, one entry per recommendation, in the same order as products_recommended. Set label to the product. Value must be accepted, considering, rejected or unclear. Accepted means they explicitly chose it as the way forward, which is not itself a completed sale. Silence is unclear, never acceptance.",
+  },
+  {
+    key: "commercial_offer_made",
+    sourceClass: "evidence_extracted",
+    cardinality: "multiple",
+    valueKind: "text",
+    labelled: true,
+    requiresEvidence: true,
+    extracted: true,
+    task: "extract_list",
+    speakerSource: "representative",
+    rule: "Each commercial intervention the representative proactively offers to make purchase easier or more attractive. Set label to its kind: finance, discount, promotion, exchange, warranty_service_plan, accessory, installation, delivery, bundle or other. Describing a fact is not offering something; the representative must actually propose it to this customer. A promotion the customer raises is not a representative offer.",
+  },
+  {
+    key: "commercial_offer_response",
+    sourceClass: "evaluated",
+    cardinality: "multiple",
+    valueKind: "text",
+    labelled: true,
+    requiresEvidence: true,
+    extracted: true,
+    task: "evaluate",
+    speakerSource: "customer",
+    rule: "How the customer answered each offer, one entry per offer, in the same order as commercial_offer_made. Set label to the offer. Value must be accepted, interested, rejected, deferred or unclear. Silence is unclear.",
+  },
+  {
+    key: "question_response_status",
+    sourceClass: "evaluated",
+    cardinality: "multiple",
+    valueKind: "text",
+    labelled: true,
+    requiresEvidence: true,
+    extracted: true,
+    task: "evaluate",
+    rule: "Whether each customer question was answered, one entry per question, in the same order as customer_questions. Set label to the question topic. Value must be answered, partial, unanswered or uncertain. A response answers the question even if the customer dislikes the answer. Use unanswered only when enough later conversation existed for a response to have been given.",
+  },
+  {
+    key: "customer_commitment_signals",
+    sourceClass: "evidence_extracted",
+    cardinality: "multiple",
+    valueKind: "text",
+    labelled: true,
+    requiresEvidence: true,
+    extracted: true,
+    task: "extract_list",
+    speakerSource: "customer",
+    rule: "Each explicit sign of movement toward the transaction. Set label to its kind: explicit_purchase_commitment, final_price_after_selection, payment_or_billing, reservation, delivery_after_selection, selected_variant_confirmation or other. Context decides: an early \"what is the price?\" is a question, not a commitment. Never infer one from enthusiasm or politeness.",
+  },
+  {
+    key: "close_attempts",
+    sourceClass: "evidence_extracted",
+    cardinality: "multiple",
+    valueKind: "text",
+    labelled: true,
+    requiresEvidence: true,
+    extracted: true,
+    task: "extract_list",
+    speakerSource: "representative",
+    rule: "Each explicit attempt by the representative to secure a commitment, a reservation or a concrete next step. Set label to purchase_close, commitment_close, reservation_close or next_step_close. Ordinary product discussion is not a close, and a next-step close must actually ask the customer to commit to something specific rather than offer general help.",
+  },
+  {
+    key: "customer_purchase_conditions",
+    sourceClass: "evidence_extracted",
+    cardinality: "multiple",
+    valueKind: "text",
+    requiresEvidence: true,
+    extracted: true,
+    task: "extract_list",
+    speakerSource: "customer",
+    rule: "Each condition the customer states would allow or materially enable them to proceed — a price threshold, a required variant, approval from someone else, a finance or timing condition. Explicit conditional language is required. \"This is expensive\" is an objection, not a condition.",
+  },
+  {
+    key: "primary_non_conversion_reason",
+    sourceClass: "evaluated",
+    cardinality: "single",
+    valueKind: "enum",
+    values: nonConversionReasons,
+    requiresEvidence: true,
+    extracted: true,
+    task: "evaluate",
+    rule: "The single strongest evidenced blocker to purchase in this interaction. Evaluate only when the conversation does not show an immediate purchase; where it does, abstain as unknown. A raised objection is not automatically the blocker. Use frontline_execution only where the interaction itself directly shows the failure. Where several blockers are comparably plausible, abstain as ambiguous rather than choosing.",
   },
 ];
 

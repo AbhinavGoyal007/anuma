@@ -21,7 +21,7 @@ import type { ExtractionField } from "@/modules/interaction-record/extraction-co
  */
 
 const COLUMNS =
-  "id, key, label, definition, source_class, alternate_source_class, value_kind, cardinality, enum_values, labelled, requires_evidence, is_system, is_enabled, sort_order";
+  "id, key, label, definition, source_class, alternate_source_class, value_kind, cardinality, enum_values, labelled, requires_evidence, is_system, is_enabled, sort_order, task, scope, speaker_source";
 
 /**
  * Seeds the default library for an organization that has none.
@@ -44,6 +44,26 @@ export async function ensureFieldLibrarySeeded(organizationId: string): Promise<
   await db
     .from("interaction_field_definitions")
     .upsert(rows, { onConflict: "organization_id,key", ignoreDuplicates: true });
+
+  // Backfill the properties a row can only have gained by the registry changing
+  // under it. `ignoreDuplicates` protects a business's edits, which is right —
+  // but it also means an organization seeded before task and scope existed keeps
+  // extracting against a prompt that never mentions them, silently and for ever.
+  // Only system-owned rows are touched, and only where the value is still unset,
+  // so an edit is never overwritten.
+  await Promise.all(
+    rows
+      .filter((row) => row.is_system && (row.task || row.scope || row.speaker_source))
+      .map((row) =>
+        db
+          .from("interaction_field_definitions")
+          .update({ task: row.task, scope: row.scope, speaker_source: row.speaker_source })
+          .eq("organization_id", organizationId)
+          .eq("key", row.key)
+          .eq("is_system", true)
+          .is("task", null),
+      ),
+  );
 }
 
 /** The full library for the settings page, in display order. RLS-scoped. */
