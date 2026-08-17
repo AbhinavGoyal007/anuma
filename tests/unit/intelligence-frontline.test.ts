@@ -13,6 +13,7 @@ const value = (
   valueText: string | null,
   label: string | null = null,
   abstention: string | null = null,
+  earliestMs: number | null = 0,
 ): PopulationValue => ({
   fieldKey,
   label,
@@ -22,6 +23,7 @@ const value = (
   currency: null,
   abstention,
   hasEvidence: true,
+  earliestMs,
 });
 
 let seq = 0;
@@ -175,6 +177,64 @@ describe("denominators that decide whether a frontline metric is fair", () => {
     const metrics = computeFrontline([row(), row()]);
     expect(metrics.demoRate.value).toBeNull();
     expect(metrics.financeOfferGap.value).toBeNull();
+  });
+});
+
+describe("a close attempt after the customer signalled, not merely present", () => {
+  it("counts a close that came after the buying signal", () => {
+    const metrics = computeFrontline([
+      row({
+        values: [
+          value("customer_commitment_signals", "I'll take it", null, null, 60_000),
+          value("close_attempts", "shall I bill it", null, null, 65_000),
+        ],
+      }),
+    ]);
+    expect(metrics.closeAfterCommitment.value).toBe(1);
+  });
+
+  it("does not count a close that came before the signal", () => {
+    // A close made before the customer signalled anything is a rep working
+    // through a script. Treating it as a response would flatter exactly the
+    // behaviour this metric exists to find.
+    const metrics = computeFrontline([
+      row({
+        values: [
+          value("close_attempts", "shall I bill it", null, null, 20_000),
+          value("customer_commitment_signals", "I'll take it", null, null, 60_000),
+        ],
+      }),
+    ]);
+    expect(metrics.closeAfterCommitment.observed).toBe(1);
+    expect(metrics.closeAfterCommitment.value).toBe(0);
+  });
+
+  it("leaves out an interaction whose signal carries no timing", () => {
+    // Neither judgement is available, so it is not evidence either way.
+    const metrics = computeFrontline([
+      row({
+        values: [
+          value("customer_commitment_signals", "I'll take it", null, null, null),
+          value("close_attempts", "shall I bill it", null, null, 5_000),
+        ],
+      }),
+    ]);
+    expect(metrics.closeAfterCommitment.observed).toBe(0);
+    expect(metrics.closeAfterCommitment.value).toBeNull();
+  });
+
+  it("counts several upsell pitches in one interaction once", () => {
+    const metrics = computeFrontline([
+      row({
+        values: [
+          value("upsell_pitch", "8 to 16 GB", "memory"),
+          value("upsell_pitch", "256 to 512 GB", "storage"),
+        ],
+      }),
+      row({ values: [value("upsell_pitch", null, null, "not_stated")] }),
+    ]);
+    expect(metrics.upsellRate.affected).toBe(1);
+    expect(metrics.upsellRate.value).toBe(0.5);
   });
 });
 

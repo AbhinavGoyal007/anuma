@@ -20,6 +20,14 @@ const present = (row: PopulationRow, fieldKey: string): PopulationValue[] =>
 
 const has = (row: PopulationRow, fieldKey: string): boolean => present(row, fieldKey).length > 0;
 
+/** When a field's earliest citation occurs, or null if it was never cited. */
+const firstAt = (row: PopulationRow, fieldKey: string): number | null => {
+  const times = present(row, fieldKey).flatMap((value) =>
+    typeof value.earliestMs === "number" ? [value.earliestMs] : [],
+  );
+  return times.length ? Math.min(...times) : null;
+};
+
 /** Whether a recorded commercial offer was a finance one. */
 const hasFinanceOffer = (row: PopulationRow): boolean =>
   present(row, "commercial_offer_made").some((value) =>
@@ -97,8 +105,18 @@ export function computeFrontline(rows: readonly PopulationRow[]): FrontlineMetri
   );
   const financeAnswered = financeRequested.filter((row) => hasFinanceOffer(row));
 
-  const commitment = rows.filter((row) => has(row, "customer_commitment_signals"));
-  const closedAfter = commitment.filter((row) => has(row, "close_attempts"));
+  // Ordering, not presence. A close attempt made before the customer signalled
+  // anything is a rep working through a script; one made after is a rep
+  // responding to the person in front of them, and treating the two as the same
+  // event would flatter exactly the behaviour this metric exists to find.
+  // Interactions whose commitment carries no timing cannot be judged either way
+  // and leave the denominator.
+  const commitment = rows.filter((row) => firstAt(row, "customer_commitment_signals") !== null);
+  const closedAfter = commitment.filter((row) => {
+    const signalled = firstAt(row, "customer_commitment_signals")!;
+    const closed = firstAt(row, "close_attempts");
+    return closed !== null && closed >= signalled;
+  });
 
   const nextActionSupported = rows.filter((row) => supported(row, "next_action"));
 

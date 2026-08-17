@@ -25,6 +25,7 @@ const value = (
   currency: null,
   abstention,
   hasEvidence: true,
+  earliestMs: 0,
 });
 
 let seq = 0;

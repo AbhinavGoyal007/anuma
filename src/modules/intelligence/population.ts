@@ -1,6 +1,11 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import {
+  correctionFor,
+  currentRecordIds,
+  type Correction,
+} from "@/modules/intelligence/corrections";
 import { readOutcome, type Outcome } from "@/modules/intelligence/outcome";
 
 /**
@@ -29,6 +34,14 @@ export type PopulationValue = {
   currency: string | null;
   abstention: string | null;
   hasEvidence: boolean;
+  /**
+   * Where in the recording this value's earliest citation sits.
+   *
+   * Carried because some questions are about order, not presence — a close
+   * attempt before the customer signalled anything is a different event from one
+   * after, and without a timestamp the two are indistinguishable.
+   */
+  earliestMs: number | null;
 };
 
 export type PopulationRow = {
@@ -187,13 +200,13 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
     .in("conversation_id", conversationIds)
     .order("created_at", { ascending: false });
 
-  const currentRecord = new Map<string, string>();
-  for (const record of records ?? []) {
-    if (!currentRecord.has(record.conversation_id)) {
-      currentRecord.set(record.conversation_id, record.id);
-    }
-  }
-  const recordIds = [...currentRecord.values()];
+  const recordIds = currentRecordIds(
+    (records ?? []).map((record) => ({
+      id: record.id,
+      conversationId: record.conversation_id,
+      createdAt: record.created_at,
+    })),
+  );
   if (recordIds.length === 0) {
     return {
       rows: [],
@@ -242,34 +255,54 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
       .order("created_at", { ascending: false }),
   ]);
 
-  const correction = new Map<string, { text: string | null; rejected: boolean }>();
-  for (const row of corrections ?? []) {
-    if (correction.has(row.field_value_id)) continue;
-    correction.set(row.field_value_id, {
-      text: row.corrected_text,
-      rejected: row.is_rejected,
-    });
+  // Earliest citation per evidence group, so a value can be placed in the
+  // conversation rather than only counted.
+  const groupIds = [
+    ...new Set(
+      (fieldValues ?? []).flatMap((row) => (row.evidence_group_id ? [row.evidence_group_id] : [])),
+    ),
+  ];
+  const earliest = new Map<string, number>();
+  for (let offset = 0; offset < groupIds.length; offset += 200) {
+    const { data } = await supabase
+      .from("evidence_references")
+      .select("evidence_group_id, start_milliseconds")
+      .eq("organization_id", filters.organizationId)
+      .in("evidence_group_id", groupIds.slice(offset, offset + 200));
+    for (const reference of data ?? []) {
+      const at = reference.start_milliseconds ?? 0;
+      const seen = earliest.get(reference.evidence_group_id);
+      if (seen === undefined || at < seen) earliest.set(reference.evidence_group_id, at);
+    }
   }
+
+  const allCorrections: Correction[] = (corrections ?? []).map((row) => ({
+    fieldValueId: row.field_value_id,
+    correctedText: row.corrected_text,
+    isRejected: row.is_rejected,
+    createdAt: row.created_at,
+  }));
 
   const valuesByRecord = new Map<string, PopulationValue[]>();
   let correctionsApplied = 0;
   for (const row of fieldValues) {
-    const applied = correction.get(row.id);
-    if (applied?.rejected) {
+    const applied = correctionFor(row.id, allCorrections);
+    if (applied.kind === "rejected") {
       correctionsApplied += 1;
       continue;
     }
-    if (applied?.text) correctionsApplied += 1;
+    if (applied.kind === "corrected") correctionsApplied += 1;
     const list = valuesByRecord.get(row.interaction_record_id) ?? [];
     list.push({
       fieldKey: row.field_key,
       label: row.label,
-      valueText: applied?.text ?? row.value_text,
+      valueText: applied.kind === "corrected" ? applied.text : row.value_text,
       valueNumber: row.value_number === null ? null : Number(row.value_number),
       amountMinor: row.value_amount_minor === null ? null : Number(row.value_amount_minor),
       currency: row.currency_code,
       abstention: row.abstention,
       hasEvidence: row.evidence_group_id !== null,
+      earliestMs: row.evidence_group_id ? (earliest.get(row.evidence_group_id) ?? null) : null,
     });
     valuesByRecord.set(row.interaction_record_id, list);
   }
