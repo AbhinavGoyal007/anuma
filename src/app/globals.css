@@ -4184,3 +4184,123 @@ a {
   font-style: italic;
   margin: 0.6rem 0 0;
 }
+
+/* Customer demand. One comparison grammar throughout: ranked bars from a common
+   baseline, because length against a shared start is the comparison people read
+   most accurately and repeating it means the page is learned once. */
+.dm-grid {
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 1.5rem;
+}
+
+.dm-panel > h3 {
+  color: var(--graphite);
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  margin: 0 0 0.7rem;
+  text-transform: uppercase;
+}
+
+.dm-bars {
+  display: grid;
+  gap: 0.3rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dm-bars li {
+  align-items: center;
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: minmax(0, 11rem) 1fr auto;
+}
+
+.dm-bar-label {
+  color: var(--carbon);
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dm-bar-label em {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-style: normal;
+  letter-spacing: 0.04em;
+  margin-right: 0.35rem;
+  text-transform: uppercase;
+}
+
+.dm-bar-track {
+  background: var(--border);
+  display: block;
+  height: 0.55rem;
+}
+
+.dm-bar-fill {
+  background: var(--carbon);
+  display: block;
+  height: 100%;
+}
+
+.dm-bar-value {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dm-matrix {
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  margin-top: 1rem;
+}
+
+.dm-matrix caption {
+  caption-side: bottom;
+  padding-top: 0.6rem;
+  text-align: left;
+}
+
+.dm-matrix th,
+.dm-matrix td {
+  border: 1px solid var(--border);
+  min-width: 4.5rem;
+  padding: 0.45rem 0.6rem;
+  text-align: center;
+}
+
+.dm-matrix thead th,
+.dm-matrix tbody th {
+  color: var(--graphite);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.dm-matrix tbody th {
+  text-align: left;
+}
+
+.dm-matrix-corner {
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+@media (max-width: 900px) {
+  .dm-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dm-bars li {
+    grid-template-columns: minmax(0, 8rem) 1fr auto;
+  }
+}

@@ -8,6 +8,7 @@ describe("application route registry", () => {
       "/conversations",
       "/customer-intelligence",
       "/frontline-performance",
+      "/intelligence/demand",
       "/intelligence/frontline",
       "/outcome-intelligence",
       "/field-library",
