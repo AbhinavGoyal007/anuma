@@ -112,6 +112,19 @@ describe("what the model is allowed to produce", () => {
     expect(systemFields).toHaveLength(9);
   });
 
+  it("keeps every rule inside the column that stores it", () => {
+    // Field definitions are stored per organization, in a column capped at 1200
+    // characters. A rule that outgrows it does not fail here — it fails when the
+    // library is seeded for a tenant, which is a deploy-time surprise rather
+    // than a test-time one, and leaves that tenant on the previous definition.
+    for (const field of atomicFields) {
+      expect(
+        field.rule.trim().length,
+        `${field.key}'s rule is too long to store`,
+      ).toBeLessThanOrEqual(1200);
+    }
+  });
+
   it("requires evidence for everything read out of the conversation", () => {
     for (const field of extractedFields) {
       if (field.sourceClass === "evidence_extracted" || field.sourceClass === "evaluated") {

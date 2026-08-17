@@ -186,11 +186,12 @@ export function computeInteractionMetrics(values: readonly MetricInputValue[]): 
     promotionDiscussed: present(values, "promotion_discussed").length > 0,
     demoPerformed: singleText(values, "product_demo_performed"),
 
-    // Counted from the pitches, not from the yes/no judgement beside them. Under
-    // the v1.3 spec cross_sell_offered answers whether anything was pitched at
-    // all, so it holds a value on every conversation that reached a verdict —
-    // counting those would score an explicit "no" as a cross-sell and put the
-    // rate at 100% on a dashboard a manager is meant to act on.
+    // Counted from the pitches. Before the v1.3 spec these fields held one row
+    // per offer, so counting rows was the count; now the offer is a pitch and
+    // the field beside it is a verdict that is present even when the answer is
+    // no. Counting the old way would score every "nothing was offered" as a
+    // cross-sell and put the rate at 100% on exactly the conversations a
+    // manager opens the dashboard to find.
     crossSellCount: present(values, "cross_sell_pitch").length,
     upsellCount: present(values, "upsell_pitch").length,
     redFlagCount: present(values, "red_flags").length,

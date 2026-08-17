@@ -652,7 +652,7 @@ export const atomicFields: readonly AtomicField[] = [
     values: commercialActionVerdicts,
     requiresEvidence: false,
     extracted: false,
-    rule: "Whether the representative actively introduced, recommended or positioned an additional complementary product or service beyond the primary need — a bag with a laptop, a soundbar with a television, a service plan with an appliance. Derived in code from cross_sell_pitch rather than asked of the model: the specification defines it as yes when at least one qualifying pitch exists, so computing it is both cheaper and the only way it cannot contradict the pitches it summarises. A no is a statement about something never said and has no segment to cite, which is the other reason it cannot be a stored extracted value. A second product merely mentioned does not qualify, and neither does simply answering a customer who asked for something themselves: the representative must actively put it forward. A substitute for the main product is an alternative, not a cross-sell; a higher version of it is an upsell. Use no where a real opportunity existed and enough conversation exists to show none was taken, uncertain where an opportunity existed but the words do not settle it, and abstain as unknown where there was no meaningful opportunity at all. This verdict carries no citation of its own — the evidence sits on the pitches beneath it, and a no has no utterance to point at.",
+    rule: "Whether the representative put something complementary in front of the customer beyond what they came in for. Derived in code from cross_sell_pitch, never asked of the model: the specification defines it as yes when at least one qualifying pitch exists, which makes it a function of the pitches and the only way it cannot contradict them. It is also unstorable as an extracted value — a no is a claim about something never said, and there is no segment to cite for it. What qualifies as a pitch is defined on cross_sell_pitch, and the no, uncertain and not-applicable readings all come from that field's own abstention.",
   },
   {
     key: "cross_sell_pitch",
@@ -665,7 +665,7 @@ export const atomicFields: readonly AtomicField[] = [
     task: "extract_list",
     scope: "full",
     speakerSource: "representative",
-    rule: "One entry per distinct complementary item or service pitched, as spoken. Set label to its kind: product, service, warranty_service_plan, accessory, bundle_component or other. Do not collapse a mouse and a warranty plan into one entry because they were said in the same breath, and deduplicate a pitch repeated in the same terms.",
+    rule: "One entry per complementary item or service the representative actively introduced, recommended or positioned beyond what the customer came in for — a bag with a laptop, a soundbar with a television, a protection plan with an appliance. Set label to its kind: product, service, warranty_service_plan, accessory, bundle_component or other. It qualifies when the representative brought it up or pushed it, whether or not the customer accepted and whether or not it was ever priced. It does not qualify when the customer asked for the item themselves and the representative merely answered, when the item substitutes for the main product rather than adding to it, or when it was named in passing with nothing put behind it. Do not collapse a mouse and a warranty plan into one entry because they were said in the same breath, and deduplicate a pitch repeated in the same terms.",
   },
   {
     key: "cross_sell_hierarchy",
@@ -687,7 +687,7 @@ export const atomicFields: readonly AtomicField[] = [
     values: commercialActionVerdicts,
     requiresEvidence: false,
     extracted: false,
-    rule: "Whether the representative actively moved the customer upward within the same need — a larger capacity, a higher specification, a premium tier. Derived in code from upsell_pitch rather than asked of the model, for the same reason as cross_sell_offered: the specification defines it as yes when at least one qualifying upward move exists, and a no has no utterance to point at. A recommendation is not an upsell on its own: there must be a baseline the customer was already on. A higher price alone does not establish it, and correct sizing does not either — recommending a bigger air conditioner because the room needs one is a fit, not an upgrade. If the customer raised the higher tier and the representative only answered questions, that is not an upsell. Something complementary rather than higher is a cross-sell. This verdict carries no citation of its own — the evidence sits on the pitches beneath it, and a no has no utterance to point at.",
+    rule: "Whether the representative moved the customer upward within the same need — a larger capacity, a higher specification, a premium tier. Derived in code from upsell_pitch, never asked of the model, for the same reasons as cross_sell_offered: the specification makes it a function of the pitches, and a no has no utterance to cite. What qualifies as an upward move is defined on upsell_pitch, and the no, uncertain and not-applicable readings all come from that field's own abstention.",
   },
   {
     key: "upsell_pitch",
@@ -700,7 +700,7 @@ export const atomicFields: readonly AtomicField[] = [
     task: "extract_list",
     scope: "full",
     speakerSource: "representative",
-    rule: 'One entry per distinct upward move, written as the transition itself — "128 GB to 256 GB", "base to Pro". Set label to what is being increased: storage, memory, capacity, size, performance, feature_tier, premium_tier, energy_efficiency, service_tier, warranty_tier or other. Where the baseline is only a configuration rather than a named product, keep the configuration; the upward target matters more than forcing a name onto the starting point.',
+    rule: 'One entry per upward move the representative proposed within the same need, written as the transition itself — "16 GB to 32 GB", "base to Pro". Set label to what is being increased: storage, memory, capacity, size, performance, feature_tier, premium_tier, energy_efficiency, service_tier, warranty_tier or other. What makes it an upsell is a baseline the customer was already on and the representative proposing above it. Almost every real upsell is justified by a need — a customer who names 16 GB and is told their editing workload wants 32 GB has been upsold, and the reason given does not turn it back into plain advice. Suggesting the step up is enough: it need not be accepted, priced or firmly stated. What does not count is a first recommendation with no baseline to move up from, a costlier product that is simply different, a substitute for something unavailable or over budget, which is an alternative, and a higher tier the customer raised themselves where the representative only answered. Where the baseline is only a configuration rather than a named product, keep the configuration.',
   },
   {
     key: "upsell_hierarchy",
