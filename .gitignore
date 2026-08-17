@@ -21,3 +21,4 @@ Thumbs.db
 
 # Evaluation working data. Customer audio never belongs in the repository.
 /eval
+.vercel
