@@ -4425,3 +4425,41 @@ a {
     padding-right: 0;
   }
 }
+
+/* Overview. A short list, not a report: findings carry their own weight through
+   a rule at the left edge rather than each sitting in its own floating card. */
+.ov-list {
+  display: grid;
+  gap: 1.15rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ov-item {
+  border-left: 2px solid var(--border);
+  padding-left: 0.9rem;
+}
+
+.ov-item--high {
+  border-left-color: var(--carbon);
+}
+
+.ov-item--medium {
+  border-left-color: var(--graphite);
+}
+
+.ov-headline {
+  color: var(--carbon);
+  font-size: 1rem;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.ov-sowhat {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin: 0.25rem 0 0;
+  max-width: 68ch;
+}
