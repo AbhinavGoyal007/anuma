@@ -96,5 +96,6 @@ export async function storeInteractionMetrics(interactionRecordId: string): Prom
     },
     { onConflict: "interaction_record_id" },
   );
-  if (upsertError) throw new Error(`Interaction metrics could not be saved: ${upsertError.message}`);
+  if (upsertError)
+    throw new Error(`Interaction metrics could not be saved: ${upsertError.message}`);
 }

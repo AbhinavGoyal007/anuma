@@ -105,10 +105,10 @@ try {
   const abstainedNow: string[] = [];
   const notes: string[] = [];
 
-  const titles = Object.keys(before).filter((title) => after[title] && after[title] !== before[title]);
-  console.log(
-    `${titles.length} conversation(s) re-extracted with the v1.1 prompt.\n`,
+  const titles = Object.keys(before).filter(
+    (title) => after[title] && after[title] !== before[title],
   );
+  console.log(`${titles.length} conversation(s) re-extracted with the v1.1 prompt.\n`);
   console.log(
     `${"conversation".padEnd(34)}${"gained".padStart(8)}${"lost".padStart(7)}${"changed".padStart(9)}${"new".padStart(6)}`,
   );
@@ -151,7 +151,9 @@ try {
         c += 1;
         changed += 1;
         if (values.verbose) {
-          notes.push(`  ~ ${title} · ${key}\n      was: ${oldText.slice(0, 66)}\n      now: ${nowText.slice(0, 66)}`);
+          notes.push(
+            `  ~ ${title} · ${key}\n      was: ${oldText.slice(0, 66)}\n      now: ${nowText.slice(0, 66)}`,
+          );
         }
       }
     }

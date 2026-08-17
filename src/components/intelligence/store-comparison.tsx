@@ -64,7 +64,10 @@ export function StoreComparisonTable({
                   ? "No store assigned"
                   : (storeNames.get(store.locationId) ?? "Scoped store");
               return (
-                <tr key={store.locationId ?? "unassigned"} className={thin ? "store-row--thin" : ""}>
+                <tr
+                  key={store.locationId ?? "unassigned"}
+                  className={thin ? "store-row--thin" : ""}
+                >
                   <th scope="row">
                     {name}
                     {thin ? <span className="store-thin-tag">thin sample</span> : null}
@@ -87,8 +90,8 @@ export function StoreComparisonTable({
         </table>
       </div>
       <p className="store-table-note">
-        The all-stores row is computed from every interaction, not averaged across the rows above, so
-        a small store cannot swing it.
+        The all-stores row is computed from every interaction, not averaged across the rows above,
+        so a small store cannot swing it.
       </p>
     </section>
   );

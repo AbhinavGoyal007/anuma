@@ -70,7 +70,9 @@ export default async function CustomerIntelligencePage({ searchParams }: PagePro
     <>
       <PageHeader
         eyebrow={route.eyebrow}
-        title={selectedStore ? `Demand Intelligence · ${selectedStore.name}` : "Demand Intelligence"}
+        title={
+          selectedStore ? `Demand Intelligence · ${selectedStore.name}` : "Demand Intelligence"
+        }
       />
 
       {stores.length > 0 ? (

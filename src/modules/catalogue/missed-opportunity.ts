@@ -167,14 +167,16 @@ function assess(item: StockedItem, requirements: readonly Requirement[]): ItemAs
 
 /** The words in a product name that distinguish it from its neighbours. */
 function distinctiveTokens(name: string): string[] {
-  return name
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((token) => token.length > 1)
-    // The brand is on every row in a single-brand dealership and separates
-    // nothing; "Royal Enfield Interceptor" and "Royal Enfield Super Meteor"
-    // would otherwise look like the same product being discussed.
-    .filter((token) => !["royal", "enfield", "the", "and"].includes(token));
+  return (
+    name
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((token) => token.length > 1)
+      // The brand is on every row in a single-brand dealership and separates
+      // nothing; "Royal Enfield Interceptor" and "Royal Enfield Super Meteor"
+      // would otherwise look like the same product being discussed.
+      .filter((token) => !["royal", "enfield", "the", "and"].includes(token))
+  );
 }
 
 /**

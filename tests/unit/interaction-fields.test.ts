@@ -19,6 +19,9 @@ import { sourceClasses } from "@/modules/interaction-record/source-class";
 
 describe("the atomic field registry", () => {
   it("holds the canonical set", () => {
+    // 58 = 52 through v1.1, plus the six v1.3 adds: the cross-sell and upsell
+    // pitch and hierarchy pairs, the confirmed business outcome, and the basis
+    // that outcome rests on.
     // 52 = the previous 43 plus the nine the v1.1 extraction spec adds. Those
     // nine exist to separate things the flat set conflated: what the customer
     // finally preferred from what was merely recommended, how they answered each
@@ -28,8 +31,8 @@ describe("the atomic field registry", () => {
     // best-evidenced reason a sale did not happen.
     // Changes here are deliberate: the schema stays stable so records stay
     // comparable, and a field is added on purpose or not at all.
-    expect(atomicFields).toHaveLength(52);
-    expect(atomicFieldKeys).toHaveLength(52);
+    expect(atomicFields).toHaveLength(58);
+    expect(atomicFieldKeys).toHaveLength(58);
   });
 
   it("carries no laptop-specific requirement fields", () => {
@@ -105,8 +108,8 @@ describe("what the model is allowed to produce", () => {
   });
 
   it("splits cleanly into extracted and system-supplied", () => {
-    expect(extractedFields.length + systemFields.length).toBe(52);
-    expect(systemFields).toHaveLength(6);
+    expect(extractedFields.length + systemFields.length).toBe(58);
+    expect(systemFields).toHaveLength(9);
   });
 
   it("requires evidence for everything read out of the conversation", () => {

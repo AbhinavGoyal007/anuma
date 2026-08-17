@@ -3693,3 +3693,178 @@ a {
 .facet--unreadable .facet-value {
   color: var(--muted);
 }
+
+/* Commercial actions — the four things a representative can do with a product.
+   Laid out as two verdict cards side by side, because the question a manager
+   arrives with is whether anything was offered at all, and the pitches are the
+   detail behind that answer rather than the answer itself. */
+.commercial-actions {
+  border-top: 1px solid var(--border);
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+}
+
+.commercial-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 1rem;
+}
+
+.commercial-action {
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: 4px;
+  padding: 1rem 1.1rem;
+}
+
+.commercial-action--yes {
+  border-left-color: var(--carbon);
+}
+
+.commercial-action--no,
+.commercial-action--unknown {
+  border-left-color: var(--border);
+}
+
+.commercial-action-head {
+  align-items: baseline;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.commercial-action-head h3 {
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.commercial-verdict {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  padding: 0.18rem 0.55rem;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.commercial-verdict--yes {
+  background: var(--carbon);
+  border-color: var(--carbon);
+  color: var(--paper, #fff);
+}
+
+.commercial-verdict--no,
+.commercial-verdict--unknown {
+  color: var(--muted);
+}
+
+.commercial-action-meaning {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  margin: 0.4rem 0 0;
+}
+
+.commercial-pitch-list {
+  display: grid;
+  gap: 0.6rem;
+  list-style: none;
+  margin: 0.9rem 0 0;
+  padding: 0;
+}
+
+.commercial-pitch-what {
+  color: var(--carbon);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+.commercial-pitch-kind {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  margin-left: 0.5rem;
+  padding: 0.12rem 0.45rem;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.commercial-pitch-path {
+  color: var(--graphite);
+  font-size: 0.76rem;
+  margin: 0.2rem 0 0;
+}
+
+.commercial-pitch-path--none {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.commercial-action-empty {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin: 0.9rem 0 0;
+}
+
+.commercial-outcome {
+  align-items: baseline;
+  display: inline-flex;
+  gap: 0.45rem;
+  font-size: 0.95rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.commercial-outcome em {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.commercial-context {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 1.25rem 0 0;
+}
+
+.commercial-context div {
+  border-bottom: 1px solid var(--border);
+  padding: 0.9rem 1rem 0.9rem 0;
+}
+
+.commercial-context dt {
+  color: var(--graphite);
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.commercial-context dd {
+  color: var(--carbon);
+  margin: 0.25rem 0 0;
+}
+
+.commercial-note {
+  color: var(--graphite);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin: 0.9rem 0 0;
+  max-width: 72ch;
+}
+
+@media (max-width: 720px) {
+  .commercial-grid,
+  .commercial-context {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

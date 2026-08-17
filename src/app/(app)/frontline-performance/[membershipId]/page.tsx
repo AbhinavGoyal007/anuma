@@ -103,7 +103,9 @@ export default async function RepProfilePage({ params, searchParams }: PageProps
       <section className="conversation-section" aria-labelledby="rep-performance-title">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">How they sold{selectedStore ? ` · ${selectedStore.name}` : ""}</p>
+            <p className="eyebrow">
+              How they sold{selectedStore ? ` · ${selectedStore.name}` : ""}
+            </p>
             <h2 id="rep-performance-title">Execution</h2>
           </div>
           <span className="record-count">{profile.performance.measured} measured</span>

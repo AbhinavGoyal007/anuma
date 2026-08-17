@@ -101,7 +101,10 @@ function tally(labels: readonly (string | null)[]): { key: string; count: number
 }
 
 /** The same metric definitions the demand dashboard uses, over one rep's rows. */
-function computeRepPerformance(rows: readonly MetricRow[], sopScores: readonly number[]): RepPerformance {
+function computeRepPerformance(
+  rows: readonly MetricRow[],
+  sopScores: readonly number[],
+): RepPerformance {
   const coverages = rows
     .map((r) => (r.objection_coverage === null ? null : Number(r.objection_coverage)))
     .filter((n): n is number => n !== null);
@@ -112,9 +115,7 @@ function computeRepPerformance(rows: readonly MetricRow[], sopScores: readonly n
   const altEligible = rows.filter(
     (r) => r.alternative_offered === "yes" || r.alternative_offered === "no",
   );
-  const demoMeasured = rows.filter(
-    (r) => r.demo_performed === "yes" || r.demo_performed === "no",
-  );
+  const demoMeasured = rows.filter((r) => r.demo_performed === "yes" || r.demo_performed === "no");
 
   return {
     measured: rows.length,
@@ -133,9 +134,7 @@ function computeRepPerformance(rows: readonly MetricRow[], sopScores: readonly n
         ? rows.filter((r) => (r.cross_sell_count ?? 0) > 0).length / rows.length
         : null,
     redFlagRate:
-      rows.length > 0
-        ? rows.filter((r) => (r.red_flag_count ?? 0) > 0).length / rows.length
-        : null,
+      rows.length > 0 ? rows.filter((r) => (r.red_flag_count ?? 0) > 0).length / rows.length : null,
     financeInterest: rows.filter((r) => r.finance_requested).length,
     purchased: rows.filter((r) => r.decision_state === "purchased").length,
     followUp: rows.filter((r) => r.decision_state === "follow_up_scheduled").length,
@@ -161,7 +160,10 @@ async function fetchPerformanceInputs(
   supabase: Supabase,
   organizationId: string,
   conversationIds: readonly string[],
-): Promise<{ metricByConversation: Map<string, MetricRow>; sopByConversation: Map<string, number> }> {
+): Promise<{
+  metricByConversation: Map<string, MetricRow>;
+  sopByConversation: Map<string, number>;
+}> {
   if (conversationIds.length === 0) {
     return { metricByConversation: new Map(), sopByConversation: new Map() };
   }

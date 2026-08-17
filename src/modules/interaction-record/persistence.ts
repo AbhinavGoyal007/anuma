@@ -9,11 +9,9 @@ import {
   type RecordSegment,
 } from "@/modules/interaction-record/extractor";
 import type { ExtractedValue } from "@/modules/interaction-record/extraction-contract";
+import { deriveOutcomeBasis } from "@/modules/interaction-record/outcome-basis";
 import type { SourceClass } from "@/modules/interaction-record/source-class";
-import {
-  generateInteractionSummary,
-  type SummaryFact,
-} from "@/modules/interaction-record/summary";
+import { generateInteractionSummary, type SummaryFact } from "@/modules/interaction-record/summary";
 import { storeInteractionMetrics } from "@/modules/interaction-metrics/persistence";
 
 /**
@@ -35,6 +33,43 @@ export const RECORD_SCHEMA_VERSION = "cir.v1";
  * form is what aggregates sum. Keeping only the second would leave "35 lakh"
  * unverifiable, and keeping only the first would make every total wrong.
  */
+/**
+ * The one value the system fills in rather than reads: which evidence settled
+ * the business outcome. Written alongside the extracted values so the record is
+ * complete in one place, and left out entirely when no outcome was established.
+ */
+function outcomeBasisPayload(values: readonly ExtractedValue[]): Record<string, unknown>[] {
+  const basis = deriveOutcomeBasis(values);
+  if (!basis) return [];
+  return [
+    {
+      field: "outcome_basis",
+      sourceClass: "verified" satisfies SourceClass,
+      abstention: null,
+      valueText: basis,
+      valueNumber: null,
+      spokenAmount: null,
+      spokenScale: null,
+      amountMinor: null,
+      currency: null,
+      attributedTo: null,
+      label: null,
+      evidenceSegmentIds: [],
+    },
+  ];
+}
+
+/** Whether a payload satisfies the value-or-abstention rule the table enforces. */
+function isStorable(payload: Record<string, unknown>): boolean {
+  if (payload.abstention) return true;
+  const text = payload.valueText;
+  return (
+    (typeof text === "string" && text.trim().length > 0) ||
+    payload.valueNumber !== null ||
+    payload.amountMinor !== null
+  );
+}
+
 function toPayload(
   value: ExtractedValue,
   sourceClassByKey: ReadonlyMap<string, SourceClass>,
@@ -77,7 +112,10 @@ function summaryFactsFromAccepted(values: readonly ExtractedValue[]): SummaryFac
       rendered = value.valueText;
     }
     if (!rendered) continue;
-    facts.push({ label: value.label ? `${value.field} (${value.label})` : value.field, value: rendered });
+    facts.push({
+      label: value.label ? `${value.field} (${value.label})` : value.field,
+      value: rendered,
+    });
   }
   return facts;
 }
@@ -171,12 +209,21 @@ export async function buildInteractionRecord(conversationId: string): Promise<Bu
       fields,
     });
 
+    const payloads = [
+      ...extraction.grounded.accepted.map((value) => toPayload(value, sourceClassByKey)),
+      ...outcomeBasisPayload(extraction.grounded.accepted),
+    ];
+    // A row must carry a value or an abstention; the database enforces it, and
+    // the whole insert is one transaction. A spoken amount whose scale will not
+    // convert clears every value column and leaves such a row behind, so it is
+    // dropped here rather than allowed to take sixty good values down with it.
+    const storable = payloads.filter(isStorable);
+    const unstorable = payloads.length - storable.length;
+
     const { data: persisted, error: persistError } = await db
       .rpc("persist_interaction_record", {
         p_record_id: record.id,
-        p_values: extraction.grounded.accepted.map((value) =>
-          toPayload(value, sourceClassByKey),
-        ) as unknown as Json,
+        p_values: storable as unknown as Json,
       })
       .single();
     if (persistError) throw new Error(persistError.message);
@@ -188,7 +235,7 @@ export async function buildInteractionRecord(conversationId: string): Promise<Bu
         completed_at: new Date().toISOString(),
         input_tokens: extraction.inputTokens,
         output_tokens: extraction.outputTokens,
-        rejected_value_count: extraction.grounded.rejected.length,
+        rejected_value_count: extraction.grounded.rejected.length + unstorable,
       })
       .eq("id", record.id);
 
@@ -207,7 +254,10 @@ export async function buildInteractionRecord(conversationId: string): Promise<Bu
         currency: organization.default_currency,
       });
       if (summary) {
-        await db.from("interaction_records").update({ summary: summary.summary }).eq("id", record.id);
+        await db
+          .from("interaction_records")
+          .update({ summary: summary.summary })
+          .eq("id", record.id);
       }
     } catch (error) {
       console.error("Interaction summary could not be generated", {

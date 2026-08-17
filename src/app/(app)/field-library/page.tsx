@@ -172,7 +172,12 @@ export default async function FieldLibraryPage({ searchParams }: PageProps) {
                 <div className="field-add-row">
                   <label>
                     <span>Tag name</span>
-                    <input name="label" placeholder="e.g. Wall-mount interest" maxLength={80} required />
+                    <input
+                      name="label"
+                      placeholder="e.g. Wall-mount interest"
+                      maxLength={80}
+                      required
+                    />
                   </label>
                 </div>
                 <label>
@@ -193,7 +198,8 @@ export default async function FieldLibraryPage({ searchParams }: PageProps) {
 
             {custom.length === 0 ? (
               <p className="field-empty">
-                No custom tags yet. {isAdmin ? "Add one above to capture something specific to your business." : ""}
+                No custom tags yet.{" "}
+                {isAdmin ? "Add one above to capture something specific to your business." : ""}
               </p>
             ) : (
               <div className="field-list">

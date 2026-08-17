@@ -49,13 +49,55 @@ type Spec = {
 };
 
 const SPECS: readonly Spec[] = [
-  { key: "interactions", label: "Interactions", pick: (s) => s.interactions, format: "count", higherIsBetter: true },
-  { key: "purchaseRate", label: "Purchase rate", pick: (s) => s.purchaseRate, format: "percent", higherIsBetter: true },
-  { key: "clarityLiftRate", label: "Clarified need", pick: (s) => s.clarityLiftRate, format: "percent", higherIsBetter: true },
-  { key: "objectionCoverage", label: "Objection coverage", pick: (s) => s.objectionCoverage, format: "percent", higherIsBetter: true },
-  { key: "crossSellRate", label: "Cross-sell offered", pick: (s) => s.crossSellRate, format: "percent", higherIsBetter: true },
-  { key: "redFlagRate", label: "Flagged for review", pick: (s) => s.redFlagRate, format: "percent", higherIsBetter: false },
-  { key: "medianBudgetMinor", label: "Median budget", pick: (s) => s.medianBudgetMinor, format: "money", higherIsBetter: true },
+  {
+    key: "interactions",
+    label: "Interactions",
+    pick: (s) => s.interactions,
+    format: "count",
+    higherIsBetter: true,
+  },
+  {
+    key: "purchaseRate",
+    label: "Purchase rate",
+    pick: (s) => s.purchaseRate,
+    format: "percent",
+    higherIsBetter: true,
+  },
+  {
+    key: "clarityLiftRate",
+    label: "Clarified need",
+    pick: (s) => s.clarityLiftRate,
+    format: "percent",
+    higherIsBetter: true,
+  },
+  {
+    key: "objectionCoverage",
+    label: "Objection coverage",
+    pick: (s) => s.objectionCoverage,
+    format: "percent",
+    higherIsBetter: true,
+  },
+  {
+    key: "crossSellRate",
+    label: "Cross-sell offered",
+    pick: (s) => s.crossSellRate,
+    format: "percent",
+    higherIsBetter: true,
+  },
+  {
+    key: "redFlagRate",
+    label: "Flagged for review",
+    pick: (s) => s.redFlagRate,
+    format: "percent",
+    higherIsBetter: false,
+  },
+  {
+    key: "medianBudgetMinor",
+    label: "Median budget",
+    pick: (s) => s.medianBudgetMinor,
+    format: "money",
+    higherIsBetter: true,
+  },
 ];
 
 export function computeTrendMetrics(

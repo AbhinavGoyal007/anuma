@@ -136,10 +136,7 @@ function profileOf(values: readonly string[]) {
  * Rejection is never fatal to the load. The role goes unassigned and the
  * catalogue is poorer for it, which is recoverable; a wrong role is not.
  */
-export function judgeColumn(
-  proposal: ProposedColumn,
-  profile: ColumnProfile,
-): ColumnVerdict {
+export function judgeColumn(proposal: ProposedColumn, profile: ColumnProfile): ColumnVerdict {
   const { present, distinct, nullShare } = profileOf(profile.values);
   const base = {
     column: proposal.column,
@@ -228,8 +225,18 @@ export function judgeColumn(
  * reasoning that the more complete and more specific column is the real one.
  */
 const SINGULAR: ColumnRole[] = [
-  "identifier", "description", "brand", "category_1", "category_2", "category_3",
-  "price", "msrp", "currency", "stock", "location", "as_of",
+  "identifier",
+  "description",
+  "brand",
+  "category_1",
+  "category_2",
+  "category_3",
+  "price",
+  "msrp",
+  "currency",
+  "stock",
+  "location",
+  "as_of",
 ];
 
 /**

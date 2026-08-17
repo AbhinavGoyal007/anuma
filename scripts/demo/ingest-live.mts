@@ -22,9 +22,13 @@ const { values } = parseArgs({
 });
 
 const sql = postgres(process.env.SUPABASE_DB_URL!, { prepare: false, max: 1 });
-const storage = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!, {
-  auth: { persistSession: false },
-});
+const storage = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SECRET_KEY!,
+  {
+    auth: { persistSession: false },
+  },
+);
 
 try {
   const [org] = await sql<{ id: string }[]>`
@@ -49,7 +53,8 @@ try {
       'electronics', now() - interval '1 hour', now(), 'ready', ${values.title!})`;
     const recordingId = randomUUID();
     const objectPath = `${org.id}/${conversationId}/${recordingId}/source.wav`;
-    const { error } = await storage.storage.from("conversation-audio")
+    const { error } = await storage.storage
+      .from("conversation-audio")
       .upload(objectPath, audio, { contentType: "audio/wav", upsert: true });
     if (error) throw new Error(`upload failed: ${error.message}`);
     await sql`insert into recordings (id, organization_id, conversation_id, storage_bucket,
@@ -61,7 +66,9 @@ try {
 
   payload.title = values.title;
   await writeFile(values.transcript!, `${JSON.stringify(payload, null, 1)}\n`, "utf8");
-  console.log(`conversation ${conversationId}\naudio ${(audio.byteLength / 1e6).toFixed(1)} MB uploaded\nduration ${(durationMs / 60000).toFixed(1)} min`);
+  console.log(
+    `conversation ${conversationId}\naudio ${(audio.byteLength / 1e6).toFixed(1)} MB uploaded\nduration ${(durationMs / 60000).toFixed(1)} min`,
+  );
 } finally {
   await sql.end();
 }

@@ -55,7 +55,9 @@ const TIMING_RULES: Rule[] = [
   },
   {
     category: "within days",
-    patterns: [/tomorrow|day after|weekend|saturday|sunday|kal|parso|परसों|कल|few days|couple of days/i],
+    patterns: [
+      /tomorrow|day after|weekend|saturday|sunday|kal|parso|परसों|कल|few days|couple of days/i,
+    ],
   },
   {
     category: "later / after event",
@@ -100,7 +102,9 @@ const THEME_RULES: Rule[] = [
   { category: "gaming", patterns: [/gaming|\bgame\b|\bfps\b|valorant|\bgta\b|aaa titles?/i] },
   {
     category: "display",
-    patterns: [/display|screen|\bpanel\b|resolution|oled|\bips\b|refresh|\bnits\b|colour accura|color accura/i],
+    patterns: [
+      /display|screen|\bpanel\b|resolution|oled|\bips\b|refresh|\bnits\b|colour accura|color accura/i,
+    ],
   },
   { category: "storage", patterns: [/storage|\bssd\b|\btb\b|hard disk|\bhdd\b|\bspace\b/i] },
   {
@@ -109,7 +113,9 @@ const THEME_RULES: Rule[] = [
   },
   {
     category: "financing / EMI",
-    patterns: [/\bemi\b|finance|\bloan\b|installment|instalment|no.?cost|tenure|किश्त|cashback|(bank|card) offer/i],
+    patterns: [
+      /\bemi\b|finance|\bloan\b|installment|instalment|no.?cost|tenure|किश्त|cashback|(bank|card) offer/i,
+    ],
   },
   {
     category: "stock / availability",
@@ -125,8 +131,14 @@ const THEME_RULES: Rule[] = [
       /office|\bwork\b|excel|power ?bi|coding|program|professional|productiv|python|solidworks|\bcad\b|lightroom|photoshop|multitask/i,
     ],
   },
-  { category: "college / study", patterns: [/college|student|\bstudy\b|university|semester|assignment/i] },
-  { category: "location / area", patterns: [/locality|\barea\b|\bmetro\b|school|facing|\bfloor\b|connectivity|\broad\b/i] },
+  {
+    category: "college / study",
+    patterns: [/college|student|\bstudy\b|university|semester|assignment/i],
+  },
+  {
+    category: "location / area",
+    patterns: [/locality|\barea\b|\bmetro\b|school|facing|\bfloor\b|connectivity|\broad\b/i],
+  },
 ];
 
 /** Every curated theme a piece of free text touches; empty when none match. */

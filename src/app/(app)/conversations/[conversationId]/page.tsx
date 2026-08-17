@@ -12,6 +12,7 @@ import { CustomerConsentPanel } from "@/components/conversations/customer-consen
 import { CoachingPanel } from "@/components/conversations/coaching-panel";
 import { InteractionUnderstanding } from "@/components/conversations/interaction-understanding";
 import { InteractionMetrics } from "@/components/conversations/interaction-metrics";
+import { CommercialActionsPanel } from "@/components/conversations/commercial-actions-panel";
 import { InteractionRecordPanel } from "@/components/conversations/interaction-record-panel";
 import { deriveCoachingMoments } from "@/modules/interaction-record/coaching";
 import { InteractionReview } from "@/components/conversations/interaction-review";
@@ -233,6 +234,7 @@ export default async function ConversationPage({ params, searchParams }: Convers
           </ul>
         </section>
       ) : null}
+      <CommercialActionsPanel record={interactionRecord} />
       <InteractionRecordPanel
         record={interactionRecord}
         conversationId={conversation.id}

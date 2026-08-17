@@ -71,7 +71,10 @@ export function summarizeMetricRows(rows: readonly MetricRowSlice[]): MetricSumm
   return {
     interactions: rows.length,
     purchased: rows.filter((row) => row.decision_state === "purchased").length,
-    purchaseRate: rows.length > 0 ? rows.filter((r) => r.decision_state === "purchased").length / rows.length : null,
+    purchaseRate:
+      rows.length > 0
+        ? rows.filter((r) => r.decision_state === "purchased").length / rows.length
+        : null,
     clarityLiftRate: rate(
       rows,
       (row) => row.clarity_start !== null && row.clarity_end !== null,
@@ -92,8 +95,12 @@ export function summarizeMetricRows(rows: readonly MetricRowSlice[]): MetricSumm
       (row) => row.demo_performed === "yes" || row.demo_performed === "no",
       (row) => row.demo_performed === "yes",
     ),
-    crossSellRate: rows.length > 0 ? rows.filter((r) => (r.cross_sell_count ?? 0) > 0).length / rows.length : null,
-    redFlagRate: rows.length > 0 ? rows.filter((r) => (r.red_flag_count ?? 0) > 0).length / rows.length : null,
+    crossSellRate:
+      rows.length > 0
+        ? rows.filter((r) => (r.cross_sell_count ?? 0) > 0).length / rows.length
+        : null,
+    redFlagRate:
+      rows.length > 0 ? rows.filter((r) => (r.red_flag_count ?? 0) > 0).length / rows.length : null,
     medianBudgetMinor: median(budgets),
     budgetCurrency: rows.find((row) => row.budget_currency)?.budget_currency ?? null,
   };

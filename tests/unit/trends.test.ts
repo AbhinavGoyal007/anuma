@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  summarizeMetricRows,
-  type MetricRowSlice,
-} from "@/modules/interaction-metrics/summarize";
+import { summarizeMetricRows, type MetricRowSlice } from "@/modules/interaction-metrics/summarize";
 import {
   computeFrictionMovers,
   computeTrendMetrics,

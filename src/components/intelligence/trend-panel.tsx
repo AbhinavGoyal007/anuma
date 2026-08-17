@@ -56,13 +56,7 @@ function tone(metric: TrendMetric): "good" | "bad" | "flat" {
   return improving ? "good" : "bad";
 }
 
-export function TrendPanel({
-  trend,
-  periods,
-}: {
-  trend: DemandTrend;
-  periods: PeriodLink[];
-}) {
+export function TrendPanel({ trend, periods }: { trend: DemandTrend; periods: PeriodLink[] }) {
   return (
     <section className="demand-block" aria-labelledby="trend-title">
       <div className="demand-block-head demand-block-head--row">

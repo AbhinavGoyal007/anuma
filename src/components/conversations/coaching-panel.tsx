@@ -20,8 +20,8 @@ export function CoachingPanel({ moments }: { moments: CoachingMoment[] }) {
 
       {moments.length === 0 ? (
         <p className="processing-note" role="status">
-          No coaching moments — objections were handled, an alternative and a demo were offered where
-          needed, and nothing was flagged for review.
+          No coaching moments — objections were handled, an alternative and a demo were offered
+          where needed, and nothing was flagged for review.
         </p>
       ) : (
         <ul className="coaching-list">

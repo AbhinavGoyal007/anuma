@@ -31,7 +31,11 @@ function value(over: Partial<RecordFieldValue> & { fieldKey: string }): RecordFi
 describe("deriveCoachingMoments", () => {
   it("surfaces red flags, unaddressed objections, missed alternative and no demo", () => {
     const moments = deriveCoachingMoments([
-      value({ fieldKey: "red_flags", valueText: "spoke badly of a brand", label: "negative_remark" }),
+      value({
+        fieldKey: "red_flags",
+        valueText: "spoke badly of a brand",
+        label: "negative_remark",
+      }),
       value({ fieldKey: "objections", valueText: "too expensive" }),
       value({ fieldKey: "objection_response", valueText: "none" }),
       value({ fieldKey: "alternative_offered", valueText: "no" }),

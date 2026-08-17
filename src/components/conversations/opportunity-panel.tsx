@@ -19,11 +19,7 @@ function money(minor: number | null, currency = "USD"): string {
   }).format(minor / 100);
 }
 
-export function OpportunityPanel({
-  opportunity,
-}: {
-  opportunity: ConversationOpportunity | null;
-}) {
+export function OpportunityPanel({ opportunity }: { opportunity: ConversationOpportunity | null }) {
   if (!opportunity) {
     return (
       <section className="product-panel" aria-labelledby="opportunity-title">

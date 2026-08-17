@@ -147,8 +147,7 @@ export function judgeAttribute(
   if (mine.length < MINIMUM_SAMPLE) {
     return { ...base, usable: false, reason: "too_few_readings" };
   }
-  const required =
-    mine.length < SMALL_NODE_READINGS ? SMALL_NODE_COVERAGE : MINIMUM_COVERAGE;
+  const required = mine.length < SMALL_NODE_READINGS ? SMALL_NODE_COVERAGE : MINIMUM_COVERAGE;
   if (coverage < required) {
     return { ...base, usable: false, reason: "low_coverage" };
   }

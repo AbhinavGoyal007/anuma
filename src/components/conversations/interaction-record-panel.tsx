@@ -49,6 +49,14 @@ const FIELD_LABELS: Record<string, string> = {
   product_demo_performed: "Demo performed",
   next_action: "Next action",
   final_decision_state: "Decision",
+  cross_sell_offered: "Cross-sell offered",
+  cross_sell_pitch: "Cross-sell pitched",
+  cross_sell_hierarchy: "Cross-sell placement",
+  upsell_offered: "Upsell offered",
+  upsell_pitch: "Upsell pitched",
+  upsell_hierarchy: "Upsell placement",
+  confirmed_business_outcome: "Business outcome",
+  outcome_basis: "Outcome evidence",
 };
 
 const SOURCE_LABEL: Record<SourceClass, string> = {

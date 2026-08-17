@@ -42,9 +42,35 @@ export type Binding =
 
 /** Words that carry no distinguishing weight when matching a phrase. */
 const NOISE = new Set([
-  "the", "a", "an", "and", "or", "of", "for", "with", "is", "are", "very",
-  "important", "type", "kind", "good", "better", "best", "want", "wants",
-  "need", "needs", "should", "must", "be", "more", "less", "in", "on", "to",
+  "the",
+  "a",
+  "an",
+  "and",
+  "or",
+  "of",
+  "for",
+  "with",
+  "is",
+  "are",
+  "very",
+  "important",
+  "type",
+  "kind",
+  "good",
+  "better",
+  "best",
+  "want",
+  "wants",
+  "need",
+  "needs",
+  "should",
+  "must",
+  "be",
+  "more",
+  "less",
+  "in",
+  "on",
+  "to",
 ]);
 
 function tokens(phrase: string): string[] {
@@ -82,10 +108,7 @@ function valueNamedIn(
 }
 
 /** A magnitude and unit in the phrase that a numeric attribute can hold. */
-function magnitudeFor(
-  phrase: string,
-  attribute: BindableAttribute,
-): number | null {
+function magnitudeFor(phrase: string, attribute: BindableAttribute): number | null {
   if (!attribute.unit) return null;
   const unit = attribute.unit.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = new RegExp(String.raw`(\d+(?:\.\d+)?)\s*${unit}(?![a-z0-9])`, "i").exec(phrase);

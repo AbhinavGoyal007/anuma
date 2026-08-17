@@ -85,9 +85,7 @@ export async function listFieldLibrary(organizationId: string): Promise<FieldDef
  * off. Read with the service-role client because it runs inside the processing
  * pipeline, which has no authenticated user to satisfy RLS.
  */
-export async function resolveExtractionFields(
-  organizationId: string,
-): Promise<ExtractionField[]> {
+export async function resolveExtractionFields(organizationId: string): Promise<ExtractionField[]> {
   await ensureFieldLibrarySeeded(organizationId);
   const db = createAdminClient();
   const { data } = await db

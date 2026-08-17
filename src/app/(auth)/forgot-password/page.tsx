@@ -14,7 +14,9 @@ export default async function ForgotPasswordPage({ searchParams }: ForgotPasswor
       <div>
         <p className="eyebrow">Account recovery</p>
         <h2>Reset your password</h2>
-        <p className="auth-copy">Enter your account email and we will send you a secure reset link.</p>
+        <p className="auth-copy">
+          Enter your account email and we will send you a secure reset link.
+        </p>
       </div>
       {error ? (
         <p className="auth-message auth-message-error" role="alert">

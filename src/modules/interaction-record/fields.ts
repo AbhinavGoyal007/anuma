@@ -56,7 +56,11 @@ export const atomicFieldKeys = [
   "alternative_offered",
   "product_demo_performed",
   "cross_sell_offered",
+  "cross_sell_pitch",
+  "cross_sell_hierarchy",
   "upsell_offered",
+  "upsell_pitch",
+  "upsell_hierarchy",
   "red_flags",
   "next_action",
   "final_decision_state",
@@ -73,6 +77,9 @@ export const atomicFieldKeys = [
   "close_attempts",
   "customer_purchase_conditions",
   "primary_non_conversion_reason",
+  // From the v1.3 spec: what the business actually got, and on what evidence.
+  "confirmed_business_outcome",
+  "outcome_basis",
 ] as const;
 
 export type AtomicFieldKey = (typeof atomicFieldKeys)[number];
@@ -142,6 +149,14 @@ export const clarityLevels = ["none", "low", "medium", "high"] as const;
 export const stockStatuses = ["available", "unavailable", "partially_available"] as const;
 export const objectionResponses = ["full", "partial", "none"] as const;
 export const applicability = ["yes", "no", "not_applicable"] as const;
+/**
+ * The verdict on a commercial action.
+ *
+ * `uncertain` rather than `not_applicable`, because "an opportunity existed and
+ * the words do not settle whether it was taken" is a different finding from "no
+ * opportunity arose" — and the second is already expressible as an abstention.
+ */
+export const commercialActionVerdicts = ["yes", "no", "uncertain"] as const;
 /** Why a conversation did not convert, where the evidence supports one reason. */
 export const nonConversionReasons = [
   "price",
@@ -166,6 +181,10 @@ export const finalDecisionStates = [
   "follow_up_scheduled",
 ] as const;
 export const commercialOutcomes = ["invoice", "no_sale", "unknown"] as const;
+/** What the business got, as distinct from where the customer landed. */
+export const businessOutcomes = ["sale", "no_sale"] as const;
+/** Which evidence settled the business outcome. */
+export const outcomeBases = ["verified_metadata", "conversation_evidence"] as const;
 
 export const atomicFields: readonly AtomicField[] = [
   // ---- Verified: identity and clock -------------------------------------
@@ -627,21 +646,73 @@ export const atomicFields: readonly AtomicField[] = [
   },
   {
     key: "cross_sell_offered",
+    sourceClass: "evaluated",
+    cardinality: "single",
+    valueKind: "enum",
+    values: commercialActionVerdicts,
+    requiresEvidence: false,
+    extracted: false,
+    rule: "Whether the representative actively introduced, recommended or positioned an additional complementary product or service beyond the primary need — a bag with a laptop, a soundbar with a television, a service plan with an appliance. Derived in code from cross_sell_pitch rather than asked of the model: the specification defines it as yes when at least one qualifying pitch exists, so computing it is both cheaper and the only way it cannot contradict the pitches it summarises. A no is a statement about something never said and has no segment to cite, which is the other reason it cannot be a stored extracted value. A second product merely mentioned does not qualify, and neither does simply answering a customer who asked for something themselves: the representative must actively put it forward. A substitute for the main product is an alternative, not a cross-sell; a higher version of it is an upsell. Use no where a real opportunity existed and enough conversation exists to show none was taken, uncertain where an opportunity existed but the words do not settle it, and abstain as unknown where there was no meaningful opportunity at all. This verdict carries no citation of its own — the evidence sits on the pitches beneath it, and a no has no utterance to point at.",
+  },
+  {
+    key: "cross_sell_pitch",
     sourceClass: "evidence_extracted",
     cardinality: "multiple",
     valueKind: "text",
+    labelled: true,
     requiresEvidence: true,
     extracted: true,
-    rule: "Each complementary product or service the representative offers alongside the main product — an accessory such as a bag, mouse, or screen guard, an extended warranty or protection plan, insurance, installation, or an add-on. One entry each. Never the main product itself.",
+    task: "extract_list",
+    scope: "full",
+    speakerSource: "representative",
+    rule: "One entry per distinct complementary item or service pitched, as spoken. Set label to its kind: product, service, warranty_service_plan, accessory, bundle_component or other. Do not collapse a mouse and a warranty plan into one entry because they were said in the same breath, and deduplicate a pitch repeated in the same terms.",
+  },
+  {
+    key: "cross_sell_hierarchy",
+    sourceClass: "evidence_extracted",
+    cardinality: "multiple",
+    valueKind: "text",
+    labelled: true,
+    requiresEvidence: true,
+    extracted: true,
+    task: "extract_list",
+    scope: "full",
+    rule: "Where each pitch sits commercially, in the same order as cross_sell_pitch. Set label to the level: primary_department, pitched_department, pitched_category, pitched_product, pitched_brand or pitched_model. Go only as deep as the conversation supports and leave the rest out entirely rather than guessing — a laptop sale with a mouse pitched gives primary_department=computers and pitched_category=mouse, and brand only if a brand was actually said. Never invent a retailer's department names from general knowledge.",
   },
   {
     key: "upsell_offered",
+    sourceClass: "evaluated",
+    cardinality: "single",
+    valueKind: "enum",
+    values: commercialActionVerdicts,
+    requiresEvidence: false,
+    extracted: false,
+    rule: "Whether the representative actively moved the customer upward within the same need — a larger capacity, a higher specification, a premium tier. Derived in code from upsell_pitch rather than asked of the model, for the same reason as cross_sell_offered: the specification defines it as yes when at least one qualifying upward move exists, and a no has no utterance to point at. A recommendation is not an upsell on its own: there must be a baseline the customer was already on. A higher price alone does not establish it, and correct sizing does not either — recommending a bigger air conditioner because the room needs one is a fit, not an upgrade. If the customer raised the higher tier and the representative only answered questions, that is not an upsell. Something complementary rather than higher is a cross-sell. This verdict carries no citation of its own — the evidence sits on the pitches beneath it, and a no has no utterance to point at.",
+  },
+  {
+    key: "upsell_pitch",
     sourceClass: "evidence_extracted",
     cardinality: "multiple",
-    valueKind: "entity",
+    valueKind: "text",
+    labelled: true,
     requiresEvidence: true,
     extracted: true,
-    rule: "Each step-up the representative proposes above what the customer asked for — a costlier model, more RAM or storage, or a premium variant — put forward as an upgrade or better fit. One entry each, and only when it is genuinely a higher tier than the customer's original ask.",
+    task: "extract_list",
+    scope: "full",
+    speakerSource: "representative",
+    rule: 'One entry per distinct upward move, written as the transition itself — "128 GB to 256 GB", "base to Pro". Set label to what is being increased: storage, memory, capacity, size, performance, feature_tier, premium_tier, energy_efficiency, service_tier, warranty_tier or other. Where the baseline is only a configuration rather than a named product, keep the configuration; the upward target matters more than forcing a name onto the starting point.',
+  },
+  {
+    key: "upsell_hierarchy",
+    sourceClass: "evidence_extracted",
+    cardinality: "multiple",
+    valueKind: "text",
+    labelled: true,
+    requiresEvidence: true,
+    extracted: true,
+    task: "extract_list",
+    scope: "full",
+    rule: "Where each upward move sits, in the same order as upsell_pitch. Set label to the level: department, category, from_product, from_brand, from_model, to_product, to_brand or to_model. An upsell normally stays inside one department — if it crosses into another because the item is complementary, it was a cross-sell. Never decide from an obscure model number that one product outranks another; only the conversation can establish the hierarchy.",
   },
   {
     key: "red_flags",
@@ -759,7 +830,7 @@ export const atomicFields: readonly AtomicField[] = [
     extracted: true,
     task: "extract_list",
     speakerSource: "customer",
-    rule: "Each explicit sign of movement toward the transaction. Set label to its kind: explicit_purchase_commitment, final_price_after_selection, payment_or_billing, reservation, delivery_after_selection, selected_variant_confirmation or other. Context decides: an early \"what is the price?\" is a question, not a commitment. Never infer one from enthusiasm or politeness.",
+    rule: 'Each explicit sign of movement toward the transaction. Set label to its kind: explicit_purchase_commitment, final_price_after_selection, payment_or_billing, reservation, delivery_after_selection, selected_variant_confirmation or other. Context decides: an early "what is the price?" is a question, not a commitment. Never infer one from enthusiasm or politeness.',
   },
   {
     key: "close_attempts",
@@ -782,7 +853,7 @@ export const atomicFields: readonly AtomicField[] = [
     extracted: true,
     task: "extract_list",
     speakerSource: "customer",
-    rule: "Each condition the customer states would allow or materially enable them to proceed — a price threshold, a required variant, approval from someone else, a finance or timing condition. Explicit conditional language is required. \"This is expensive\" is an objection, not a condition.",
+    rule: 'Each condition the customer states would allow or materially enable them to proceed — a price threshold, a required variant, approval from someone else, a finance or timing condition. Explicit conditional language is required. "This is expensive" is an objection, not a condition.',
   },
   {
     key: "primary_non_conversion_reason",
@@ -794,6 +865,30 @@ export const atomicFields: readonly AtomicField[] = [
     extracted: true,
     task: "evaluate",
     rule: "The single strongest evidenced blocker to purchase in this interaction. Evaluate only when the conversation does not show an immediate purchase; where it does, abstain as unknown. A raised objection is not automatically the blocker. Use frontline_execution only where the interaction itself directly shows the failure. Where several blockers are comparably plausible, abstain as ambiguous rather than choosing.",
+  },
+  {
+    key: "confirmed_business_outcome",
+    sourceClass: "evaluated",
+    alternateSourceClass: "verified",
+    cardinality: "single",
+    valueKind: "enum",
+    values: businessOutcomes,
+    requiresEvidence: true,
+    extracted: true,
+    task: "evaluate",
+    scope: "closing",
+    speakerSource: "any",
+    rule: 'Whether this interaction actually ended in business, judged at the highest evidence available. Verified transaction metadata settles it outright and outranks anything said. Otherwise sale needs the conversation to show the transaction happening — payment made or being made, an invoice or bill raised, delivery or installation being scheduled for a purchase now agreed. Liking a product is not a sale; accepting a recommendation is not a sale; a commitment signal is not a sale; a close attempt is not a sale; "I will take this" on its own is not a sale. no_sale needs the customer to leave, defer or decline with the conversation covering the end. Absence of payment language is not evidence of no_sale — an interaction that simply stops is unknown. This field answers what the business got, and final_decision_state answers where the customer landed: the two disagreeing is normal, and neither should be bent to match the other.',
+  },
+  {
+    key: "outcome_basis",
+    sourceClass: "verified",
+    cardinality: "single",
+    valueKind: "enum",
+    values: outcomeBases,
+    requiresEvidence: false,
+    extracted: false,
+    rule: "Which evidence settled confirmed_business_outcome: verified_metadata where a confirmed transaction record decided it, conversation_evidence where only the transcript did. Determined in code from what the system holds, never asked of the model — a record that cannot say whether its sale came from the till or from a transcript is one a manager has to go and check by hand.",
   },
 ];
 

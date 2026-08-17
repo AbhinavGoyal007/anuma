@@ -126,7 +126,9 @@ describe("believing an attribute with nobody to ask", () => {
 
   it("accepts a dimension whose values sit in a band", () => {
     // Washing machine capacities as they actually appear: repeated and tight.
-    const readings = Array.from({ length: 120 }, (_, index) => reading([6, 7, 8, 9, 10][index % 5]!));
+    const readings = Array.from({ length: 120 }, (_, index) =>
+      reading([6, 7, 8, 9, 10][index % 5]!),
+    );
     const verdict = judgeAttribute(numeric(), readings, 200);
     expect(verdict.usable).toBe(true);
     expect(verdict.spread).toBeLessThan(20);
@@ -157,11 +159,7 @@ describe("believing an attribute with nobody to ask", () => {
     const readings = Array.from({ length: 120 }, (_, index) =>
       reading([33, 40, 4400, 2022, 1460][index % 5]!),
     );
-    const verdict = judgeAttribute(
-      numeric({ range: { min: 1, max: 9000 } }),
-      readings,
-      200,
-    );
+    const verdict = judgeAttribute(numeric({ range: { min: 1, max: 9000 } }), readings, 200);
     expect(verdict.usable).toBe(false);
     expect(verdict.reason).toBe("not_a_measurement");
   });
@@ -215,9 +213,7 @@ describe("believing an attribute with nobody to ask", () => {
 
   it("rejects an attribute every product shares, which narrows nothing", () => {
     const readings = Array.from({ length: 80 }, () => reading(8));
-    expect(judgeAttribute(numeric(), readings, 100).reason).toBe(
-      "single_value_no_discrimination",
-    );
+    expect(judgeAttribute(numeric(), readings, 100).reason).toBe("single_value_no_discrimination");
   });
 });
 

@@ -58,8 +58,7 @@ export function computeDecisionHierarchy(
   // entered the conversation.
   const earliest = new Map<string, Map<string, number>>();
   for (const appearance of appearances) {
-    const perConversation =
-      earliest.get(appearance.conversationId) ?? new Map<string, number>();
+    const perConversation = earliest.get(appearance.conversationId) ?? new Map<string, number>();
     const seen = perConversation.get(appearance.dimension);
     if (seen === undefined || appearance.firstMilliseconds < seen) {
       perConversation.set(appearance.dimension, appearance.firstMilliseconds);

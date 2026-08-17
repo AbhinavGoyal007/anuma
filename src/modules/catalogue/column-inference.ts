@@ -21,8 +21,20 @@ import type { ColumnRole, ProposedColumn } from "@/modules/catalogue/column-role
  */
 
 const ROLES: ColumnRole[] = [
-  "identifier", "description", "brand", "category_1", "category_2", "category_3",
-  "price", "msrp", "currency", "stock", "location", "as_of", "attribute", "ignore",
+  "identifier",
+  "description",
+  "brand",
+  "category_1",
+  "category_2",
+  "category_3",
+  "price",
+  "msrp",
+  "currency",
+  "stock",
+  "location",
+  "as_of",
+  "attribute",
+  "ignore",
 ];
 
 const proposal = z.object({

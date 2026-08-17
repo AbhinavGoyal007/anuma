@@ -48,10 +48,10 @@ describe("objection coverage", () => {
 describe("cross-sell and upsell", () => {
   it("counts each complementary and step-up offer separately", () => {
     const metrics = computeInteractionMetrics([
-      value({ fieldKey: "cross_sell_offered", valueText: "laptop bag" }),
-      value({ fieldKey: "cross_sell_offered", valueText: "2-year warranty" }),
-      value({ fieldKey: "upsell_offered", valueText: "Acer Swift Go 14" }),
-      value({ fieldKey: "cross_sell_offered", valueText: "abstained", abstention: "not_stated" }),
+      value({ fieldKey: "cross_sell_pitch", valueText: "laptop bag" }),
+      value({ fieldKey: "cross_sell_pitch", valueText: "2-year warranty" }),
+      value({ fieldKey: "upsell_pitch", valueText: "128 GB to 256 GB" }),
+      value({ fieldKey: "cross_sell_pitch", valueText: "abstained", abstention: "not_stated" }),
     ]);
     expect(metrics.crossSellCount).toBe(2); // the abstained one does not count
     expect(metrics.upsellCount).toBe(1);
@@ -60,6 +60,20 @@ describe("cross-sell and upsell", () => {
   it("is zero when nothing extra was offered", () => {
     const metrics = computeInteractionMetrics([
       value({ fieldKey: "purchase_category", valueText: "laptop" }),
+    ]);
+    expect(metrics.crossSellCount).toBe(0);
+    expect(metrics.upsellCount).toBe(0);
+  });
+
+  it("does not count an explicit no as an offer", () => {
+    // cross_sell_offered holds a verdict on every conversation that reached one,
+    // so counting its values rather than the pitches beside it would put the
+    // cross-sell rate at 100% — including on the conversations where the
+    // representative pitched nothing, which is the number a manager is looking
+    // for in the first place.
+    const metrics = computeInteractionMetrics([
+      value({ fieldKey: "cross_sell_offered", valueText: "no" }),
+      value({ fieldKey: "upsell_offered", valueText: "no" }),
     ]);
     expect(metrics.crossSellCount).toBe(0);
     expect(metrics.upsellCount).toBe(0);
