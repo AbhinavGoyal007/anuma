@@ -3,6 +3,7 @@ export type ApplicationRoute = {
     | "/conversations"
     | "/customer-intelligence"
     | "/frontline-performance"
+    | "/intelligence/frontline"
     | "/outcome-intelligence"
     | "/field-library"
     | "/administration";
@@ -43,6 +44,16 @@ export const applicationRoutes: ApplicationRoute[] = [
     title: "Frontline Performance",
     description:
       "Evidence-backed interaction and process measures will appear as eligible conversations accumulate.",
+    signal: "performance",
+  },
+  {
+    href: "/intelligence/frontline",
+    label: "Frontline Intelligence",
+    group: "Intelligence",
+    eyebrow: "Frontline intelligence",
+    title: "Where frontline execution needs attention",
+    description:
+      "The interactions where something was missed — a recommendation with no reason, a finance request with no offer, a buying signal nobody closed on.",
     signal: "performance",
   },
   {
