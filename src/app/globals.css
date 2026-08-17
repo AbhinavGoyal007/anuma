@@ -4304,3 +4304,124 @@ a {
     grid-template-columns: minmax(0, 8rem) 1fr auto;
   }
 }
+
+/* Decision journey. A rail of equal-width stages rather than a tapering funnel:
+   the width of a funnel asserts that everyone had to pass through every stage,
+   and these conversations did not. The gap between stages is the clickable part,
+   because "who stopped just before this" is the question worth asking. */
+.jr-cohorts {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.jr-rail {
+  display: grid;
+  gap: 0;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  list-style: none;
+  margin: 1.5rem 0 0;
+  padding: 0;
+}
+
+.jr-rail > li {
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.jr-gap {
+  border-left: 1px solid var(--border);
+  display: grid;
+  gap: 0.1rem;
+  padding: 0 0 0.6rem 0.7rem;
+}
+
+.jr-gap-link,
+.jr-gap-none {
+  color: var(--graphite);
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.jr-gap-none {
+  color: var(--muted);
+}
+
+.jr-progress {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.jr-stage {
+  border-top: 2px solid var(--carbon);
+  padding: 0.7rem 1rem 0 0;
+}
+
+.jr-rail > li:first-child .jr-stage {
+  padding-left: 0;
+}
+
+.jr-stage-label {
+  color: var(--graphite);
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.jr-stage-count {
+  align-items: baseline;
+  display: flex;
+  gap: 0.45rem;
+  margin: 0.25rem 0 0;
+}
+
+.jr-stage-count strong {
+  color: var(--carbon);
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+}
+
+.jr-stage-share {
+  color: var(--graphite);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.jr-stage-meaning {
+  color: var(--muted);
+  font-size: 0.74rem;
+  line-height: 1.45;
+  margin: 0.35rem 0 0.3rem;
+}
+
+.jr-sample {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.jr-thin {
+  color: var(--muted);
+  cursor: help;
+  margin-left: 0.2rem;
+}
+
+@media (max-width: 900px) {
+  .jr-rail {
+    grid-auto-flow: row;
+  }
+  .jr-gap {
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding: 0.5rem 0 0.5rem 0;
+  }
+  .jr-stage {
+    padding-right: 0;
+  }
+}

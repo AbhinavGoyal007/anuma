@@ -10,6 +10,7 @@ describe("application route registry", () => {
       "/frontline-performance",
       "/intelligence/demand",
       "/intelligence/frontline",
+      "/intelligence/journey",
       "/outcome-intelligence",
       "/field-library",
       "/administration",

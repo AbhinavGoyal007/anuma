@@ -5,7 +5,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { getApplicationContext } from "@/modules/identity/application-context";
 import { evidenceForField, timestamp } from "@/modules/intelligence/evidence";
 import { filtersToQuery, parseFilters, resolvePeriods } from "@/modules/intelligence/filters";
-import { frontlineActionCohorts } from "@/modules/intelligence/frontline";
+import { resolveCohort } from "@/modules/intelligence/cohorts";
+import { JOURNEY_COHORTS, type JourneyCohortKey } from "@/modules/intelligence/journey";
 import { loadPopulation } from "@/modules/intelligence/population";
 import { createClient } from "@/lib/supabase/server";
 
@@ -53,7 +54,14 @@ export default async function FrontlineCohortPage({ params, searchParams }: Page
     purchaseCategory: filters.category,
   });
 
-  const cohort = frontlineActionCohorts(population.rows).find((item) => item.key === cohortKey);
+  // The journey groups are defined inside a selected cohort, so the same key
+  // means a different set depending on which one the reader was looking at. It
+  // travels in the URL, which is what lets a shared link open the same group.
+  const requested = Array.isArray(raw.cohort) ? raw.cohort[0] : raw.cohort;
+  const journeyCohort: JourneyCohortKey =
+    JOURNEY_COHORTS.find((key) => key === requested) ?? "all";
+
+  const cohort = resolveCohort(population.rows, cohortKey, journeyCohort);
   if (!cohort) notFound();
 
   const rows = population.rows.filter((row) => cohort.conversationIds.includes(row.conversationId));
@@ -70,14 +78,18 @@ export default async function FrontlineCohortPage({ params, searchParams }: Page
   ]);
   const detail = new Map((conversations ?? []).map((row) => [row.id, row]));
 
-  const back = `/intelligence/frontline${filtersToQuery(filters)}`;
+  // Back to wherever this group is shown. Journey groups carry a cohort in the
+  // URL; frontline ones do not.
+  const back = requested
+    ? `/intelligence/journey${filtersToQuery(filters)}${filtersToQuery(filters) ? "&" : "?"}cohort=${journeyCohort}`
+    : `/intelligence/frontline${filtersToQuery(filters)}`;
 
   return (
     <>
       <PageHeader eyebrow="Frontline intelligence" title={`${rows.length} to review`} />
       <p className="fl-context">
         Interactions that {cohort.headline}
-        {selectedStore ? ` at ${selectedStore.name}` : ""}. <Link href={back}>Back to Frontline</Link>
+        {selectedStore ? ` at ${selectedStore.name}` : ""}. <Link href={back}>Back</Link>
       </p>
 
       <ul className="cohort-list">
@@ -130,7 +142,7 @@ export default async function FrontlineCohortPage({ params, searchParams }: Page
       {rows.length === 0 ? (
         <p className="fl-none">
           Nothing matches this cohort in the selected period. It may have been counted under a wider
-          date range. <Link href={back}>Back to Frontline</Link>
+          date range. <Link href={back}>Back</Link>
         </p>
       ) : null}
     </>

@@ -5,6 +5,7 @@ export type ApplicationRoute = {
     | "/frontline-performance"
     | "/intelligence/demand"
     | "/intelligence/frontline"
+    | "/intelligence/journey"
     | "/outcome-intelligence"
     | "/field-library"
     | "/administration";
@@ -66,6 +67,16 @@ export const applicationRoutes: ApplicationRoute[] = [
     description:
       "The interactions where something was missed — a recommendation with no reason, a finance request with no offer, a buying signal nobody closed on.",
     signal: "performance",
+  },
+  {
+    href: "/intelligence/journey",
+    label: "Decision Journey",
+    group: "Intelligence",
+    eyebrow: "Customer decision journey",
+    title: "How far customers got",
+    description:
+      "How much of a group reached a clear requirement, a chosen product, a buying signal and a sale — and which interactions stopped between each.",
+    signal: "outcome",
   },
   {
     href: "/outcome-intelligence",

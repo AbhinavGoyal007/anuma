@@ -131,7 +131,7 @@ export function FrontlineIntelligenceView({
                 <p className="fl-action-reason">{cohort.reason}</p>
                 <Link
                   className="fl-action-link"
-                  href={`/intelligence/frontline/cohort/${cohort.key}${cohortQuery}`}
+                  href={`/intelligence/cohort/${cohort.key}${cohortQuery}`}
                 >
                   Review {cohort.conversationIds.length} interaction
                   {cohort.conversationIds.length === 1 ? "" : "s"} →
