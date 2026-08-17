@@ -124,18 +124,36 @@ describe("denominators that decide whether a frontline metric is fair", () => {
     expect(metrics.fullObjectionHandling.value).toBeCloseTo(2 / 3, 6);
   });
 
-  it("reports the finance gap as the failure, measured against finance requests", () => {
+  it("reports the finance gap as the failure, measured against answered requests", () => {
     const metrics = computeFrontline([
       row({
         financeRequested: true,
         values: [value("commercial_offer_made", "12-month EMI", "finance")],
       }),
-      row({ financeRequested: true }),
-      row({ financeRequested: true }),
+      row({
+        financeRequested: true,
+        values: [value("commercial_offer_made", "2,000 cashback", "promotion")],
+      }),
       row({ financeRequested: false }),
     ]);
-    expect(metrics.financeOfferGap.observed).toBe(3);
-    expect(metrics.financeOfferGap.value).toBeCloseTo(2 / 3, 6);
+    expect(metrics.financeOfferGap.observed).toBe(2);
+    expect(metrics.financeOfferGap.value).toBe(0.5);
+  });
+
+  it("does not accuse a rep when no offer of any kind was recorded", () => {
+    // The drill-down found a transcript where the representative offered EMI out
+    // loud and the extraction recorded nothing. An offer that was missed is
+    // indistinguishable from an offer never made, so these are excluded rather
+    // than counted as a failure someone would be asked to explain.
+    const metrics = computeFrontline([
+      row({ financeRequested: true, values: [value("finance_requested", "EMI hai kya?")] }),
+      row({
+        financeRequested: true,
+        values: [value("commercial_offer_made", null, null, "not_stated")],
+      }),
+    ]);
+    expect(metrics.financeOfferGap.observed).toBe(0);
+    expect(metrics.financeOfferGap.value).toBeNull();
   });
 
   it("counts an interaction once however many pitches it contained", () => {

@@ -319,10 +319,13 @@ export const metricRegistry: readonly MetricDefinition[] = [
       "Interactions where the customer requested finance and no finance offer was recorded from the representative.",
     grain: "interaction",
     requiredFields: ["finance_requested", "commercial_offer_made"],
-    eligibilityRule: "Interactions where the customer requested finance.",
+    eligibilityRule:
+      "Interactions where the customer requested finance and some commercial offer was recorded.",
     format: "percent",
     directionality: "lower_is_better",
     comparison: "previous_period",
+    provisional:
+      "An offer the extraction missed is indistinguishable from an offer never made, so interactions with no recorded offer of any kind are excluded rather than counted as failures. Check the transcript on the drill-down before acting on an individual interaction.",
     drilldownFieldKeys: ["finance_requested", "commercial_offer_made"],
   }),
   frontline({

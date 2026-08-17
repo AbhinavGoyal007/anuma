@@ -1,8 +1,15 @@
 import { redirect } from "next/navigation";
 
+import { IntelligenceFilterBar } from "@/components/intelligence/filter-bar";
 import { FrontlineIntelligenceView } from "@/components/intelligence/frontline-intelligence-view";
 import { PageHeader } from "@/components/ui/page-header";
 import { getApplicationContext } from "@/modules/identity/application-context";
+import {
+  filtersToQuery,
+  parseFilters,
+  resolvePeriods,
+  windowLabel,
+} from "@/modules/intelligence/filters";
 import {
   computeFrontline,
   frontlineActionCohorts,
@@ -10,25 +17,20 @@ import {
 } from "@/modules/intelligence/frontline";
 import { loadPopulation } from "@/modules/intelligence/population";
 
-type PageProps = { searchParams: Promise<{ days?: string; store?: string }> };
-
-/** Windows a reader can pick. Anything else falls back to 30 days. */
-const WINDOWS = [7, 30, 90] as const;
+type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 export default async function FrontlineIntelligencePage({ searchParams }: PageProps) {
-  const [context, params] = await Promise.all([getApplicationContext(), searchParams]);
+  const [context, raw] = await Promise.all([getApplicationContext(), searchParams]);
   if (!context) redirect("/sign-in");
   if (!context.current) redirect("/setup");
 
   const { organization, membership, assignments, locations } = context.current;
+  const filters = parseFilters(raw);
+  const periods = resolvePeriods(filters);
 
-  const days = WINDOWS.find((option) => option === Number(params.days)) ?? 30;
-  const to = new Date();
-  const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
-
-  // A rep sees only the stores they are assigned to. Filtering the options here
+  // A rep sees only the stores they are assigned to. Narrowing the options here
   // rather than in the query keeps an unassigned store from being selectable at
-  // all, so a hand-typed id cannot widen what someone sees.
+  // all, so a hand-typed id in the URL cannot widen what someone sees.
   const assignedLocationIds = new Set(
     assignments.flatMap((item) => (item.locationId ? [item.locationId] : [])),
   );
@@ -36,18 +38,32 @@ export default async function FrontlineIntelligencePage({ searchParams }: PagePr
     membership.role === "admin"
       ? locations
       : locations.filter((item) => assignedLocationIds.has(item.id));
-  const selectedStore = stores.find((item) => item.id === params.store) ?? null;
+  const selectedStore = stores.find((item) => item.id === filters.storeId) ?? null;
 
-  const population = await loadPopulation({
-    organizationId: organization.id,
-    from: from.toISOString(),
-    to: to.toISOString(),
-    locationId: selectedStore?.id ?? null,
-  });
+  // Both periods come from the same loader with the same filters, so a delta
+  // cannot be a comparison between two differently-shaped populations.
+  const [current, previous] = await Promise.all([
+    loadPopulation({
+      organizationId: organization.id,
+      from: periods.current.from,
+      to: periods.current.to,
+      locationId: selectedStore?.id ?? null,
+      purchaseCategory: filters.category,
+    }),
+    periods.previous
+      ? loadPopulation({
+          organizationId: organization.id,
+          from: periods.previous.from,
+          to: periods.previous.to,
+          locationId: selectedStore?.id ?? null,
+          purchaseCategory: filters.category,
+        })
+      : null,
+  ]);
 
-  const metrics = computeFrontline(population.rows);
-  const cohorts = frontlineActionCohorts(population.rows);
-  const associations = outcomeAssociations(population.rows);
+  const categories = [
+    ...new Set(current.rows.flatMap((row) => (row.purchaseCategory ? [row.purchaseCategory] : []))),
+  ].sort();
 
   return (
     <>
@@ -55,18 +71,27 @@ export default async function FrontlineIntelligencePage({ searchParams }: PagePr
         eyebrow="Frontline intelligence"
         title="Where frontline execution needs attention"
       />
+      <IntelligenceFilterBar
+        basePath="/intelligence/frontline"
+        filters={filters}
+        stores={stores.map((store) => ({ id: store.id, name: store.name }))}
+        categories={categories}
+      />
       <p className="fl-context">
-        {population.rows.length} analysed interaction
-        {population.rows.length === 1 ? "" : "s"} in the last {days} days
-        {selectedStore ? ` at ${selectedStore.name}` : ""}.
+        {current.rows.length} analysed interaction{current.rows.length === 1 ? "" : "s"} in{" "}
+        {windowLabel(filters.days)}
+        {selectedStore ? ` at ${selectedStore.name}` : ""}
+        {previous ? `, against ${previous.rows.length} in the ${filters.days} days before` : ""}.
       </p>
       <FrontlineIntelligenceView
-        metrics={metrics}
-        cohorts={cohorts}
-        associations={associations}
-        analysed={population.rows.length}
-        withoutMetrics={population.withoutMetrics}
-        periodLabel={`the last ${days} days`}
+        metrics={computeFrontline(current.rows)}
+        previousMetrics={previous ? computeFrontline(previous.rows) : null}
+        cohorts={frontlineActionCohorts(current.rows)}
+        associations={outcomeAssociations(current.rows)}
+        analysed={current.rows.length}
+        withoutMetrics={current.withoutMetrics}
+        periodLabel={windowLabel(filters.days)}
+        cohortQuery={filtersToQuery(filters)}
       />
     </>
   );

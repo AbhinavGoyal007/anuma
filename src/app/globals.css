@@ -4051,3 +4051,136 @@ a {
     overflow-x: auto;
   }
 }
+
+/* Intelligence filter bar. Chips rather than dropdowns: the whole selection is
+   readable at a glance and every state is a real address. */
+.ifb {
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1.6rem;
+  margin: 0 0 1.5rem;
+  padding-bottom: 0.9rem;
+}
+
+.ifb-group {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.ifb-label {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  margin-right: 0.15rem;
+  text-transform: uppercase;
+}
+
+.ifb-chip {
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--graphite);
+  font-size: 0.78rem;
+  padding: 0.2rem 0.55rem;
+  text-decoration: none;
+}
+
+.ifb-chip:hover {
+  border-color: var(--graphite);
+  color: var(--carbon);
+}
+
+.ifb-chip--active {
+  background: var(--carbon);
+  border-color: var(--carbon);
+  color: var(--paper, #fff);
+}
+
+.fl-delta {
+  color: var(--graphite);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Cohort drill-down: the interactions behind one number, each with the
+   transcript line that put it there. */
+.cohort-list {
+  display: grid;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cohort-item {
+  border-bottom: 1px solid var(--border);
+  padding: 1.05rem 0;
+}
+
+.cohort-head {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: space-between;
+}
+
+.cohort-title {
+  color: var(--carbon);
+  font-size: 0.95rem;
+  font-weight: 550;
+}
+
+.cohort-meta {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.cohort-reason {
+  color: var(--graphite);
+  font-size: 0.8rem;
+  margin: 0.25rem 0 0;
+}
+
+.cohort-evidence {
+  border-left: 2px solid var(--border);
+  display: grid;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0.7rem 0 0;
+  padding: 0 0 0 0.85rem;
+}
+
+.cohort-evidence li {
+  color: var(--carbon);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.cohort-stamp,
+.cohort-role {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  margin-right: 0.5rem;
+}
+
+.cohort-role {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.cohort-evidence q {
+  quotes: "\201C" "\201D";
+}
+
+.cohort-noevidence {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-style: italic;
+  margin: 0.6rem 0 0;
+}

@@ -20,6 +20,12 @@ const present = (row: PopulationRow, fieldKey: string): PopulationValue[] =>
 
 const has = (row: PopulationRow, fieldKey: string): boolean => present(row, fieldKey).length > 0;
 
+/** Whether a recorded commercial offer was a finance one. */
+const hasFinanceOffer = (row: PopulationRow): boolean =>
+  present(row, "commercial_offer_made").some((value) =>
+    (value.label ?? value.valueText ?? "").toLowerCase().includes("finance"),
+  );
+
 /**
  * Whether the record was even asked this field.
  *
@@ -79,12 +85,17 @@ export function computeFrontline(rows: readonly PopulationRow[]): FrontlineMetri
     }
   }
 
-  const financeRequested = rows.filter((row) => row.financeRequested);
-  const financeAnswered = financeRequested.filter((row) =>
-    present(row, "commercial_offer_made").some((value) =>
-      (value.label ?? value.valueText ?? "").toLowerCase().includes("finance"),
-    ),
+  // Only interactions where the representative was recorded making some offer
+  // count towards the finance gap. An interaction with no offer of any kind is
+  // ambiguous: it may be a representative who said nothing, or an offer the
+  // extraction missed — and the drill-down found a real case of the second,
+  // where the transcript has the rep offering EMI and the field says nothing was
+  // offered. Naming that as a failure accuses someone of a mistake they did not
+  // make, so it is excluded and the metric is marked provisional instead.
+  const financeRequested = rows.filter(
+    (row) => row.financeRequested && has(row, "commercial_offer_made"),
   );
+  const financeAnswered = financeRequested.filter((row) => hasFinanceOffer(row));
 
   const commitment = rows.filter((row) => has(row, "customer_commitment_signals"));
   const closedAfter = commitment.filter((row) => has(row, "close_attempts"));
@@ -145,6 +156,16 @@ export type ActionCohort = {
   headline: string;
   /** Why these interactions matched, shown on each row of the drill-down. */
   reason: string;
+  /**
+   * The fields whose evidence explains the match.
+   *
+   * A cohort defined by an absence — no reason given, no offer made — cites the
+   * thing that was present instead: the recommendation nobody justified, the
+   * request nobody answered. There is no transcript line for something never
+   * said, and inventing one would be the exact failure the evidence rule exists
+   * to prevent.
+   */
+  evidenceFieldKeys: string[];
   conversationIds: string[];
 };
 
@@ -157,6 +178,7 @@ export function frontlineActionCohorts(rows: readonly PopulationRow[]): ActionCo
   if (withoutRationale.length) {
     cohorts.push({
       key: "recommendation_without_rationale",
+      evidenceFieldKeys: ["products_recommended"],
       headline: "recommended a product without saying why",
       reason: "A recommendation was made and no reason was recorded",
       conversationIds: withoutRationale.map((row) => row.conversationId),
@@ -164,15 +186,12 @@ export function frontlineActionCohorts(rows: readonly PopulationRow[]): ActionCo
   }
 
   const financeUnanswered = rows.filter(
-    (row) =>
-      row.financeRequested &&
-      !present(row, "commercial_offer_made").some((value) =>
-        (value.label ?? value.valueText ?? "").toLowerCase().includes("finance"),
-      ),
+    (row) => row.financeRequested && has(row, "commercial_offer_made") && !hasFinanceOffer(row),
   );
   if (financeUnanswered.length) {
     cohorts.push({
       key: "finance_request_without_finance_offer",
+      evidenceFieldKeys: ["finance_requested", "commercial_offer_made"],
       headline: "asked about finance and got no finance offer",
       reason: "The customer requested finance and no finance offer was recorded",
       conversationIds: financeUnanswered.map((row) => row.conversationId),
@@ -187,6 +206,7 @@ export function frontlineActionCohorts(rows: readonly PopulationRow[]): ActionCo
   if (objectionGap.length) {
     cohorts.push({
       key: "objection_handling_gap",
+      evidenceFieldKeys: ["objections", "objection_response"],
       headline: "left an objection partly answered or unanswered",
       reason: "At least one objection response was judged partial or none",
       conversationIds: objectionGap.map((row) => row.conversationId),
@@ -199,6 +219,7 @@ export function frontlineActionCohorts(rows: readonly PopulationRow[]): ActionCo
   if (commitmentNoClose.length) {
     cohorts.push({
       key: "commitment_without_close_attempt",
+      evidenceFieldKeys: ["customer_commitment_signals"],
       headline: "showed a buying signal that was never followed by a close",
       reason: "A commitment signal was recorded and no close attempt followed",
       conversationIds: commitmentNoClose.map((row) => row.conversationId),
@@ -214,6 +235,7 @@ export function frontlineActionCohorts(rows: readonly PopulationRow[]): ActionCo
   if (readyUnresolved.length) {
     cohorts.push({
       key: "ready_to_buy_without_close_attempt",
+      evidenceFieldKeys: ["arrival_intent_state", "customer_commitment_signals"],
       headline: "arrived ready to buy, left unresolved, and were never asked for the sale",
       reason: "Arrival intent was ready to buy, no close attempt, outcome unresolved",
       conversationIds: readyUnresolved.map((row) => row.conversationId),
@@ -226,6 +248,7 @@ export function frontlineActionCohorts(rows: readonly PopulationRow[]): ActionCo
   if (followUpNoAction.length) {
     cohorts.push({
       key: "follow_up_without_next_action",
+      evidenceFieldKeys: ["final_decision_state"],
       headline: "agreed a follow-up with nothing concrete recorded to do",
       reason: "The customer left on a follow-up and no next action was captured",
       conversationIds: followUpNoAction.map((row) => row.conversationId),

@@ -5,7 +5,7 @@ import type {
   FrontlineMetrics,
   OutcomeAssociation,
 } from "@/modules/intelligence/frontline";
-import { DEFAULT_GUARDRAILS, type Measure } from "@/modules/intelligence/guardrails";
+import { change, DEFAULT_GUARDRAILS, type Measure } from "@/modules/intelligence/guardrails";
 import { metric } from "@/modules/intelligence/metric-registry";
 
 /**
@@ -43,13 +43,31 @@ function Denominator({ measure: m }: { measure: Measure }) {
   );
 }
 
-function Rate({ metricKey, measure: m }: { metricKey: string; measure: Measure }) {
+function Rate({
+  metricKey,
+  measure: m,
+  previous,
+}: {
+  metricKey: string;
+  measure: Measure;
+  previous?: Measure | null;
+}) {
   const definition = metric(metricKey);
+  // A delta is shown only when both periods independently clear the bar. A solid
+  // month measured against six conversations is not a trend, and printing the
+  // arrow anyway is how a dashboard teaches people to distrust it.
+  const delta = previous ? change(m, previous) : null;
   return (
     <div className="fl-rate">
       <dt>{definition.label}</dt>
       <dd>
         <strong>{percent(m.value)}</strong>
+        {delta?.comparable && delta.deltaPoints !== null ? (
+          <span className="fl-delta">
+            {delta.deltaPoints > 0 ? "+" : ""}
+            {Math.round(delta.deltaPoints)}pp
+          </span>
+        ) : null}
         <Denominator measure={m} />
         {definition.provisional ? (
           <span className="fl-provisional" title={definition.provisional}>
@@ -63,19 +81,24 @@ function Rate({ metricKey, measure: m }: { metricKey: string; measure: Measure }
 
 export function FrontlineIntelligenceView({
   metrics,
+  previousMetrics,
   cohorts,
   associations,
   analysed,
   withoutMetrics,
   periodLabel,
+  cohortQuery,
 }: {
   metrics: FrontlineMetrics;
+  previousMetrics: FrontlineMetrics | null;
   cohorts: ActionCohort[];
   associations: OutcomeAssociation[];
   analysed: number;
   withoutMetrics: number;
   periodLabel: string;
+  cohortQuery: string;
 }) {
+  const before = (key: keyof FrontlineMetrics) => previousMetrics?.[key] ?? null;
   if (analysed === 0) {
     return (
       <section className="fl-empty">
@@ -108,7 +131,7 @@ export function FrontlineIntelligenceView({
                 <p className="fl-action-reason">{cohort.reason}</p>
                 <Link
                   className="fl-action-link"
-                  href={`/intelligence/frontline/cohort/${cohort.key}`}
+                  href={`/intelligence/frontline/cohort/${cohort.key}${cohortQuery}`}
                 >
                   Review {cohort.conversationIds.length} interaction
                   {cohort.conversationIds.length === 1 ? "" : "s"} →
@@ -122,21 +145,53 @@ export function FrontlineIntelligenceView({
       <section className="fl-section" aria-labelledby="fl-pulse">
         <h2 id="fl-pulse">How the floor is executing</h2>
         <dl className="fl-rates">
-          <Rate metricKey="recommendation_rate" measure={metrics.recommendationRate} />
-          <Rate metricKey="recommendation_rationale" measure={metrics.recommendationRationale} />
-          <Rate metricKey="full_objection_handling" measure={metrics.fullObjectionHandling} />
-          <Rate metricKey="demo_rate" measure={metrics.demoRate} />
-          <Rate metricKey="close_after_commitment" measure={metrics.closeAfterCommitment} />
-          <Rate metricKey="next_action_capture" measure={metrics.nextActionCapture} />
+          <Rate
+            metricKey="recommendation_rate"
+            measure={metrics.recommendationRate}
+            previous={before("recommendationRate")}
+          />
+          <Rate
+            metricKey="recommendation_rationale"
+            measure={metrics.recommendationRationale}
+            previous={before("recommendationRationale")}
+          />
+          <Rate
+            metricKey="full_objection_handling"
+            measure={metrics.fullObjectionHandling}
+            previous={before("fullObjectionHandling")}
+          />
+          <Rate metricKey="demo_rate" measure={metrics.demoRate} previous={before("demoRate")} />
+          <Rate
+            metricKey="close_after_commitment"
+            measure={metrics.closeAfterCommitment}
+            previous={before("closeAfterCommitment")}
+          />
+          <Rate
+            metricKey="next_action_capture"
+            measure={metrics.nextActionCapture}
+            previous={before("nextActionCapture")}
+          />
         </dl>
       </section>
 
       <section className="fl-section" aria-labelledby="fl-commercial">
         <h2 id="fl-commercial">Are commercial openings being used?</h2>
         <dl className="fl-rates">
-          <Rate metricKey="cross_sell_rate" measure={metrics.crossSellRate} />
-          <Rate metricKey="upsell_rate" measure={metrics.upsellRate} />
-          <Rate metricKey="finance_offer_gap" measure={metrics.financeOfferGap} />
+          <Rate
+            metricKey="cross_sell_rate"
+            measure={metrics.crossSellRate}
+            previous={before("crossSellRate")}
+          />
+          <Rate
+            metricKey="upsell_rate"
+            measure={metrics.upsellRate}
+            previous={before("upsellRate")}
+          />
+          <Rate
+            metricKey="finance_offer_gap"
+            measure={metrics.financeOfferGap}
+            previous={before("financeOfferGap")}
+          />
         </dl>
         <p className="fl-note">
           The finance figure is the gap, not the coverage: it counts customers who asked about
