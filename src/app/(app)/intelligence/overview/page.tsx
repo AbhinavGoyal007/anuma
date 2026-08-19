@@ -48,7 +48,15 @@ export default async function IntelligenceOverviewPage({ searchParams }: PagePro
       query,
     ),
   );
-  const changes = rankCandidates(changeCandidates(demand, previousDemand));
+  // Clarity comes from the matrix rather than being computed a second time.
+  const previousClarity = previous ? clarityMatrix(previous.rows) : null;
+  const changes = rankCandidates(
+    changeCandidates(
+      demand,
+      previousDemand,
+      previousClarity ? { current: clarity.improved, previous: previousClarity.improved } : null,
+    ),
+  );
 
   // Deterministic statements about where things stand, for the periods where a
   // comparison cannot be made. Each is a fact with its denominator attached, not

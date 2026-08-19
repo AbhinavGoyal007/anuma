@@ -10,6 +10,7 @@ import {
   journeyBreakdown,
   journeyLeakageCohorts,
   journeyStages,
+  outcomeDistributions,
   JOURNEY_COHORTS,
   selectCohort,
   type JourneyCohortKey,
@@ -73,6 +74,7 @@ export default async function CustomerJourneyPage({ searchParams }: PageProps) {
           (key) => (byStore ? (storeName.get(key) ?? key) : key),
         )}
         breakdownLabel={byStore ? "Store" : "Category"}
+        outcomes={outcomeDistributions(cohort)}
         cohortQuery={cohortQuery}
         periodLabel={windowLabel(filters.days)}
       />

@@ -1,0 +1,12 @@
+/**
+ * Scopes the denser Intelligence spacing.
+ *
+ * These four pages are scanned rather than read: a manager wants the first
+ * management signal inside the first viewport, not below a title block sized
+ * for an article. The tightening is applied here rather than globally because
+ * the rest of the product is read at a different pace and its headers are
+ * correct as they are.
+ */
+export default function IntelligenceLayout({ children }: { children: React.ReactNode }) {
+  return <div className="intelligence-page">{children}</div>;
+}

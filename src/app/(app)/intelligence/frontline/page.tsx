@@ -8,6 +8,7 @@ import {
   computeFrontline,
   frontlineActionCohorts,
   outcomeAssociations,
+  responseCompositions,
 } from "@/modules/intelligence/frontline";
 import { resolveIntelligencePage } from "@/modules/intelligence/page-context";
 
@@ -41,6 +42,7 @@ export default async function FrontlineIntelligencePage({ searchParams }: PagePr
       </p>
       <FrontlineIntelligenceView
         metrics={computeFrontline(current.rows)}
+        compositions={responseCompositions(current.rows)}
         previousMetrics={previous ? computeFrontline(previous.rows) : null}
         cohorts={frontlineActionCohorts(current.rows)}
         associations={outcomeAssociations(current.rows)}

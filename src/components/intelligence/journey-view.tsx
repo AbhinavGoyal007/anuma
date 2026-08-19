@@ -4,6 +4,7 @@ import type { ActionCohort } from "@/modules/intelligence/frontline";
 import { DEFAULT_GUARDRAILS, type Measure } from "@/modules/intelligence/guardrails";
 import {
   COHORT_LABELS,
+  type OutcomeSlice,
   JOURNEY_COHORTS,
   type InterventionRate,
   type JourneyBreakdownRow,
@@ -60,12 +61,65 @@ function Cell({ measure: m }: { measure: Measure }) {
   );
 }
 
+/**
+ * One composition, as a single 100% bar.
+ *
+ * The states are mutually exclusive and there are few of them, which is the one
+ * case a stacked bar reads better than separate bars. Every segment carries its
+ * own text label, so colour is never the only thing distinguishing a sale from
+ * an outcome nobody established.
+ */
+function OutcomeStrip({
+  title,
+  slices,
+  note,
+}: {
+  title: string;
+  slices: OutcomeSlice[];
+  note: string;
+}) {
+  const total = slices.reduce((sum, slice) => sum + slice.count, 0);
+  if (total === 0) return null;
+  return (
+    <div className="dm-panel">
+      <h3>{title}</h3>
+      <div
+        className="os-bar"
+        role="img"
+        aria-label={slices.map((s) => `${s.label} ${s.count}`).join(", ")}
+      >
+        {slices
+          .filter((slice) => slice.count > 0)
+          .map((slice) => (
+            <span
+              key={slice.key}
+              className={`os-seg os-seg--${slice.key}`}
+              style={{ width: `${(slice.count / total) * 100}%` }}
+            />
+          ))}
+      </div>
+      <ul className="os-key">
+        {slices
+          .filter((slice) => slice.count > 0)
+          .map((slice) => (
+            <li key={slice.key}>
+              <span className={`os-swatch os-seg--${slice.key}`} aria-hidden="true" />
+              {slice.label} <strong>{slice.count}</strong>
+              <span className="os-share">{percent(slice.share)}</span>
+            </li>
+          ))}
+      </ul>
+      <p className="fl-note">{note}</p>
+    </div>
+  );
+}
+
 function Sample({ measure: m }: { measure: Measure }) {
   const thin = m.observed > 0 && m.observed < DEFAULT_GUARDRAILS.minimumForConfidentDisplay;
   return (
     <span className="jr-sample">
       {m.affected ?? 0} of {m.observed}
-      {thin ? " · directional" : ""}
+      {thin ? <span className="fl-lowsample">small sample</span> : null}
     </span>
   );
 }
@@ -78,6 +132,7 @@ export function JourneyView({
   leakage,
   breakdown,
   breakdownLabel,
+  outcomes,
   cohortQuery,
   periodLabel,
 }: {
@@ -88,6 +143,7 @@ export function JourneyView({
   leakage: ActionCohort[];
   breakdown: JourneyBreakdownRow[];
   breakdownLabel: string;
+  outcomes: { business: OutcomeSlice[]; decision: OutcomeSlice[] };
   cohortQuery: (key: JourneyCohortKey) => string;
   periodLabel: string;
 }) {
@@ -146,11 +202,13 @@ export function JourneyView({
                   <div className="jr-gap">
                     {stage.lost > 0 && stage.gapCohortKey ? (
                       <Link className="jr-gap-link" href={gapLink(stage.gapCohortKey)}>
-                        {stage.lost} did not reach this state →
+                        {stage.lost} without this next state observed →
                       </Link>
                     ) : (
                       <span className="jr-gap-none">
-                        {stage.lost === 0 ? "none unaccounted for" : `${stage.lost} not observed`}
+                        {stage.lost === 0
+                          ? "No missing next-state observations"
+                          : `${stage.lost} not observed`}
                       </span>
                     )}
                     {stage.progression?.value !== null && stage.progression ? (
@@ -172,6 +230,22 @@ export function JourneyView({
               </li>
             ))}
           </ol>
+
+          <section className="fl-section" aria-labelledby="jr-outcome">
+            <h2 id="jr-outcome">How these interactions ended</h2>
+            <div className="dm-grid">
+              <OutcomeStrip
+                title="Business result"
+                slices={outcomes.business}
+                note="What the store got. Unconfirmed is an outcome we never established, which is not the same as a no sale."
+              />
+              <OutcomeStrip
+                title="Customer closing state"
+                slices={outcomes.decision}
+                note="Where the customer landed. A customer who agreed to come back is a follow-up, not a failure."
+              />
+            </div>
+          </section>
 
           <section className="fl-section" aria-labelledby="jr-lane">
             <h2 id="jr-lane">What the representative did alongside</h2>
@@ -195,10 +269,10 @@ export function JourneyView({
           </section>
 
           <section className="fl-section" aria-labelledby="jr-leak">
-            <h2 id="jr-leak">Where it broke</h2>
+            <h2 id="jr-leak">Where the next state was not observed</h2>
             {leakage.length === 0 ? (
               <p className="fl-none">
-                No stage lost anyone in this group. With {size} interactions that reads as “none
+                Every state that could be observed was. With {size} interactions that reads as “none
                 surfaced”, not “none exist”.
               </p>
             ) : (

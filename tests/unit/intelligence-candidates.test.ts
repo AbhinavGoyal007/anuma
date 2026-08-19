@@ -83,6 +83,58 @@ describe("promoting a change", () => {
     }
   });
 
+  it("holds a headline to a higher bar than a detail-page comparison", () => {
+    // Ten observations a side is enough to look at in a table. It is not enough
+    // to lead the Overview with, where the same number carries far more weight.
+    const thin = changeCandidates(
+      demand({ financeDemand: measure(8, 20, 20) }),
+      demand({ financeDemand: measure(2, 20, 20) }),
+    );
+    expect(thin).toHaveLength(0);
+
+    const solid = changeCandidates(
+      demand({ financeDemand: measure(16, 40, 40) }),
+      demand({ financeDemand: measure(4, 40, 40) }),
+    );
+    expect(solid).toHaveLength(1);
+  });
+
+  it("considers clarity when the matrix supplies it", () => {
+    // The copy for clarity already existed but nothing ever passed the measure
+    // in, so the candidate could never fire.
+    const withClarity = changeCandidates(demand(), demand(), {
+      current: measure(40, 60, 60),
+      previous: measure(15, 60, 60),
+    });
+    expect(withClarity.map((candidate) => candidate.id)).toContain("change:clarity_improved");
+  });
+
+  it("says nothing about clarity when the matrix supplies nothing", () => {
+    expect(changeCandidates(demand(), demand(), null)).toHaveLength(0);
+  });
+
+  it("keeps candidate copy inside what the data shows", () => {
+    // Two earlier lines asserted consequences the interaction record cannot
+    // support: that an unanswered finance question means the customer cannot
+    // pay, and that leaving unclear means never returning.
+    const all = changeCandidates(
+      demand({
+        financeDemand: measure(40, 100, 100),
+        competitorPressure: measure(40, 100, 100),
+        highIntent: measure(40, 100, 100),
+      }),
+      demand({
+        financeDemand: measure(20, 100, 100),
+        competitorPressure: measure(20, 100, 100),
+        highIntent: measure(20, 100, 100),
+      }),
+    );
+    for (const candidate of all) {
+      expect(candidate.soWhat).not.toMatch(/cannot pay|nothing to come back for/i);
+      expect(candidate.soWhat).toMatch(/review/i);
+    }
+  });
+
   it("returns nothing when there is no previous period at all", () => {
     expect(changeCandidates(demand({ financeDemand: measure(40, 100, 100) }), null)).toHaveLength(
       0,

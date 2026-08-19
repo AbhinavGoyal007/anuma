@@ -214,6 +214,55 @@ export function computeFrontline(rows: readonly PopulationRow[]): FrontlineMetri
   };
 }
 
+/** A mutually exclusive state and how many events landed in it. */
+export type StateSlice = { key: string; label: string; count: number };
+
+/**
+ * How objections were answered, and whether finance questions got a response.
+ *
+ * Counted per event rather than per interaction: a representative who fully
+ * answered two of five objections should not read the same as one who answered
+ * their only objection. The finance strip deliberately says "no response status
+ * recorded" rather than "unanswered" — the absence of a record is not proof
+ * that nobody replied.
+ */
+export function responseCompositions(rows: readonly PopulationRow[]): {
+  objection: StateSlice[];
+  finance: StateSlice[];
+} {
+  const objection: Record<string, number> = { full: 0, partial: 0, none: 0 };
+  for (const row of rows) {
+    for (const value of present(row, "objection_response")) {
+      if (value.valueText && value.valueText in objection) objection[value.valueText] += 1;
+    }
+  }
+
+  const financeAsked = rows.filter((row) =>
+    present(row, "customer_questions").some((value) => isFinanceLabel(value.label)),
+  );
+  const recorded = financeAsked.filter((row) =>
+    present(row, "question_response_status").some(
+      (value) => isFinanceLabel(value.label) && normalizeResponseState(value.valueText) !== null,
+    ),
+  ).length;
+
+  return {
+    objection: [
+      { key: "full", label: "Fully addressed", count: objection.full! },
+      { key: "partial", label: "Partly addressed", count: objection.partial! },
+      { key: "none", label: "Not addressed", count: objection.none! },
+    ],
+    finance: [
+      { key: "recorded", label: "Response status recorded", count: recorded },
+      {
+        key: "unrecorded",
+        label: "No response status recorded",
+        count: financeAsked.length - recorded,
+      },
+    ],
+  };
+}
+
 /**
  * The interactions behind a specific failure, so the page can offer them.
  *

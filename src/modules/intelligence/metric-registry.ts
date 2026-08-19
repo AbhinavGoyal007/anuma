@@ -298,6 +298,20 @@ export const metricRegistry: readonly MetricDefinition[] = [
     drilldownFieldKeys: ["objections", "objection_response"],
   }),
   frontline({
+    key: "alternative_rate",
+    label: "Offered an alternative",
+    businessQuestion: "When the preferred option fell through, was a substitute put forward?",
+    definition:
+      "Interactions where a substitute was offered, among those where offering one was applicable. Interactions where nothing fell through are excluded rather than counted as a failure.",
+    grain: "interaction",
+    requiredFields: ["alternative_offered"],
+    eligibilityRule: "Interactions where the field was answered yes or no.",
+    format: "percent",
+    directionality: "contextual",
+    comparison: "previous_period",
+    drilldownFieldKeys: ["alternative_offered", "stock_status"],
+  }),
+  frontline({
     key: "demo_rate",
     label: "Showed the product",
     businessQuestion: "Are reps demonstrating when it would help?",

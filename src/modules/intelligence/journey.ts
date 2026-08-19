@@ -1,6 +1,6 @@
 import type { ActionCohort } from "@/modules/intelligence/frontline";
 import { measure, type Measure } from "@/modules/intelligence/guardrails";
-import { isUnresolved } from "@/modules/intelligence/outcome";
+import { DECISION_LABELS, DECISION_ORDER, isUnresolved } from "@/modules/intelligence/outcome";
 import type { PopulationRow, PopulationValue } from "@/modules/intelligence/population";
 
 /**
@@ -76,7 +76,15 @@ export type JourneyStage = {
   gapCohortKey: string | null;
 };
 
-/** Whether an interaction was observed in each journey state. */
+/**
+ * The customer decision states, and only those.
+ *
+ * A sale was the last stop on this rail, and even with careful copy that made
+ * the whole thing read as a funnel ending in a purchase — as though buying were
+ * the state after showing interest, and anyone not there had dropped out. The
+ * business result is a different axis and now sits below, beside the customer's
+ * own closing state, where the two can be read as the separate facts they are.
+ */
 const STATES: readonly {
   key: string;
   label: string;
@@ -115,14 +123,6 @@ const STATES: readonly {
     gapCohortKey: "no_commitment_signal",
     test: (row) => has(row, "customer_commitment_signals"),
     fieldKey: "customer_commitment_signals",
-  },
-  {
-    key: "sale",
-    label: "Bought",
-    meaning: "The outcome was established as a sale.",
-    gapCohortKey: "commitment_then_no_sale",
-    test: (row) => row.outcome.business === "sale",
-    fieldKey: "confirmed_business_outcome",
   },
 ];
 
@@ -323,6 +323,53 @@ export function journeyLeakageCohorts(cohort: readonly PopulationRow[]): ActionC
   return cohorts.sort((a, b) => b.conversationIds.length - a.conversationIds.length);
 }
 
+/** A labelled slice of a cohort, for the two outcome distributions. */
+export type OutcomeSlice = { key: string; label: string; count: number; share: number };
+
+/**
+ * What the business got, and where the customer landed.
+ *
+ * Two distributions rather than one, because an unestablished outcome is not a
+ * no-sale and a customer who agreed to come back is not a failure. Reading them
+ * side by side is the fastest way to see how much of the picture we simply do
+ * not have.
+ */
+export function outcomeDistributions(cohort: readonly PopulationRow[]): {
+  business: OutcomeSlice[];
+  decision: OutcomeSlice[];
+} {
+  const size = cohort.length || 1;
+  const slice = (key: string, label: string, matched: number): OutcomeSlice => ({
+    key,
+    label,
+    count: matched,
+    share: matched / size,
+  });
+
+  return {
+    business: [
+      slice("sale", "Sale", cohort.filter((row) => row.outcome.business === "sale").length),
+      slice(
+        "no_sale",
+        "No sale",
+        cohort.filter((row) => row.outcome.business === "no_sale").length,
+      ),
+      slice(
+        "unknown",
+        "Unconfirmed",
+        cohort.filter((row) => row.outcome.business === "unknown").length,
+      ),
+    ],
+    decision: DECISION_ORDER.map((state) =>
+      slice(
+        state,
+        DECISION_LABELS[state],
+        cohort.filter((row) => row.outcome.decision === state).length,
+      ),
+    ).filter((entry) => entry.count > 0),
+  };
+}
+
 /** Where in the estate the journey is breaking, by store or category. */
 export type JourneyBreakdownRow = {
   key: string;
@@ -350,6 +397,7 @@ export function journeyBreakdown(
     .map(([key, rows]) => {
       const stages = journeyStages(rows);
       const stage = (name: string) => stages.find((item) => item.key === name)!.reach;
+      const outcomeKnown = rows.filter((row) => row.outcome.business !== "unknown");
       return {
         key,
         label: labelFor(key),
@@ -357,7 +405,13 @@ export function journeyBreakdown(
         requirementClear: stage("requirement_clear"),
         preferenceFormed: stage("preference_formed"),
         commitment: stage("commitment"),
-        sale: stage("sale"),
+        // Read here rather than from the rail, which no longer carries a sale
+        // state. Measured against established outcomes only.
+        sale: measure(
+          outcomeKnown.filter((row) => row.outcome.business === "sale").length,
+          rows.length,
+          outcomeKnown.length,
+        ),
       };
     })
     .sort((a, b) => b.size - a.size);

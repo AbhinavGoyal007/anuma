@@ -4,6 +4,7 @@ import type {
   ActionCohort,
   FrontlineMetrics,
   OutcomeAssociationResult,
+  StateSlice,
 } from "@/modules/intelligence/frontline";
 import { change, DEFAULT_GUARDRAILS, type Measure } from "@/modules/intelligence/guardrails";
 import { metric } from "@/modules/intelligence/metric-registry";
@@ -37,8 +38,10 @@ function Denominator({ measure: m }: { measure: Measure }) {
   return (
     <p className={`fl-sample${thin ? " fl-sample--thin" : ""}`}>
       {m.affected ?? 0} of {m.observed}
-      {thin ? " · directional only" : ""}
-      {lowCoverage ? ` · ${Math.round((m.coverage ?? 0) * 100)}% of interactions carried this` : ""}
+      {thin ? <span className="fl-lowsample">small sample</span> : null}
+      {lowCoverage
+        ? ` · measurable in ${m.observed} of ${m.eligible} (${Math.round((m.coverage ?? 0) * 100)}% coverage)`
+        : ""}
     </p>
   );
 }
@@ -79,8 +82,73 @@ function Rate({
   );
 }
 
+/** One column of the execution pathway. */
+function Stage({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="fp-stage">
+      <p className="fp-stage-title">{title}</p>
+      <dl className="fp-stage-metrics">{children}</dl>
+    </div>
+  );
+}
+
+/** A 100% bar over a few mutually exclusive states, labelled in text. */
+function Composition({
+  title,
+  slices,
+  unit,
+  note,
+}: {
+  title: string;
+  slices: StateSlice[];
+  unit: string;
+  note: string;
+}) {
+  const total = slices.reduce((sum, slice) => sum + slice.count, 0);
+  return (
+    <div className="dm-panel">
+      <h3>{title}</h3>
+      {total === 0 ? (
+        <p className="fl-none">Nothing recorded in this period.</p>
+      ) : (
+        <>
+          <div
+            className="os-bar"
+            role="img"
+            aria-label={slices.map((slice) => `${slice.label} ${slice.count}`).join(", ")}
+          >
+            {slices
+              .filter((slice) => slice.count > 0)
+              .map((slice) => (
+                <span
+                  key={slice.key}
+                  className={`os-seg os-seg--${slice.key}`}
+                  style={{ width: `${(slice.count / total) * 100}%` }}
+                />
+              ))}
+          </div>
+          <ul className="os-key">
+            {slices.map((slice) => (
+              <li key={slice.key}>
+                <span className={`os-swatch os-seg--${slice.key}`} aria-hidden="true" />
+                {slice.label} <strong>{slice.count}</strong>
+                <span className="os-share">{percent(slice.count / total)}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="fl-sample">
+            {total} {unit}
+          </p>
+        </>
+      )}
+      <p className="fl-note">{note}</p>
+    </div>
+  );
+}
+
 export function FrontlineIntelligenceView({
   metrics,
+  compositions,
   previousMetrics,
   cohorts,
   associations,
@@ -90,6 +158,7 @@ export function FrontlineIntelligenceView({
   cohortQuery,
 }: {
   metrics: FrontlineMetrics;
+  compositions: { objection: StateSlice[]; finance: StateSlice[] };
   previousMetrics: FrontlineMetrics | null;
   cohorts: ActionCohort[];
   associations: OutcomeAssociationResult;
@@ -143,73 +212,93 @@ export function FrontlineIntelligenceView({
         )}
       </section>
 
-      <section className="fl-section" aria-labelledby="fl-pulse">
-        <h2 id="fl-pulse">How the floor is executing</h2>
-        <dl className="fl-rates">
-          <Rate
-            metricKey="recommendation_rate"
-            measure={metrics.recommendationRate}
-            previous={before("recommendationRate")}
-          />
-          <Rate
-            metricKey="recommendation_rationale"
-            measure={metrics.recommendationRationale}
-            previous={before("recommendationRationale")}
-          />
-          <Rate
-            metricKey="full_objection_handling"
-            measure={metrics.fullObjectionHandling}
-            previous={before("fullObjectionHandling")}
-          />
-          <Rate metricKey="demo_rate" measure={metrics.demoRate} previous={before("demoRate")} />
-          <Rate
-            metricKey="close_after_commitment"
-            measure={metrics.closeAfterCommitment}
-            previous={before("closeAfterCommitment")}
-          />
-          <Rate
-            metricKey="next_action_capture"
-            measure={metrics.nextActionCapture}
-            previous={before("nextActionCapture")}
-          />
-        </dl>
+      <section className="fl-section" aria-labelledby="fl-path">
+        <h2 id="fl-path">How the floor is executing</h2>
+        <p className="fl-note">
+          Grouped by the job each behaviour does, not by an order anyone is expected to follow. A
+          conversation can resolve an objection before it recommends anything.
+        </p>
+        <div className="fp-grid">
+          <Stage title="Understand">
+            <Rate
+              metricKey="finance_question_response"
+              measure={metrics.financeQuestionResponse}
+              previous={before("financeQuestionResponse")}
+            />
+          </Stage>
+          <Stage title="Recommend">
+            <Rate
+              metricKey="recommendation_rate"
+              measure={metrics.recommendationRate}
+              previous={before("recommendationRate")}
+            />
+            <Rate
+              metricKey="recommendation_rationale"
+              measure={metrics.recommendationRationale}
+              previous={before("recommendationRationale")}
+            />
+            <Rate metricKey="demo_rate" measure={metrics.demoRate} previous={before("demoRate")} />
+            <Rate
+              metricKey="alternative_rate"
+              measure={metrics.alternativeRate}
+              previous={before("alternativeRate")}
+            />
+          </Stage>
+          <Stage title="Resolve">
+            <Rate
+              metricKey="full_objection_handling"
+              measure={metrics.fullObjectionHandling}
+              previous={before("fullObjectionHandling")}
+            />
+            <Rate
+              metricKey="proactive_offer"
+              measure={metrics.proactiveOffer}
+              previous={before("proactiveOffer")}
+            />
+          </Stage>
+          <Stage title="Expand">
+            <Rate
+              metricKey="cross_sell_rate"
+              measure={metrics.crossSellRate}
+              previous={before("crossSellRate")}
+            />
+            <Rate
+              metricKey="upsell_rate"
+              measure={metrics.upsellRate}
+              previous={before("upsellRate")}
+            />
+          </Stage>
+          <Stage title="Close">
+            <Rate
+              metricKey="close_after_commitment"
+              measure={metrics.closeAfterCommitment}
+              previous={before("closeAfterCommitment")}
+            />
+            <Rate
+              metricKey="next_action_capture"
+              measure={metrics.nextActionCapture}
+              previous={before("nextActionCapture")}
+            />
+          </Stage>
+        </div>
       </section>
 
-      <section className="fl-section" aria-labelledby="fl-commercial">
-        <h2 id="fl-commercial">Are commercial openings being used?</h2>
-        <dl className="fl-rates">
-          <Rate
-            metricKey="cross_sell_rate"
-            measure={metrics.crossSellRate}
-            previous={before("crossSellRate")}
+      <section className="fl-section" aria-labelledby="fl-friction">
+        <h2 id="fl-friction">How friction was answered</h2>
+        <div className="dm-grid">
+          <Composition
+            title="Objection responses"
+            slices={compositions.objection}
+            unit="objection responses judged"
+            note="Counted per objection, not per conversation. Fully addressed means the concern was answered, not that the customer was persuaded."
           />
-          <Rate
-            metricKey="upsell_rate"
-            measure={metrics.upsellRate}
-            previous={before("upsellRate")}
+          <Composition
+            title="Finance questions"
+            slices={compositions.finance}
+            unit="interactions where a finance question was asked"
+            note="No response status recorded is an absence in our record, not proof that nobody replied."
           />
-          <Rate
-            metricKey="finance_demand"
-            measure={metrics.financeDemand}
-            previous={before("financeDemand")}
-          />
-          <Rate
-            metricKey="finance_question_response"
-            measure={metrics.financeQuestionResponse}
-            previous={before("financeQuestionResponse")}
-          />
-          <Rate
-            metricKey="proactive_offer"
-            measure={metrics.proactiveOffer}
-            previous={before("proactiveOffer")}
-          />
-        </dl>
-        <p className="fl-note">
-          Finance demand is what customers asked for; the response figure counts finance questions
-          with an answer recorded against the same topic. A recorded commercial offer is a separate
-          thing again — the two fields are captured independently, so a missing offer is not
-          evidence that a question went unanswered.
-        </p>
+        </div>
       </section>
 
       <section className="fl-section" aria-labelledby="fl-association">

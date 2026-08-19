@@ -70,22 +70,23 @@ const CHANGE_COPY: Readonly<Record<string, { rose: string; fell: string; soWhat:
   high_intent_arrival: {
     rose: "More customers are arriving already decided",
     fell: "Fewer customers are arriving already decided",
-    soWhat: "Decided arrivals need a different conversation from browsers.",
+    soWhat: "Review how arrival intent is distributed across categories and stores.",
   },
   finance_demand: {
     rose: "More customers are asking about finance",
     fell: "Fewer customers are asking about finance",
-    soWhat: "Each unanswered finance question is a customer who cannot pay the way they want to.",
+    soWhat:
+      "Finance is playing a larger role in these conversations. Review finance-response coverage in Frontline.",
   },
   competitor_pressure: {
     rose: "More customers are naming a competitor",
     fell: "Fewer customers are naming a competitor",
-    soWhat: "Being shopped against someone else changes what the floor has to do.",
+    soWhat: "Review which competitors and which prices customers cited.",
   },
   clarity_improved: {
     rose: "Conversations are leaving customers clearer about what they need",
     fell: "Conversations are leaving customers less clear about what they need",
-    soWhat: "A customer who leaves unclear has nothing to come back for.",
+    soWhat: "Review the clarity matrix and the interactions that stayed low-clarity before acting.",
   },
 };
 
@@ -99,6 +100,8 @@ const CHANGE_COPY: Readonly<Record<string, { rose: string; fell: string; soWhat:
 export function changeCandidates(
   current: DemandMetrics,
   previous: DemandMetrics | null,
+  /** Clarity is computed by the matrix, so it is passed in rather than redone. */
+  clarity: { current: Measure; previous: Measure } | null = null,
   thresholds: CandidateThresholds = DEFAULT_THRESHOLDS,
   guardrails: Guardrails = DEFAULT_GUARDRAILS,
 ): IntelligenceCandidate[] {
@@ -108,6 +111,9 @@ export function changeCandidates(
     ["high_intent_arrival", current.highIntent, previous.highIntent],
     ["finance_demand", current.financeDemand, previous.financeDemand],
     ["competitor_pressure", current.competitorPressure, previous.competitorPressure],
+    ...(clarity
+      ? ([["clarity_improved", clarity.current, clarity.previous]] as [string, Measure, Measure][])
+      : []),
   ];
 
   const candidates: IntelligenceCandidate[] = [];
@@ -115,6 +121,15 @@ export function changeCandidates(
     const delta = change(now, before, guardrails);
     if (!delta.comparable || delta.deltaPoints === null) continue;
     if (Math.abs(delta.deltaPoints) < thresholds.materialChangePoints) continue;
+    // A headline on the Overview carries more weight than the same comparison
+    // sitting in a table on a detail page, so it answers to a higher bar. Ten
+    // observations a side is enough to look at; it is not enough to lead with.
+    if (
+      now.observed < guardrails.minimumForConfidentDisplay ||
+      before.observed < guardrails.minimumForConfidentDisplay
+    ) {
+      continue;
+    }
 
     const copy = CHANGE_COPY[key]!;
     const rose = delta.deltaPoints > 0;

@@ -111,52 +111,54 @@ export function OverviewView({
         </section>
       ) : null}
 
-      {changes.length > 0 ? (
-        <section className="fl-section" aria-labelledby="ov-changed">
-          <h2 id="ov-changed">What changed</h2>
-          <ul className="ov-list">
-            {changes.slice(0, 4).map((candidate) => (
-              <Candidate key={candidate.id} candidate={candidate} />
-            ))}
-          </ul>
-        </section>
-      ) : (
-        // No comparison to make, so the page states where things stand instead
-        // of opening with an empty heading. A blank "What changed" reads as a
-        // broken product; a current picture reads as an answer, and on a young
-        // organization it is the only honest thing the page can lead with.
-        <section className="fl-section" aria-labelledby="ov-now">
-          <h2 id="ov-now">Current picture</h2>
-          <ul className="ov-list">
-            {currentPicture.slice(0, 4).map((fact) => (
-              <li key={fact.key} className="ov-item ov-item--medium">
-                <p className="ov-headline">{fact.sentence}</p>
-                {fact.detail ? <p className="ov-sowhat">{fact.detail}</p> : null}
-              </li>
-            ))}
-          </ul>
-          <p className="fl-note">
-            {suppression ??
-              `Nothing moved by enough to report between ${periodLabel} and ${comparisonLabel}.`}
-          </p>
-        </section>
-      )}
-
-      <section className="fl-section" aria-labelledby="ov-action">
-        <h2 id="ov-action">What needs doing</h2>
-        {gaps.length === 0 ? (
-          <p className="fl-none">
-            No execution gap affected enough interactions to raise here. With {analysed} analysed
-            that is worth reading as “none surfaced”, not “none exist”.
-          </p>
+      <div className="ov-split">
+        {changes.length > 0 ? (
+          <section className="fl-section" aria-labelledby="ov-changed">
+            <h2 id="ov-changed">What changed</h2>
+            <ul className="ov-list">
+              {changes.slice(0, 4).map((candidate) => (
+                <Candidate key={candidate.id} candidate={candidate} />
+              ))}
+            </ul>
+          </section>
         ) : (
-          <ul className="ov-list">
-            {gaps.slice(0, 4).map((candidate) => (
-              <Candidate key={candidate.id} candidate={candidate} />
-            ))}
-          </ul>
+          // No comparison to make, so the page states where things stand instead
+          // of opening with an empty heading. A blank "What changed" reads as a
+          // broken product; a current picture reads as an answer, and on a young
+          // organization it is the only honest thing the page can lead with.
+          <section className="fl-section" aria-labelledby="ov-now">
+            <h2 id="ov-now">Current picture</h2>
+            <ul className="ov-list">
+              {currentPicture.slice(0, 4).map((fact) => (
+                <li key={fact.key} className="ov-item ov-item--medium">
+                  <p className="ov-headline">{fact.sentence}</p>
+                  {fact.detail ? <p className="ov-sowhat">{fact.detail}</p> : null}
+                </li>
+              ))}
+            </ul>
+            <p className="fl-note">
+              {suppression ??
+                `Nothing moved by enough to report between ${periodLabel} and ${comparisonLabel}.`}
+            </p>
+          </section>
         )}
-      </section>
+
+        <section className="fl-section" aria-labelledby="ov-action">
+          <h2 id="ov-action">What needs doing</h2>
+          {gaps.length === 0 ? (
+            <p className="fl-none">
+              No execution gap affected enough interactions to raise here. With {analysed} analysed
+              that is worth reading as “none surfaced”, not “none exist”.
+            </p>
+          ) : (
+            <ul className="ov-list">
+              {gaps.slice(0, 4).map((candidate) => (
+                <Candidate key={candidate.id} candidate={candidate} />
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
 
       <section className="fl-section" aria-labelledby="ov-pulse">
         <h2 id="ov-pulse">Where the business stands</h2>
@@ -182,7 +184,7 @@ export function OverviewView({
                   {item.measure ? (
                     <p className={`fl-sample${thin ? " fl-sample--thin" : ""}`}>
                       {item.measure.affected ?? 0} of {item.measure.observed}
-                      {thin ? " · directional only" : ""}
+                      {thin ? <span className="fl-lowsample">small sample</span> : null}
                     </p>
                   ) : null}
                 </dd>

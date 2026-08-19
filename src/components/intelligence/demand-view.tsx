@@ -41,7 +41,7 @@ function Sample({ measure: m }: { measure: Measure }) {
   return (
     <p className={`fl-sample${thin ? " fl-sample--thin" : ""}`}>
       {m.affected ?? 0} of {m.observed}
-      {thin ? " · directional only" : ""}
+      {thin ? <span className="fl-lowsample">small sample</span> : null}
     </p>
   );
 }
