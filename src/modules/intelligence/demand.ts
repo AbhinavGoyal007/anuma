@@ -249,15 +249,36 @@ export function computeDemand(rows: readonly PopulationRow[]): DemandMetrics {
 }
 
 /**
- * Why unresolved interactions did not convert.
+ * The primary observed reason among interactions confirmed as no sale.
  *
- * Drawn only from interactions that did not end in a sale. Including sales would
- * put "price" beside conversations where price plainly was not a blocker.
+ * Drawn strictly from confirmed no-sales. The earlier version used "unresolved",
+ * which swept in every interaction whose outcome was never established — a
+ * population we know nothing about — while excluding a customer who explicitly
+ * declined. A chart titled "why we did not convert" cannot be built from
+ * conversations where we do not know whether we converted.
+ *
+ * This is what was observed and classified, never a proven cause.
  */
-export function nonConversionReasons(rows: readonly PopulationRow[]) {
-  const unresolved = rows.filter((row) => isUnresolved(row.outcome));
-  return distribution(
-    unresolved,
+export type NoSaleReasons = {
+  entries: RankedShare[];
+  /** Confirmed no-sales carrying an observed reason. */
+  classified: number;
+  /** All confirmed no-sales, whether a reason was recorded or not. */
+  confirmedNoSales: number;
+  /** Share of confirmed no-sales where a reason was actually observed. */
+  coverage: number | null;
+};
+
+export function nonConversionReasons(rows: readonly PopulationRow[]): NoSaleReasons {
+  const confirmed = rows.filter((row) => row.outcome.business === "no_sale");
+  const { entries, classified } = distribution(
+    confirmed,
     (row) => present(row, "primary_non_conversion_reason")[0]?.valueText ?? null,
   );
+  return {
+    entries,
+    classified,
+    confirmedNoSales: confirmed.length,
+    coverage: confirmed.length > 0 ? classified / confirmed.length : null,
+  };
 }

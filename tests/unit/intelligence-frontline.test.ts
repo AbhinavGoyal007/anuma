@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   computeFrontline,
+  normalizeResponseState,
   frontlineActionCohorts,
   outcomeAssociations,
 } from "@/modules/intelligence/frontline";
@@ -126,36 +127,45 @@ describe("denominators that decide whether a frontline metric is fair", () => {
     expect(metrics.fullObjectionHandling.value).toBeCloseTo(2 / 3, 6);
   });
 
-  it("reports the finance gap as the failure, measured against answered requests", () => {
+  it("measures finance response against finance questions, not finance mentions", () => {
+    // The old metric read a missing finance-labelled offer as proof that a
+    // question went unanswered. The two fields are recorded independently, and
+    // the drill-down found a transcript where the rep plainly offered EMI and
+    // the offer field was empty. This one only claims what the labels support.
     const metrics = computeFrontline([
       row({
-        financeRequested: true,
-        values: [value("commercial_offer_made", "12-month EMI", "finance")],
+        values: [
+          value("customer_questions", "EMI hai kya?", "finance"),
+          value("question_response_status", "answered", "finance"),
+        ],
       }),
-      row({
-        financeRequested: true,
-        values: [value("commercial_offer_made", "2,000 cashback", "promotion")],
-      }),
-      row({ financeRequested: false }),
+      row({ values: [value("customer_questions", "EMI hai kya?", "finance")] }),
+      row({ values: [value("customer_questions", "warranty kitni?", "warranty")] }),
     ]);
-    expect(metrics.financeOfferGap.observed).toBe(2);
-    expect(metrics.financeOfferGap.value).toBe(0.5);
+    expect(metrics.financeQuestionResponse.observed).toBe(2);
+    expect(metrics.financeQuestionResponse.value).toBe(0.5);
   });
 
-  it("does not accuse a rep when no offer of any kind was recorded", () => {
-    // The drill-down found a transcript where the representative offered EMI out
-    // loud and the extraction recorded nothing. An offer that was missed is
-    // indistinguishable from an offer never made, so these are excluded rather
-    // than counted as a failure someone would be asked to explain.
+  it("keeps a proactive offer separate from answering a question", () => {
     const metrics = computeFrontline([
-      row({ financeRequested: true, values: [value("finance_requested", "EMI hai kya?")] }),
-      row({
-        financeRequested: true,
-        values: [value("commercial_offer_made", null, null, "not_stated")],
-      }),
+      row({ values: [value("commercial_offer_made", "2,000 cashback", "promotion")] }),
+      row({ values: [value("commercial_offer_made", null, null, "not_stated")] }),
     ]);
-    expect(metrics.financeOfferGap.observed).toBe(0);
-    expect(metrics.financeOfferGap.value).toBeNull();
+    expect(metrics.proactiveOffer.observed).toBe(2);
+    expect(metrics.proactiveOffer.value).toBe(0.5);
+    // No finance question was asked, so there is nothing to report about one.
+    expect(metrics.financeQuestionResponse.value).toBeNull();
+  });
+
+  it("normalizes only response wordings that map deterministically", () => {
+    expect(normalizeResponseState("Answered")).toBe("answered");
+    expect(normalizeResponseState("partially answered")).toBe("partial");
+    expect(normalizeResponseState("no response")).toBe("unanswered");
+    expect(normalizeResponseState("uncertain")).toBe("uncertain");
+    // Anything we cannot map deterministically stays out of the evaluated set
+    // rather than being guessed into one.
+    expect(normalizeResponseState("rep said he would check")).toBeNull();
+    expect(normalizeResponseState(null)).toBeNull();
   });
 
   it("counts an interaction once however many pitches it contained", () => {
@@ -176,7 +186,7 @@ describe("denominators that decide whether a frontline metric is fair", () => {
   it("returns null rather than zero when nothing was eligible", () => {
     const metrics = computeFrontline([row(), row()]);
     expect(metrics.demoRate.value).toBeNull();
-    expect(metrics.financeOfferGap.value).toBeNull();
+    expect(metrics.financeQuestionResponse.value).toBeNull();
   });
 });
 

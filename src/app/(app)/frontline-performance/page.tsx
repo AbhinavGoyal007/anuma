@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { PageHeader } from "@/components/ui/page-header";
-import { getApplicationRoute } from "@/modules/application/routes";
 import { getSalespeople } from "@/modules/frontline/data";
 import { getApplicationContext } from "@/modules/identity/application-context";
 import { roleLabel } from "@/modules/identity/roles";
@@ -25,7 +24,14 @@ export default async function FrontlinePerformancePage({ searchParams }: PagePro
   if (!context.current) redirect("/setup");
 
   const { organization, membership, assignments, locations } = context.current;
-  const route = getApplicationRoute("/frontline-performance");
+  // Not in the primary navigation any more — Frontline Intelligence supersedes
+  // it — but kept reachable because the per-salesperson roster and detail here
+  // are still the only place that view exists. Its header is stated locally
+  // rather than read from the route registry, which no longer lists it.
+  const route = {
+    eyebrow: "Frontline intelligence",
+    title: "Salespeople",
+  } as const;
 
   // A rep sees only their assigned stores; an admin sees them all — the same
   // scoping as the Customer Intelligence store filter.

@@ -4463,3 +4463,11 @@ a {
   margin: 0.25rem 0 0;
   max-width: 68ch;
 }
+
+.ifb-reset {
+  align-self: center;
+  color: var(--graphite);
+  font-family: ui-sans-serif, sans-serif;
+  font-size: 0.76rem;
+  margin-left: auto;
+}

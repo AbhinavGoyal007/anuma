@@ -53,8 +53,11 @@ function Candidate({ candidate }: { candidate: IntelligenceCandidate }) {
   );
 }
 
+export type CurrentFact = { key: string; sentence: string; detail?: string };
+
 export function OverviewView({
   changes,
+  currentPicture,
   gaps,
   pulse,
   analysed,
@@ -64,6 +67,8 @@ export function OverviewView({
   comparisonLabel,
 }: {
   changes: IntelligenceCandidate[];
+  /** Shown in place of changes when no comparison clears the bar. */
+  currentPicture: CurrentFact[];
   gaps: IntelligenceCandidate[];
   pulse: PulseItem[];
   analysed: number;
@@ -85,21 +90,36 @@ export function OverviewView({
 
   return (
     <>
-      <section className="fl-section" aria-labelledby="ov-changed">
-        <h2 id="ov-changed">What changed</h2>
-        {changes.length === 0 ? (
-          <p className="fl-none">
-            {suppression ??
-              `Nothing moved by enough to report between ${periodLabel} and ${comparisonLabel}.`}
-          </p>
-        ) : (
+      {changes.length > 0 ? (
+        <section className="fl-section" aria-labelledby="ov-changed">
+          <h2 id="ov-changed">What changed</h2>
           <ul className="ov-list">
             {changes.slice(0, 4).map((candidate) => (
               <Candidate key={candidate.id} candidate={candidate} />
             ))}
           </ul>
-        )}
-      </section>
+        </section>
+      ) : (
+        // No comparison to make, so the page states where things stand instead
+        // of opening with an empty heading. A blank "What changed" reads as a
+        // broken product; a current picture reads as an answer, and on a young
+        // organization it is the only honest thing the page can lead with.
+        <section className="fl-section" aria-labelledby="ov-now">
+          <h2 id="ov-now">Current picture</h2>
+          <ul className="ov-list">
+            {currentPicture.slice(0, 4).map((fact) => (
+              <li key={fact.key} className="ov-item ov-item--medium">
+                <p className="ov-headline">{fact.sentence}</p>
+                {fact.detail ? <p className="ov-sowhat">{fact.detail}</p> : null}
+              </li>
+            ))}
+          </ul>
+          <p className="fl-note">
+            {suppression ??
+              `Nothing moved by enough to report between ${periodLabel} and ${comparisonLabel}.`}
+          </p>
+        </section>
+      )}
 
       <section className="fl-section" aria-labelledby="ov-action">
         <h2 id="ov-action">What needs doing</h2>

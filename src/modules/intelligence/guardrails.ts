@@ -126,9 +126,16 @@ export function change(
     currentValue: current.value,
     previousValue: previous.value,
     deltaPoints: both ? (current.value! - previous.value!) * 100 : null,
+    // Both periods must clear the sample bar and both must have been answered
+    // by enough of their eligible population. Ten observations out of five
+    // hundred is a solid-looking number about a corner of the floor, and a
+    // comparison drawn between two such corners is a comparison of coverage
+    // rather than of behaviour.
     comparable:
       both &&
       current.observed >= guardrails.minimumForComparison &&
-      previous.observed >= guardrails.minimumForComparison,
+      previous.observed >= guardrails.minimumForComparison &&
+      (current.coverage ?? 1) >= guardrails.minimumCoverage &&
+      (previous.coverage ?? 1) >= guardrails.minimumCoverage,
   };
 }

@@ -115,8 +115,8 @@ function ActionBlock({
             : action.verdict === "uncertain"
               ? "An opportunity was there; what was said does not settle whether it was taken."
               : action.abstention
-              ? `Undetermined — ${ABSTENTION_LABELS[action.abstention] ?? humanize(action.abstention)}.`
-              : "Nothing recorded."}
+                ? `Undetermined — ${ABSTENTION_LABELS[action.abstention] ?? humanize(action.abstention)}.`
+                : "Nothing recorded."}
         </p>
       )}
     </div>

@@ -69,10 +69,10 @@ const lines: string[] = [
   "",
 ];
 
-for (const module of Object.keys(MODULE_TITLES) as MetricModule[]) {
-  const metrics = metricRegistry.filter((definition) => definition.module === module);
+for (const section of Object.keys(MODULE_TITLES) as MetricModule[]) {
+  const metrics = metricRegistry.filter((definition) => definition.module === section);
   if (metrics.length === 0) continue;
-  lines.push(`## ${MODULE_TITLES[module]}`, "");
+  lines.push(`## ${MODULE_TITLES[section]}`, "");
   for (const definition of metrics) {
     lines.push(
       `### ${definition.label}`,

@@ -132,9 +132,7 @@ function Ranked({
           </li>
         ))}
       </ul>
-      <p className="fl-sample">
-        of {eligible} {unit}
-      </p>
+      <p className="fl-sample">{unit.startsWith("of ") ? unit : `of ${eligible} ${unit}`}</p>
       {note ? <p className="fl-note">{note}</p> : null}
     </div>
   );
@@ -214,7 +212,12 @@ export function DemandView({
   drivers: { entries: RankedShare[]; eligible: number };
   brands: { entries: RankedShare[]; eligible: number };
   questions: { entries: RankedShare[]; eligible: number };
-  blockers: { entries: RankedShare[]; classified: number };
+  blockers: {
+    entries: RankedShare[];
+    classified: number;
+    confirmedNoSales: number;
+    coverage: number | null;
+  };
   conditions: { entries: RankedShare[]; eligible: number };
   periodLabel: string;
 }) {
@@ -356,11 +359,12 @@ export function DemandView({
         <h2 id="dm-stuck">What stopped progress</h2>
         <div className="dm-grid">
           <Ranked
-            title="Strongest evidenced blocker"
+            title="Primary observed reason among confirmed no-sales"
             controlled
             entries={blockers.entries}
             eligible={blockers.classified}
-            unit="unresolved interactions with a reason"
+            unit={`of ${blockers.confirmedNoSales} confirmed no-sales, ${blockers.classified} carried an observed reason`}
+            note="Confirmed no-sales only. Interactions where the outcome was never established are not counted here, because a reason cannot be read from a result we do not have. This is what was observed and classified, not a proven cause."
           />
           <Ranked
             title="What customers said would close it"

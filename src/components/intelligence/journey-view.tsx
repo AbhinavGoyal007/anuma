@@ -107,16 +107,16 @@ export function JourneyView({
                   <div className="jr-gap">
                     {stage.lost > 0 && stage.gapCohortKey ? (
                       <Link className="jr-gap-link" href={gapLink(stage.gapCohortKey)}>
-                        −{stage.lost} stopped here →
+                        {stage.lost} did not reach this state →
                       </Link>
                     ) : (
                       <span className="jr-gap-none">
-                        {stage.lost === 0 ? "none lost" : `−${stage.lost}`}
+                        {stage.lost === 0 ? "none unaccounted for" : `${stage.lost} not observed`}
                       </span>
                     )}
                     {stage.progression?.value !== null && stage.progression ? (
                       <span className="jr-progress">
-                        {percent(stage.progression.value)} of those who got this far
+                        {percent(stage.progression.value)} of those observed in the previous state
                       </span>
                     ) : null}
                   </div>

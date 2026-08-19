@@ -49,12 +49,18 @@ export function IntelligenceFilterBar({
   filters,
   stores,
   categories,
+  representatives = [],
 }: {
   basePath: string;
   filters: IntelligenceFilters;
   stores: FilterOption[];
   categories: string[];
+  representatives?: FilterOption[];
 }) {
+  const narrowed =
+    filters.storeId !== null ||
+    filters.category !== null ||
+    filters.representativeMembershipId !== null;
   const link = (next: IntelligenceFilters) => `${basePath}${filtersToQuery(next)}`;
 
   return (
@@ -96,6 +102,27 @@ export function IntelligenceFilterBar({
         </div>
       ) : null}
 
+      {representatives.length > 1 ? (
+        <div className="ifb-group">
+          <span className="ifb-label">Salesperson</span>
+          <Chip
+            href={link(withFilter(filters, "representativeMembershipId", null))}
+            active={filters.representativeMembershipId === null}
+          >
+            All
+          </Chip>
+          {representatives.map((person) => (
+            <Chip
+              key={person.id}
+              href={link(withFilter(filters, "representativeMembershipId", person.id))}
+              active={filters.representativeMembershipId === person.id}
+            >
+              {person.name}
+            </Chip>
+          ))}
+        </div>
+      ) : null}
+
       {categories.length > 1 ? (
         <div className="ifb-group">
           <span className="ifb-label">Category</span>
@@ -105,7 +132,7 @@ export function IntelligenceFilterBar({
           >
             All
           </Chip>
-          {categories.slice(0, 6).map((category) => (
+          {categories.map((category) => (
             <Chip
               key={category}
               href={link(withFilter(filters, "category", category))}
@@ -115,6 +142,14 @@ export function IntelligenceFilterBar({
             </Chip>
           ))}
         </div>
+      ) : null}
+      {narrowed ? (
+        <Link
+          className="ifb-reset"
+          href={`${basePath}${filtersToQuery({ ...filters, storeId: null, category: null, representativeMembershipId: null })}`}
+        >
+          Reset
+        </Link>
       ) : null}
     </div>
   );

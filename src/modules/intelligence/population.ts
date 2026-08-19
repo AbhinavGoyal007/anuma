@@ -93,7 +93,14 @@ export type PopulationFilters = {
 export type PopulationSummary = {
   rows: PopulationRow[];
   conversationsInPeriod: number;
-  withoutMetrics: number;
+  /**
+   * Analysed conversations that could not be included. Null where a category is
+   * selected, because an unanalysed conversation has no category yet and cannot
+   * honestly be counted as missing from one.
+   */
+  withoutMetrics: number | null;
+  /** Every category in the authorized slice, before category narrowing. */
+  availableCategories: string[];
   /** True where a human correction was applied to at least one value. */
   correctionsApplied: number;
 };
@@ -161,7 +168,7 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
   // there and applying them here keeps the record and metric reads small.
   let conversationQuery = supabase
     .from("conversations")
-    .select("id, location_id, representative_membership_id, team_id")
+    .select("id, started_at, location_id, representative_membership_id, team_id")
     .eq("organization_id", filters.organizationId)
     .gte("started_at", filters.from)
     .lt("started_at", filters.to);
@@ -174,16 +181,33 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
     );
   }
   if (filters.teamId) conversationQuery = conversationQuery.eq("team_id", filters.teamId);
+  if (filters.representativeMembershipId) {
+    conversationQuery = conversationQuery.eq(
+      "representative_membership_id",
+      filters.representativeMembershipId,
+    );
+  }
 
   const { data: conversations } = await conversationQuery;
   const conversationIds = (conversations ?? []).map((row) => row.id);
   if (conversationIds.length === 0) {
-    return { rows: [], conversationsInPeriod: 0, withoutMetrics: 0, correctionsApplied: 0 };
+    return {
+      rows: [],
+      conversationsInPeriod: 0,
+      withoutMetrics: 0,
+      availableCategories: [],
+      correctionsApplied: 0,
+    };
   }
   const dimensions = new Map(
     (conversations ?? []).map((row) => [
       row.id,
       {
+        // The conversation's own clock. interaction_metrics carries a timestamp
+        // too, but that one moves when a record is reprocessed — binning a trend
+        // on it would move a March conversation into August because we happened
+        // to re-run extraction.
+        startedAt: row.started_at,
         locationId: row.location_id,
         representativeMembershipId: row.representative_membership_id,
         teamId: row.team_id,
@@ -212,25 +236,47 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
       rows: [],
       conversationsInPeriod: conversationIds.length,
       withoutMetrics: conversationIds.length,
+      availableCategories: [],
       correctionsApplied: 0,
     };
   }
 
-  let metricsQuery = supabase
+  // Read every analysed record in scope, then narrow by category in memory.
+  // Filtering in the query conflated two different absences: a conversation of
+  // another category looked identical to one whose analysis had not finished,
+  // so choosing a category inflated the "incomplete analysis" note. It also let
+  // the category selector be built from an already-category-filtered result,
+  // which collapsed it to the one category the reader had picked.
+  const { data: metrics } = await supabase
     .from("interaction_metrics")
     .select(METRIC_COLUMNS)
     .eq("organization_id", filters.organizationId)
     .in("interaction_record_id", recordIds);
-  if (filters.purchaseCategory) {
-    metricsQuery = metricsQuery.eq("purchase_category", filters.purchaseCategory);
-  }
-  const { data: metrics } = await metricsQuery;
-  const metricRows = metrics ?? [];
+  const analysedRows = metrics ?? [];
+  const metricRows = filters.purchaseCategory
+    ? analysedRows.filter((row) => row.purchase_category === filters.purchaseCategory)
+    : analysedRows;
+  // Every category present in the authorized slice, computed before narrowing so
+  // a selection never removes the other choices from the selector.
+  const availableCategories = [
+    ...new Set(
+      analysedRows.flatMap((row) => (row.purchase_category ? [row.purchase_category] : [])),
+    ),
+  ].sort();
+  // Conversations analysed but missing metrics. Only meaningful when no category
+  // is selected: we cannot know which category an unanalysed conversation would
+  // have turned out to be, so claiming it as missing from this category would be
+  // asserting something we have no basis for.
+  const withoutMetrics = filters.purchaseCategory
+    ? null
+    : conversationIds.length - analysedRows.length;
+
   if (metricRows.length === 0) {
     return {
       rows: [],
       conversationsInPeriod: conversationIds.length,
-      withoutMetrics: conversationIds.length,
+      withoutMetrics,
+      availableCategories,
       correctionsApplied: 0,
     };
   }
@@ -313,7 +359,7 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
     return {
       conversationId: row.conversation_id,
       recordId: row.interaction_record_id,
-      startedAt: row.started_at,
+      startedAt: dimension?.startedAt ?? row.started_at,
       locationId: dimension?.locationId ?? null,
       representativeMembershipId: dimension?.representativeMembershipId ?? null,
       teamId: dimension?.teamId ?? null,
@@ -342,7 +388,8 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
   return {
     rows,
     conversationsInPeriod: conversationIds.length,
-    withoutMetrics: conversationIds.length - rows.length,
+    withoutMetrics,
+    availableCategories,
     correctionsApplied,
   };
 }

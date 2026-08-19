@@ -3,13 +3,8 @@ import { redirect } from "next/navigation";
 import { IntelligenceFilterBar } from "@/components/intelligence/filter-bar";
 import { JourneyView } from "@/components/intelligence/journey-view";
 import { PageHeader } from "@/components/ui/page-header";
-import { getApplicationContext } from "@/modules/identity/application-context";
-import {
-  filtersToQuery,
-  parseFilters,
-  resolvePeriods,
-  windowLabel,
-} from "@/modules/intelligence/filters";
+import { filtersToQuery, windowLabel } from "@/modules/intelligence/filters";
+import { resolveIntelligencePage } from "@/modules/intelligence/page-context";
 import {
   interventions,
   journeyBreakdown,
@@ -24,40 +19,21 @@ import { loadPopulation } from "@/modules/intelligence/population";
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 export default async function CustomerJourneyPage({ searchParams }: PageProps) {
-  const [context, raw] = await Promise.all([getApplicationContext(), searchParams]);
-  if (!context) redirect("/sign-in");
-  if (!context.current) redirect("/setup");
+  const raw = await searchParams;
+  const page = await resolveIntelligencePage(raw);
+  if ("redirect" in page) redirect(page.redirect);
 
-  const { organization, membership, assignments, locations } = context.current;
-  const filters = parseFilters(raw);
-  const periods = resolvePeriods(filters);
+  const { filters, current: population, stores, representatives, categories } = page;
 
   const requested = Array.isArray(raw.cohort) ? raw.cohort[0] : raw.cohort;
   const cohortKey: JourneyCohortKey =
     JOURNEY_COHORTS.find((key) => key === requested) ?? "high_intent";
 
-  const assignedLocationIds = new Set(
-    assignments.flatMap((item) => (item.locationId ? [item.locationId] : [])),
-  );
-  const stores =
-    membership.role === "admin"
-      ? locations
-      : locations.filter((item) => assignedLocationIds.has(item.id));
-  const selectedStore = stores.find((item) => item.id === filters.storeId) ?? null;
-
-  const population = await loadPopulation({
-    organizationId: organization.id,
-    from: periods.current.from,
-    to: periods.current.to,
-    locationId: selectedStore?.id ?? null,
-    purchaseCategory: filters.category,
-  });
-
   const cohort = selectCohort(population.rows, cohortKey);
   // Computed once and shared, so the count on a gap in the rail is the count of
   // interactions its link opens.
   const leakage = journeyLeakageCohorts(cohort);
-  const storeName = new Map(locations.map((item) => [item.id, item.name]));
+  const storeName = new Map(stores.map((item) => [item.id, item.name]));
 
   // Compared by store where several are in scope, otherwise by category — a
   // single-store operator gets the comparison that is actually available to them
@@ -81,12 +57,9 @@ export default async function CustomerJourneyPage({ searchParams }: PageProps) {
       <IntelligenceFilterBar
         basePath="/intelligence/journey"
         filters={filters}
-        stores={stores.map((store) => ({ id: store.id, name: store.name }))}
-        categories={[
-          ...new Set(
-            population.rows.flatMap((row) => (row.purchaseCategory ? [row.purchaseCategory] : [])),
-          ),
-        ].sort()}
+        stores={stores}
+        categories={categories}
+        representatives={representatives}
       />
       <JourneyView
         cohortKey={cohortKey}

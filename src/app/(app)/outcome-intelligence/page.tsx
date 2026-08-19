@@ -1,14 +1,6 @@
-import { EmptyState } from "@/components/ui/empty-state";
-import { PageHeader } from "@/components/ui/page-header";
-import { getApplicationRoute } from "@/modules/application/routes";
+import { permanentRedirect } from "next/navigation";
 
-export default function OutcomeIntelligencePage() {
-  const route = getApplicationRoute("/outcome-intelligence");
-
-  return (
-    <>
-      <PageHeader eyebrow={route.eyebrow} title={route.title} />
-      <EmptyState description={route.description} signal={route.signal} />
-    </>
-  );
+/** Superseded by the Decision Journey, which carries the outcome axes. */
+export default function LegacyOutcomeIntelligencePage() {
+  permanentRedirect("/intelligence/journey");
 }

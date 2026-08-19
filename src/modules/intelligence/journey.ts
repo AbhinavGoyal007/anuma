@@ -120,7 +120,7 @@ const STATES: readonly {
     key: "sale",
     label: "Bought",
     meaning: "The outcome was established as a sale.",
-    gapCohortKey: "commitment_without_sale",
+    gapCohortKey: "commitment_then_no_sale",
     test: (row) => row.outcome.business === "sale",
     fieldKey: "confirmed_business_outcome",
   },
@@ -240,6 +240,7 @@ export function journeyLeakageCohorts(cohort: readonly PopulationRow[]): ActionC
     headline: string,
     reason: string,
     evidenceFieldKeys: string[],
+    measurable: number | null,
     rows: PopulationRow[],
   ) => {
     if (rows.length === 0) return;
@@ -248,59 +249,75 @@ export function journeyLeakageCohorts(cohort: readonly PopulationRow[]): ActionC
       headline,
       reason,
       evidenceFieldKeys,
+      measurable,
       conversationIds: rows.map((row) => row.conversationId),
     });
   };
 
+  const clarityMeasurable = cohort.filter((row) => row.clarityEnd !== null);
   push(
     "clarity_not_reached",
-    "left without their requirement becoming clear",
+    "left with their requirement still unclear",
     "Requirement clarity was still none or low at the close",
     ["requirement_clarity_end", "customer_questions"],
-    cohort.filter((row) => row.clarityEnd !== null && row.clarityEnd <= 1),
+    clarityMeasurable.length,
+    clarityMeasurable.filter((row) => row.clarityEnd! <= 1),
   );
 
+  const preferenceMeasurable = cohort.filter(
+    (row) =>
+      row.clarityEnd !== null && row.clarityEnd >= 2 && supported(row, "final_preferred_product"),
+  );
   push(
     "no_preference_formed",
-    "knew what they needed but never settled on a product",
-    "Requirement was clear at the close and no preferred product was reached",
+    "had a clear requirement with no preferred product observed",
+    "Requirement was clear at the close and no preferred product was recorded",
     ["specification_requirements", "products_considered"],
-    cohort.filter(
-      (row) =>
-        row.clarityEnd !== null &&
-        row.clarityEnd >= 2 &&
-        supported(row, "final_preferred_product") &&
-        !has(row, "final_preferred_product"),
-    ),
+    preferenceMeasurable.length,
+    preferenceMeasurable.filter((row) => !has(row, "final_preferred_product")),
   );
 
+  const commitmentMeasurable = cohort.filter(
+    (row) => has(row, "final_preferred_product") && supported(row, "customer_commitment_signals"),
+  );
   push(
     "no_commitment_signal",
-    "settled on a product and never showed they were ready",
-    "A preferred product was reached and no commitment signal followed",
+    "settled on a product with no commitment signal observed",
+    "A preferred product was recorded and no commitment signal was observed",
     ["final_preferred_product", "objections"],
-    cohort.filter(
-      (row) =>
-        has(row, "final_preferred_product") &&
-        supported(row, "customer_commitment_signals") &&
-        !has(row, "customer_commitment_signals"),
-    ),
+    commitmentMeasurable.length,
+    commitmentMeasurable.filter((row) => !has(row, "customer_commitment_signals")),
   );
 
+  // Split deliberately. "Signalled and did not buy" and "signalled and we never
+  // found out" look the same in a filter and mean opposite things to a manager:
+  // one is a sale to chase, the other is a gap in our own record.
+  const signalled = cohort.filter((row) => has(row, "customer_commitment_signals"));
   push(
-    "commitment_without_sale",
-    "showed they were ready and did not end up buying",
-    "A commitment signal was recorded and the outcome was not a sale",
+    "commitment_then_no_sale",
+    "showed a buying signal and the outcome was a confirmed no sale",
+    "A commitment signal was recorded and the business outcome was confirmed as no sale",
     ["customer_commitment_signals", "primary_non_conversion_reason"],
-    cohort.filter((row) => has(row, "customer_commitment_signals") && isUnresolved(row.outcome)),
+    signalled.length,
+    signalled.filter((row) => row.outcome.business === "no_sale"),
+  );
+  push(
+    "commitment_outcome_unknown",
+    "showed a buying signal with no outcome established",
+    "A commitment signal was recorded and no business outcome was established either way",
+    ["customer_commitment_signals", "next_action"],
+    signalled.length,
+    signalled.filter((row) => row.outcome.business === "unknown"),
   );
 
+  const readyToBuy = cohort.filter((row) => row.arrivalIntent === "ready_to_buy");
   push(
-    "ready_to_buy_unresolved",
-    "arrived ready to buy and left unresolved",
-    "Arrival intent was ready to buy and the outcome was not a sale",
+    "ready_to_buy_no_sale",
+    "arrived ready to buy and the outcome was a confirmed no sale",
+    "Arrival intent was ready to buy and the business outcome was confirmed as no sale",
     ["arrival_intent_state", "primary_non_conversion_reason"],
-    cohort.filter((row) => row.arrivalIntent === "ready_to_buy" && isUnresolved(row.outcome)),
+    readyToBuy.length,
+    readyToBuy.filter((row) => row.outcome.business === "no_sale"),
   );
 
   return cohorts.sort((a, b) => b.conversationIds.length - a.conversationIds.length);

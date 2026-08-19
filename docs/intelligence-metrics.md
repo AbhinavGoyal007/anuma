@@ -298,21 +298,39 @@ Corrections replace text or reject a value. A numeric amount, a currency, a requ
 
 **Drill-down shows.** product_demo_performed
 
-### Finance asked for, none offered
+### Finance questions with a recorded response
 
-`finance_offer_gap` · percent · interaction grain · lower is better
+`finance_question_response` · percent · interaction grain · higher is better
 
-**Question.** When a customer asks about paying monthly, do we answer with an offer?
+**Question.** When a customer asked about finance, did we record an answer?
 
-**Counts.** Interactions where the customer requested finance and no finance offer was recorded from the representative.
+**Counts.** Interactions containing a finance-labelled customer question that also contain a finance-labelled response status in a usable state.
 
-**Eligible.** Interactions where the customer requested finance and some commercial offer was recorded.
+**Eligible.** Interactions containing at least one finance-labelled customer question.
 
-**Depends on.** finance_requested, commercial_offer_made
+**Numerator.** a finance-labelled response status in a usable state exists
 
-**Drill-down shows.** finance_requested, commercial_offer_made
+**Denominator.** interactions where a finance question was asked
 
-**Provisional.** An offer the extraction missed is indistinguishable from an offer never made, so interactions with no recorded offer of any kind are excluded rather than counted as failures. Check the transcript on the drill-down before acting on an individual interaction.
+**Depends on.** customer_questions, question_response_status
+
+**Drill-down shows.** customer_questions, question_response_status
+
+**Provisional.** Matched at interaction level on a shared topic label. Where a conversation contains several questions, this cannot say which question the recorded response belongs to. It reports that the topic was answered, not that a specific question was.
+
+### A commercial offer was recorded
+
+`proactive_offer` · percent · interaction grain · higher is better
+
+**Question.** How often is the floor putting a commercial lever on the table?
+
+**Counts.** Interactions with at least one recorded commercial offer of any kind, among interactions where the field was answered. Separate from whether a finance question was answered — the two are recorded independently.
+
+**Eligible.** Interactions where commercial_offer_made was recorded either way.
+
+**Depends on.** commercial_offer_made
+
+**Drill-down shows.** commercial_offer_made, commercial_offer_response
 
 ### Pitched something alongside
 

@@ -23,9 +23,24 @@ export function currentRecordIds(records: readonly RecordChoice[]): string[] {
   const newest = new Map<string, RecordChoice>();
   for (const record of records) {
     const held = newest.get(record.conversationId);
-    if (!held || record.createdAt > held.createdAt) newest.set(record.conversationId, record);
+    if (!held || isNewer(record, held)) newest.set(record.conversationId, record);
   }
   return [...newest.values()].map((record) => record.id);
+}
+
+/**
+ * Which of two records for the same conversation is the current one.
+ *
+ * Timestamp first, then id. The tie-break is not pedantry: two records written
+ * in the same transaction can share a created_at to the microsecond, and without
+ * a second key the winner depends on the order the database happened to return
+ * rows. That makes a page quietly non-deterministic — the same filters produce a
+ * different number on refresh — which is the hardest kind of bug to be believed
+ * about.
+ */
+function isNewer(candidate: RecordChoice, held: RecordChoice): boolean {
+  if (candidate.createdAt !== held.createdAt) return candidate.createdAt > held.createdAt;
+  return candidate.id > held.id;
 }
 
 export type Correction = {

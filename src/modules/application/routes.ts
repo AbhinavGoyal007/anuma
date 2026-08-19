@@ -1,13 +1,10 @@
 export type ApplicationRoute = {
   href:
     | "/conversations"
-    | "/customer-intelligence"
-    | "/frontline-performance"
     | "/intelligence/overview"
     | "/intelligence/demand"
-    | "/intelligence/frontline"
     | "/intelligence/journey"
-    | "/outcome-intelligence"
+    | "/intelligence/frontline"
     | "/field-library"
     | "/administration";
   label: string;
@@ -30,26 +27,6 @@ export const applicationRoutes: ApplicationRoute[] = [
     signal: "evidence",
   },
   {
-    href: "/customer-intelligence",
-    label: "Customer Intelligence",
-    group: "Intelligence",
-    eyebrow: "Customer intelligence",
-    title: "Customer Intelligence",
-    description:
-      "Customer needs, questions, objections and competitive signals will appear after interactions are processed.",
-    signal: "customer",
-  },
-  {
-    href: "/frontline-performance",
-    label: "Frontline Performance",
-    group: "Intelligence",
-    eyebrow: "Frontline intelligence",
-    title: "Frontline Performance",
-    description:
-      "Evidence-backed interaction and process measures will appear as eligible conversations accumulate.",
-    signal: "performance",
-  },
-  {
     href: "/intelligence/overview",
     label: "Overview",
     group: "Intelligence",
@@ -70,16 +47,6 @@ export const applicationRoutes: ApplicationRoute[] = [
     signal: "customer",
   },
   {
-    href: "/intelligence/frontline",
-    label: "Frontline Intelligence",
-    group: "Intelligence",
-    eyebrow: "Frontline intelligence",
-    title: "Where frontline execution needs attention",
-    description:
-      "The interactions where something was missed — a recommendation with no reason, a finance request with no offer, a buying signal nobody closed on.",
-    signal: "performance",
-  },
-  {
     href: "/intelligence/journey",
     label: "Decision Journey",
     group: "Intelligence",
@@ -90,14 +57,14 @@ export const applicationRoutes: ApplicationRoute[] = [
     signal: "outcome",
   },
   {
-    href: "/outcome-intelligence",
-    label: "Outcome Intelligence",
+    href: "/intelligence/frontline",
+    label: "Frontline Intelligence",
     group: "Intelligence",
-    eyebrow: "Outcome intelligence",
-    title: "Outcome Intelligence",
+    eyebrow: "Frontline intelligence",
+    title: "Where frontline execution needs attention",
     description:
-      "Outcome comparisons will become available after sufficient labelled interactions exist.",
-    signal: "outcome",
+      "The interactions where something was missed — a recommendation with no reason, a finance request with no offer, a buying signal nobody closed on.",
+    signal: "performance",
   },
   {
     href: "/field-library",

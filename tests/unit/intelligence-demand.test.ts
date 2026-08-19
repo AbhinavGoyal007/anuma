@@ -255,6 +255,32 @@ describe("intent, friction and outcome", () => {
     expect(entries[0]).toMatchObject({ value: "price", interactions: 1, share: 1 });
   });
 
+  it("counts only confirmed no-sales, not interactions of unknown outcome", () => {
+    // The earlier version swept in every unresolved interaction — a population
+    // we know nothing about — while excluding a customer who explicitly
+    // declined. A chart titled "why we did not convert" cannot be built from
+    // conversations where we do not know whether we converted.
+    const reasons = nonConversionReasons([
+      row({
+        values: [
+          value("confirmed_business_outcome", "no_sale"),
+          value("primary_non_conversion_reason", "price"),
+        ],
+      }),
+      row({
+        values: [
+          value("confirmed_business_outcome", null, null, "insufficient_evidence"),
+          value("primary_non_conversion_reason", "stock"),
+        ],
+      }),
+      row({ values: [value("confirmed_business_outcome", "no_sale")] }),
+    ]);
+    expect(reasons.confirmedNoSales).toBe(2);
+    expect(reasons.classified).toBe(1);
+    expect(reasons.coverage).toBe(0.5);
+    expect(reasons.entries.map((entry) => entry.value)).toEqual(["price"]);
+  });
+
   it("sums a fixed vocabulary to one", () => {
     const { entries } = distribution(
       [row({ arrivalIntent: "exploratory" }), row({ arrivalIntent: "comparing" })],

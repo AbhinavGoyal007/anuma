@@ -4,15 +4,15 @@ import { applicationRoutes, getApplicationRoute } from "@/modules/application/ro
 
 describe("application route registry", () => {
   it("contains the protected destinations, including the field library", () => {
+    // One Intelligence area, in reading order. The superseded analytics routes
+    // still resolve — they redirect — but they are no longer destinations, so a
+    // manager is never offered two doors into the same question.
     expect(applicationRoutes.map((route) => route.href)).toEqual([
       "/conversations",
-      "/customer-intelligence",
-      "/frontline-performance",
       "/intelligence/overview",
       "/intelligence/demand",
-      "/intelligence/frontline",
       "/intelligence/journey",
-      "/outcome-intelligence",
+      "/intelligence/frontline",
       "/field-library",
       "/administration",
     ]);

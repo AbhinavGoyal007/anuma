@@ -157,14 +157,24 @@ export function gapCandidates(
     .filter((cohort) => cohort.conversationIds.length >= thresholds.materialAffected)
     .map((cohort) => {
       const affected = cohort.conversationIds.length;
+      // The denominator travels with the count. Ten of twelve and ten of five
+      // hundred are the same headline and completely different situations, and
+      // a manager deciding what to do this morning needs to know which one they
+      // are looking at before they open anything.
+      const measurable = cohort.measurable ?? null;
+      const rate = measurable && measurable > 0 ? affected / measurable : null;
       return {
         id: `gap:${cohort.key}`,
         kind: "gap" as const,
         module: "frontline" as const,
-        headline: `${affected} ${cohort.headline}.`,
+        headline:
+          measurable && measurable > 0
+            ? `${affected} of ${measurable} ${cohort.headline}.`
+            : `${affected} ${cohort.headline}.`,
         soWhat: cohort.reason,
         affected,
-        eligible: affected,
+        eligible: measurable ?? affected,
+        currentValue: rate,
         priority: (affected >= thresholds.urgentAffected ? "high" : "medium") as Priority,
         href: `/intelligence/cohort/${cohort.key}${query}`,
       };

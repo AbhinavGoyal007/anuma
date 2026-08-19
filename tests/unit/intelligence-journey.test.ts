@@ -156,11 +156,18 @@ describe("where the journey broke", () => {
     ).toHaveLength(1);
   });
 
-  it("finds customers who signalled and did not buy", () => {
-    const cohorts = journeyLeakageCohorts([through("commitment"), through("sale")]);
+  it("separates a confirmed no-sale from an outcome nobody established", () => {
+    // These look identical in a filter and mean opposite things: one is a sale
+    // to chase, the other is a hole in our own record.
+    const cohorts = journeyLeakageCohorts([
+      through("commitment"),
+      through("sale"),
+      { ...through("commitment"), values: [], outcome: readOutcome([]) },
+    ]);
     expect(
-      cohorts.find((cohort) => cohort.key === "commitment_without_sale")?.conversationIds,
+      cohorts.find((cohort) => cohort.key === "commitment_then_no_sale")?.conversationIds,
     ).toHaveLength(1);
+    expect(cohorts.find((cohort) => cohort.key === "commitment_outcome_unknown")).toBeUndefined();
   });
 
   it("cites something that was said, never an absence", () => {

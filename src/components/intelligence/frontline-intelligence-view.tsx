@@ -94,7 +94,8 @@ export function FrontlineIntelligenceView({
   cohorts: ActionCohort[];
   associations: OutcomeAssociation[];
   analysed: number;
-  withoutMetrics: number;
+  /** Null where a category is selected and the count cannot be stated honestly. */
+  withoutMetrics: number | null;
   periodLabel: string;
   cohortQuery: string;
 }) {
@@ -188,14 +189,26 @@ export function FrontlineIntelligenceView({
             previous={before("upsellRate")}
           />
           <Rate
-            metricKey="finance_offer_gap"
-            measure={metrics.financeOfferGap}
-            previous={before("financeOfferGap")}
+            metricKey="finance_demand"
+            measure={metrics.financeDemand}
+            previous={before("financeDemand")}
+          />
+          <Rate
+            metricKey="finance_question_response"
+            measure={metrics.financeQuestionResponse}
+            previous={before("financeQuestionResponse")}
+          />
+          <Rate
+            metricKey="proactive_offer"
+            measure={metrics.proactiveOffer}
+            previous={before("proactiveOffer")}
           />
         </dl>
         <p className="fl-note">
-          The finance figure is the gap, not the coverage: it counts customers who asked about
-          paying monthly and got no offer back. It is the one number here meant to reach zero.
+          Finance demand is what customers asked for; the response figure counts finance questions
+          with an answer recorded against the same topic. A recorded commercial offer is a separate
+          thing again — the two fields are captured independently, so a missing offer is not
+          evidence that a question went unanswered.
         </p>
       </section>
 
@@ -240,7 +253,7 @@ export function FrontlineIntelligenceView({
         </p>
       </section>
 
-      {withoutMetrics > 0 ? (
+      {withoutMetrics !== null && withoutMetrics > 0 ? (
         <p className="fl-footnote">
           {withoutMetrics} conversation{withoutMetrics === 1 ? "" : "s"} in this period could not be
           included because analysis has not finished for them.

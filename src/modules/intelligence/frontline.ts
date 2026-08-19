@@ -20,6 +20,41 @@ const present = (row: PopulationRow, fieldKey: string): PopulationValue[] =>
 
 const has = (row: PopulationRow, fieldKey: string): boolean => present(row, fieldKey).length > 0;
 
+/**
+ * The canonical response states, and how observed text maps onto them.
+ *
+ * `question_response_status` is not constrained by a database enum, so historical
+ * rows carry free text. Only wordings that map deterministically are normalised;
+ * anything else is left out of the evaluated set rather than guessed into one,
+ * and the raw value survives for the drill-down.
+ */
+export type ResponseState = "answered" | "partial" | "unanswered" | "uncertain";
+
+const RESPONSE_STATES: Readonly<Record<string, ResponseState>> = {
+  answered: "answered",
+  answer: "answered",
+  full: "answered",
+  fully_answered: "answered",
+  complete: "answered",
+  partial: "partial",
+  partially_answered: "partial",
+  unanswered: "unanswered",
+  none: "unanswered",
+  not_answered: "unanswered",
+  no_response: "unanswered",
+  uncertain: "uncertain",
+  unclear: "uncertain",
+};
+
+export function normalizeResponseState(raw: string | null): ResponseState | null {
+  if (!raw) return null;
+  return RESPONSE_STATES[raw.trim().toLowerCase().replaceAll(" ", "_")] ?? null;
+}
+
+/** Whether a label names the finance topic. */
+const isFinanceLabel = (label: string | null): boolean =>
+  (label ?? "").trim().toLowerCase() === "finance";
+
 /** When a field's earliest citation occurs, or null if it was never cited. */
 const firstAt = (row: PopulationRow, fieldKey: string): number | null => {
   const times = present(row, fieldKey).flatMap((value) =>
@@ -27,12 +62,6 @@ const firstAt = (row: PopulationRow, fieldKey: string): number | null => {
   );
   return times.length ? Math.min(...times) : null;
 };
-
-/** Whether a recorded commercial offer was a finance one. */
-const hasFinanceOffer = (row: PopulationRow): boolean =>
-  present(row, "commercial_offer_made").some((value) =>
-    (value.label ?? value.valueText ?? "").toLowerCase().includes("finance"),
-  );
 
 /**
  * Whether the record was even asked this field.
@@ -66,7 +95,12 @@ export type FrontlineMetrics = {
   fullObjectionHandling: Measure;
   demoRate: Measure;
   alternativeRate: Measure;
-  financeOfferGap: Measure;
+  /** Customer side: how often finance was raised at all. */
+  financeDemand: Measure;
+  /** Of finance questions asked, how many carry a usable recorded response. */
+  financeQuestionResponse: Measure;
+  /** Frontline side: how often any commercial offer was recorded. */
+  proactiveOffer: Measure;
   crossSellRate: Measure;
   upsellRate: Measure;
   closeAfterCommitment: Measure;
@@ -93,17 +127,23 @@ export function computeFrontline(rows: readonly PopulationRow[]): FrontlineMetri
     }
   }
 
-  // Only interactions where the representative was recorded making some offer
-  // count towards the finance gap. An interaction with no offer of any kind is
-  // ambiguous: it may be a representative who said nothing, or an offer the
-  // extraction missed — and the drill-down found a real case of the second,
-  // where the transcript has the rep offering EMI and the field says nothing was
-  // offered. Naming that as a failure accuses someone of a mistake they did not
-  // make, so it is excluded and the metric is marked provisional instead.
-  const financeRequested = rows.filter(
-    (row) => row.financeRequested && has(row, "commercial_offer_made"),
+  // Finance, rebuilt. The old metric asserted that a missing finance-labelled
+  // offer proved the representative had failed to answer a finance question. It
+  // proved nothing of the kind: the two fields are recorded independently, and
+  // the drill-down turned up a transcript where the rep plainly offered EMI and
+  // the offer field was empty. What can be defended is narrower — whether a
+  // question actually labelled finance has a response status recorded against
+  // the same topic.
+  const financeSupported = rows.filter((row) => supported(row, "finance_requested"));
+  const financeAsked = rows.filter((row) =>
+    present(row, "customer_questions").some((value) => isFinanceLabel(value.label)),
   );
-  const financeAnswered = financeRequested.filter((row) => hasFinanceOffer(row));
+  const financeAnswered = financeAsked.filter((row) =>
+    present(row, "question_response_status").some(
+      (value) => isFinanceLabel(value.label) && normalizeResponseState(value.valueText) !== null,
+    ),
+  );
+  const offerSupported = rows.filter((row) => supported(row, "commercial_offer_made"));
 
   // Ordering, not presence. A close attempt made before the customer signalled
   // anything is a rep working through a script; one made after is a rep
@@ -129,12 +169,20 @@ export function computeFrontline(rows: readonly PopulationRow[]): FrontlineMetri
     fullObjectionHandling: measure(fullResponses, objectionResponses, objectionResponses),
     demoRate: applicableRate(rows, (row) => row.demoPerformed),
     alternativeRate: applicableRate(rows, (row) => row.alternativeOffered),
-    // The gap, not the coverage: this metric exists to be driven to zero, and
-    // stating it as "how often we answered" buries the interactions that matter.
-    financeOfferGap: measure(
-      financeRequested.length - financeAnswered.length,
+    financeDemand: measure(
+      financeSupported.filter((row) => row.financeRequested).length,
       base,
-      financeRequested.length,
+      financeSupported.length,
+    ),
+    // Denominator is finance questions asked, not every finance mention. It says
+    // a response was recorded on the topic; with several questions in one
+    // conversation it cannot say which question that response belongs to, and
+    // the registry marks it provisional for exactly that reason.
+    financeQuestionResponse: measure(financeAnswered.length, base, financeAsked.length),
+    proactiveOffer: measure(
+      offerSupported.filter((row) => has(row, "commercial_offer_made")).length,
+      base,
+      offerSupported.length,
     ),
     // Read from the pitch fields rather than from interaction_metrics. The
     // stored counts were computed by whichever version of the pipeline last
@@ -184,94 +232,122 @@ export type ActionCohort = {
    * to prevent.
    */
   evidenceFieldKeys: string[];
+  /**
+   * The population the affected interactions were drawn from.
+   *
+   * Ten of twelve and ten of five hundred are the same headline and completely
+   * different situations. Null only where no honest denominator exists.
+   */
+  measurable: number | null;
   conversationIds: string[];
 };
 
 export function frontlineActionCohorts(rows: readonly PopulationRow[]): ActionCohort[] {
   const cohorts: ActionCohort[] = [];
 
-  const withoutRationale = rows.filter(
-    (row) => row.productsRecommendedCount > 0 && !has(row, "recommendation_reasons"),
-  );
-  if (withoutRationale.length) {
+  /** Every cohort states the population it was drawn from, or null if none is honest. */
+  const push = (
+    key: string,
+    headline: string,
+    reason: string,
+    evidenceFieldKeys: string[],
+    measurable: number | null,
+    matched: readonly PopulationRow[],
+  ) => {
+    if (matched.length === 0) return;
     cohorts.push({
-      key: "recommendation_without_rationale",
-      evidenceFieldKeys: ["products_recommended"],
-      headline: "recommended a product without saying why",
-      reason: "A recommendation was made and no reason was recorded",
-      conversationIds: withoutRationale.map((row) => row.conversationId),
+      key,
+      headline,
+      reason,
+      evidenceFieldKeys,
+      measurable,
+      conversationIds: matched.map((row) => row.conversationId),
     });
-  }
+  };
 
-  const financeUnanswered = rows.filter(
-    (row) => row.financeRequested && has(row, "commercial_offer_made") && !hasFinanceOffer(row),
+  const recommending = rows.filter((row) => row.productsRecommendedCount > 0);
+  push(
+    "recommendation_without_rationale",
+    "recommended a product without a recorded reason",
+    "A recommendation was made and no reason was recorded",
+    ["products_recommended"],
+    recommending.length,
+    recommending.filter((row) => !has(row, "recommendation_reasons")),
   );
-  if (financeUnanswered.length) {
-    cohorts.push({
-      key: "finance_request_without_finance_offer",
-      evidenceFieldKeys: ["finance_requested", "commercial_offer_made"],
-      headline: "asked about finance and got no finance offer",
-      reason: "The customer requested finance and no finance offer was recorded",
-      conversationIds: financeUnanswered.map((row) => row.conversationId),
-    });
-  }
 
-  const objectionGap = rows.filter((row) =>
-    present(row, "objection_response").some(
-      (value) => value.valueText === "partial" || value.valueText === "none",
+  const financeAsked = rows.filter((row) =>
+    present(row, "customer_questions").some((value) => isFinanceLabel(value.label)),
+  );
+  push(
+    "finance_question_without_response",
+    "asked a finance question with no response status recorded",
+    "A finance-labelled question exists and no finance-labelled response state was recorded",
+    ["customer_questions", "question_response_status"],
+    financeAsked.length,
+    financeAsked.filter(
+      (row) =>
+        !present(row, "question_response_status").some(
+          (value) =>
+            isFinanceLabel(value.label) && normalizeResponseState(value.valueText) !== null,
+        ),
     ),
   );
-  if (objectionGap.length) {
-    cohorts.push({
-      key: "objection_handling_gap",
-      evidenceFieldKeys: ["objections", "objection_response"],
-      headline: "left an objection partly answered or unanswered",
-      reason: "At least one objection response was judged partial or none",
-      conversationIds: objectionGap.map((row) => row.conversationId),
-    });
-  }
 
-  const commitmentNoClose = rows.filter(
-    (row) => has(row, "customer_commitment_signals") && !has(row, "close_attempts"),
+  const objectionEvaluated = rows.filter((row) =>
+    present(row, "objection_response").some((value) =>
+      ["full", "partial", "none"].includes(value.valueText ?? ""),
+    ),
   );
-  if (commitmentNoClose.length) {
-    cohorts.push({
-      key: "commitment_without_close_attempt",
-      evidenceFieldKeys: ["customer_commitment_signals"],
-      headline: "showed a buying signal that was never followed by a close",
-      reason: "A commitment signal was recorded and no close attempt followed",
-      conversationIds: commitmentNoClose.map((row) => row.conversationId),
-    });
-  }
+  push(
+    "objection_handling_gap",
+    "left an objection partly answered or unanswered",
+    "At least one objection response was judged partial or none",
+    ["objections", "objection_response"],
+    objectionEvaluated.length,
+    objectionEvaluated.filter((row) =>
+      present(row, "objection_response").some(
+        (value) => value.valueText === "partial" || value.valueText === "none",
+      ),
+    ),
+  );
 
-  const readyUnresolved = rows.filter(
-    (row) =>
-      row.arrivalIntent === "ready_to_buy" &&
-      isUnresolved(row.outcome) &&
-      !has(row, "close_attempts"),
+  // Chronology, matching the metric exactly. A close recorded before the
+  // customer signalled anything does not count as following it, and an
+  // interaction whose signal carries no timing cannot be judged either way.
+  const commitmentTimed = rows.filter(
+    (row) => firstAt(row, "customer_commitment_signals") !== null,
   );
-  if (readyUnresolved.length) {
-    cohorts.push({
-      key: "ready_to_buy_without_close_attempt",
-      evidenceFieldKeys: ["arrival_intent_state", "customer_commitment_signals"],
-      headline: "arrived ready to buy, left unresolved, and were never asked for the sale",
-      reason: "Arrival intent was ready to buy, no close attempt, outcome unresolved",
-      conversationIds: readyUnresolved.map((row) => row.conversationId),
-    });
-  }
+  push(
+    "commitment_without_close_attempt",
+    "showed a buying signal with no later close attempt recorded",
+    "A commitment signal was recorded and no close attempt followed it",
+    ["customer_commitment_signals"],
+    commitmentTimed.length,
+    commitmentTimed.filter((row) => {
+      const closed = firstAt(row, "close_attempts");
+      return closed === null || closed < firstAt(row, "customer_commitment_signals")!;
+    }),
+  );
 
-  const followUpNoAction = rows.filter(
-    (row) => row.outcome.decision === "follow_up_scheduled" && !has(row, "next_action"),
+  const readyToBuy = rows.filter((row) => row.arrivalIntent === "ready_to_buy");
+  push(
+    "ready_to_buy_without_close_attempt",
+    "arrived ready to buy with no close attempt recorded and no outcome established",
+    "Arrival intent was ready to buy, no close attempt was recorded, and the outcome is not a sale",
+    ["arrival_intent_state", "customer_commitment_signals"],
+    readyToBuy.length,
+    readyToBuy.filter((row) => isUnresolved(row.outcome) && !has(row, "close_attempts")),
   );
-  if (followUpNoAction.length) {
-    cohorts.push({
-      key: "follow_up_without_next_action",
-      evidenceFieldKeys: ["final_decision_state"],
-      headline: "agreed a follow-up with nothing concrete recorded to do",
-      reason: "The customer left on a follow-up and no next action was captured",
-      conversationIds: followUpNoAction.map((row) => row.conversationId),
-    });
-  }
+
+  const followUp = rows.filter((row) => row.outcome.decision === "follow_up_scheduled");
+  push(
+    "follow_up_without_next_action",
+    "agreed a follow-up with no next action recorded",
+    "The customer left on a follow-up and no next action was captured",
+    ["final_decision_state"],
+    followUp.length,
+    followUp.filter((row) => !has(row, "next_action")),
+  );
 
   // Largest first: the page shows a handful, and the handful should be the ones
   // worth a manager's morning.

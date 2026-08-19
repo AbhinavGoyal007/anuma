@@ -8,7 +8,6 @@ import {
   type PulseItem,
 } from "@/components/intelligence/overview-view";
 import { PageHeader } from "@/components/ui/page-header";
-import { getApplicationContext } from "@/modules/identity/application-context";
 import {
   changeCandidates,
   gapCandidates,
@@ -16,13 +15,8 @@ import {
   suppressionReason,
 } from "@/modules/intelligence/candidates";
 import { budgetPicture, clarityMatrix, computeDemand } from "@/modules/intelligence/demand";
-import {
-  comparisonLabel,
-  filtersToQuery,
-  parseFilters,
-  resolvePeriods,
-  windowLabel,
-} from "@/modules/intelligence/filters";
+import { comparisonLabel, filtersToQuery, windowLabel } from "@/modules/intelligence/filters";
+import { resolveIntelligencePage } from "@/modules/intelligence/page-context";
 import { computeFrontline, frontlineActionCohorts } from "@/modules/intelligence/frontline";
 import { journeyLeakageCohorts } from "@/modules/intelligence/journey";
 import { loadPopulation } from "@/modules/intelligence/population";
@@ -30,41 +24,11 @@ import { loadPopulation } from "@/modules/intelligence/population";
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 export default async function IntelligenceOverviewPage({ searchParams }: PageProps) {
-  const [context, raw] = await Promise.all([getApplicationContext(), searchParams]);
-  if (!context) redirect("/sign-in");
-  if (!context.current) redirect("/setup");
+  const page = await resolveIntelligencePage(await searchParams);
+  if ("redirect" in page) redirect(page.redirect);
 
-  const { organization, membership, assignments, locations } = context.current;
-  const filters = parseFilters(raw);
-  const periods = resolvePeriods(filters);
-
-  const assignedLocationIds = new Set(
-    assignments.flatMap((item) => (item.locationId ? [item.locationId] : [])),
-  );
-  const stores =
-    membership.role === "admin"
-      ? locations
-      : locations.filter((item) => assignedLocationIds.has(item.id));
-  const selectedStore = stores.find((item) => item.id === filters.storeId) ?? null;
-
-  const [current, previous] = await Promise.all([
-    loadPopulation({
-      organizationId: organization.id,
-      from: periods.current.from,
-      to: periods.current.to,
-      locationId: selectedStore?.id ?? null,
-      purchaseCategory: filters.category,
-    }),
-    periods.previous
-      ? loadPopulation({
-          organizationId: organization.id,
-          from: periods.previous.from,
-          to: periods.previous.to,
-          locationId: selectedStore?.id ?? null,
-          purchaseCategory: filters.category,
-        })
-      : null,
-  ]);
+  const { filters, current, previous, stores, representatives, categories, selectedStoreName } =
+    page;
 
   const demand = computeDemand(current.rows);
   const previousDemand = previous ? computeDemand(previous.rows) : null;
@@ -83,6 +47,42 @@ export default async function IntelligenceOverviewPage({ searchParams }: PagePro
     ),
   );
   const changes = rankCandidates(changeCandidates(demand, previousDemand));
+
+  // Deterministic statements about where things stand, for the periods where a
+  // comparison cannot be made. Each is a fact with its denominator attached, not
+  // a trend wearing a fact's clothes.
+  const currentPicture = [
+    {
+      key: "analysed",
+      sentence: `${current.rows.length} interaction${current.rows.length === 1 ? "" : "s"} analysed in ${windowLabel(filters.days)}.`,
+      detail: selectedStoreName ? `At ${selectedStoreName}.` : undefined,
+    },
+    demand.highIntent.value !== null
+      ? {
+          key: "intent",
+          sentence: `${demand.highIntent.affected} of ${demand.highIntent.observed} customers whose intent could be classified arrived already decided.`,
+        }
+      : null,
+    demand.financeDemand.value !== null
+      ? {
+          key: "finance",
+          sentence: `Finance was raised in ${demand.financeDemand.affected} of ${demand.financeDemand.observed} interactions.`,
+        }
+      : null,
+    clarity.improved.value !== null
+      ? {
+          key: "clarity",
+          sentence: `Requirements became clearer in ${clarity.improved.affected} of ${clarity.improved.observed} interactions where both states were readable.`,
+        }
+      : null,
+    gaps[0]
+      ? {
+          key: "gap",
+          sentence: `Largest execution gap: ${gaps[0].headline}`,
+          detail: gaps[0].soWhat,
+        }
+      : null,
+  ].flatMap((fact) => (fact ? [fact] : []));
 
   const pulse: PulseItem[] = [
     {
@@ -132,23 +132,18 @@ export default async function IntelligenceOverviewPage({ searchParams }: PagePro
       <IntelligenceFilterBar
         basePath="/intelligence/overview"
         filters={filters}
-        stores={stores.map((store) => ({ id: store.id, name: store.name }))}
-        categories={[
-          ...new Set(
-            current.rows.flatMap((row) => (row.purchaseCategory ? [row.purchaseCategory] : [])),
-          ),
-        ].sort()}
+        stores={stores}
+        categories={categories}
+        representatives={representatives}
       />
       <OverviewView
         changes={changes}
+        currentPicture={currentPicture}
         gaps={gaps}
         pulse={pulse}
         analysed={current.rows.length}
         previousAnalysed={previous ? previous.rows.length : null}
-        suppression={suppressionReason(
-          current.rows.length,
-          previous ? previous.rows.length : null,
-        )}
+        suppression={suppressionReason(current.rows.length, previous ? previous.rows.length : null)}
         periodLabel={windowLabel(filters.days)}
         comparisonLabel={comparisonLabel(filters.days)}
       />
