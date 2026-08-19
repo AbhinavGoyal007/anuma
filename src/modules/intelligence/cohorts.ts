@@ -12,11 +12,57 @@ import type { PopulationRow } from "@/modules/intelligence/population";
  * argument one level up: two routes each rebuilding "the interactions where a
  * commitment went unanswered" will agree until one of them is edited.
  */
+
+/** How a value-level group is addressed in a URL. */
+export const VALUE_COHORT_PREFIX = "value:";
+
+export function valueCohortKey(fieldKey: string, value: string): string {
+  return `${VALUE_COHORT_PREFIX}${fieldKey}:${value}`;
+}
+
+/**
+ * The interactions carrying one observed value of one field.
+ *
+ * Not a failure cohort — it is the set behind a bar. Its evidence is the field
+ * itself, so a reader clicking "Samsung" sees the sentence where Samsung was
+ * actually said rather than a summary of why we counted it.
+ */
+export function valueCohort(
+  rows: readonly PopulationRow[],
+  fieldKey: string,
+  value: string,
+): ActionCohort {
+  const matched = rows.filter((row) =>
+    row.values.some(
+      (item) =>
+        item.fieldKey === fieldKey && !item.abstention && (item.valueText ?? "").trim() === value,
+    ),
+  );
+  const measurable = rows.filter((row) =>
+    row.values.some((item) => item.fieldKey === fieldKey),
+  ).length;
+  return {
+    key: valueCohortKey(fieldKey, value),
+    headline: `recorded “${value}”`,
+    reason: `The field ${fieldKey} carried this exact value`,
+    evidenceFieldKeys: [fieldKey],
+    measurable,
+    conversationIds: matched.map((row) => row.conversationId),
+  };
+}
+
 export function resolveCohort(
   rows: readonly PopulationRow[],
   key: string,
   journeyCohort: JourneyCohortKey = "all",
 ): ActionCohort | null {
+  if (key.startsWith(VALUE_COHORT_PREFIX)) {
+    const rest = key.slice(VALUE_COHORT_PREFIX.length);
+    const separator = rest.indexOf(":");
+    if (separator <= 0) return null;
+    return valueCohort(rows, rest.slice(0, separator), rest.slice(separator + 1));
+  }
+
   const frontline = frontlineActionCohorts(rows).find((cohort) => cohort.key === key);
   if (frontline) return frontline;
 

@@ -1,3 +1,4 @@
+import { distribution, rankedShare, type RankedShare } from "@/modules/intelligence/demand";
 import type { ActionCohort } from "@/modules/intelligence/frontline";
 import { measure, type Measure } from "@/modules/intelligence/guardrails";
 import { DECISION_LABELS, DECISION_ORDER, isUnresolved } from "@/modules/intelligence/outcome";
@@ -31,10 +32,10 @@ export const JOURNEY_COHORTS = ["high_intent", "ready_to_buy", "specific_product
 export type JourneyCohortKey = (typeof JOURNEY_COHORTS)[number];
 
 export const COHORT_LABELS: Readonly<Record<JourneyCohortKey, string>> = {
-  high_intent: "Arrived decided",
+  high_intent: "High intent",
   ready_to_buy: "Ready to buy",
-  specific_product: "Asked for a product",
-  all: "Everyone analysed",
+  specific_product: "Specific product",
+  all: "All analysed",
 };
 
 export function selectCohort(
@@ -70,10 +71,25 @@ export type JourneyStage = {
    * — a percentage of zero people is not a small number, it is not a number.
    */
   progression: Measure | null;
-  /** In the previous state and not this one. The gap worth opening. */
-  lost: number;
-  /** The leakage cohort a reader lands on by clicking the gap above this stage. */
-  gapCohortKey: string | null;
+  /**
+   * The gap immediately before this stage, sized by the group its link opens.
+   *
+   * Both numbers come from the leakage cohort's own denominator, so "5 of 8 had
+   * the next state observed" and "3 next-state observations missing" are
+   * complementary and the second is exactly what the link opens. Deriving them
+   * separately let the rail print a number the drill-down then contradicted,
+   * which a reader checks once and never trusts again.
+   */
+  gap: {
+    cohortKey: string;
+    /** Interactions that could have carried the next state. */
+    measurable: number;
+    /** Of those, how many did. */
+    observed: number;
+    /** Of those, how many did not. */
+    missing: number;
+    share: number | null;
+  } | null;
 };
 
 /**
@@ -96,21 +112,21 @@ const STATES: readonly {
 }[] = [
   {
     key: "entered",
-    label: "In the cohort",
+    label: "Cohort",
     meaning: "Everyone in the selected group.",
     gapCohortKey: null,
     test: () => true,
   },
   {
     key: "requirement_clear",
-    label: "Knew what they needed",
+    label: "Requirement clear",
     meaning: "Requirement clarity reached medium or high by the close.",
     gapCohortKey: "clarity_not_reached",
     test: (row) => row.clarityEnd !== null && row.clarityEnd >= 2,
   },
   {
     key: "preference_formed",
-    label: "Settled on a product",
+    label: "Preference formed",
     meaning: "Ended the conversation on a specific preferred product.",
     gapCohortKey: "no_preference_formed",
     test: (row) => has(row, "final_preferred_product"),
@@ -118,7 +134,7 @@ const STATES: readonly {
   },
   {
     key: "commitment",
-    label: "Showed they were ready",
+    label: "Commitment signal",
     meaning: "Gave at least one explicit buying signal.",
     gapCohortKey: "no_commitment_signal",
     test: (row) => has(row, "customer_commitment_signals"),
@@ -145,7 +161,17 @@ export function journeyStages(
   cohort: readonly PopulationRow[],
   leakage: readonly ActionCohort[] = journeyLeakageCohorts(cohort),
 ): JourneyStage[] {
-  const lostAt = new Map(leakage.map((item) => [item.key, item.conversationIds.length]));
+  const lostAt = new Map(
+    leakage.map((item) => [
+      item.key,
+      {
+        missing: item.conversationIds.length,
+        // The population that could answer, not the whole cohort: a record that
+        // never carried the field has not failed to reach the state.
+        measurable: item.measurable ?? item.conversationIds.length,
+      },
+    ]),
+  );
   const stages: JourneyStage[] = [];
   let previousReached: PopulationRow[] = [...cohort];
 
@@ -162,6 +188,7 @@ export function journeyStages(
       index === 0 ? [] : previousReached.filter((row) => eligible.includes(row));
     const progressed = priorEligible.filter(state.test);
 
+    const leak = state.gapCohortKey ? (lostAt.get(state.gapCohortKey) ?? null) : null;
     stages.push({
       key: state.key,
       label: state.label,
@@ -172,8 +199,17 @@ export function journeyStages(
         index === 0 || priorEligible.length === 0
           ? null
           : measure(progressed.length, priorEligible.length, priorEligible.length),
-      lost: state.gapCohortKey ? (lostAt.get(state.gapCohortKey) ?? 0) : 0,
-      gapCohortKey: state.gapCohortKey,
+      gap:
+        state.gapCohortKey === null || leak === null
+          ? null
+          : {
+              cohortKey: state.gapCohortKey,
+              measurable: leak.measurable,
+              observed: leak.measurable - leak.missing,
+              missing: leak.missing,
+              share:
+                leak.measurable > 0 ? (leak.measurable - leak.missing) / leak.measurable : null,
+            },
     });
 
     previousReached = reachedRows;
@@ -198,6 +234,18 @@ export function interventions(cohort: readonly PopulationRow[]): InterventionRat
     const eligible = fieldKey ? cohort.filter((row) => supported(row, fieldKey)) : [...cohort];
     return measure(eligible.filter(test).length, size, eligible.length);
   };
+  /**
+   * A yes/no behaviour, measured only where it applied.
+   *
+   * Matching the Frontline page exactly. Dividing by the whole cohort instead
+   * counted "not applicable" as a miss, and the same behaviour then read 4%
+   * here and 13% there — two numbers for one fact, which is how a reader
+   * decides the dashboard cannot be trusted.
+   */
+  const applicable = (read: (row: PopulationRow) => string | null) => {
+    const eligible = cohort.filter((row) => read(row) === "yes" || read(row) === "no");
+    return measure(eligible.filter((row) => read(row) === "yes").length, size, eligible.length);
+  };
   return [
     {
       key: "recommendation",
@@ -207,12 +255,12 @@ export function interventions(cohort: readonly PopulationRow[]): InterventionRat
     {
       key: "demo",
       label: "Showed the product",
-      measure: rate((row) => row.demoPerformed === "yes"),
+      measure: applicable((row) => row.demoPerformed),
     },
     {
       key: "alternative",
       label: "Offered an alternative",
-      measure: rate((row) => row.alternativeOffered === "yes"),
+      measure: applicable((row) => row.alternativeOffered),
     },
     {
       key: "offer",
@@ -243,7 +291,10 @@ export function journeyLeakageCohorts(cohort: readonly PopulationRow[]): ActionC
     measurable: number | null,
     rows: PopulationRow[],
   ) => {
-    if (rows.length === 0) return;
+    // Pushed even when empty. The rail's gaps are fixed slots that must render
+    // whatever the data holds, and they take their denominator from here — a
+    // cohort that vanished when nothing was missing took the slot with it.
+    // Callers that list gaps as work filter on the count.
     cohorts.push({
       key,
       headline,
@@ -415,4 +466,31 @@ export function journeyBreakdown(
       };
     })
     .sort((a, b) => b.size - a.size);
+}
+
+/**
+ * What was on the table, what was put forward, and what the customer settled on.
+ *
+ * Three separate lists rather than one funnel. A product can be preferred
+ * without ever having been recommended — the customer walked in wanting it —
+ * and a shape that only ever narrows would quietly deny that.
+ */
+export type ProductPath = {
+  considered: { entries: RankedShare[]; eligible: number };
+  recommended: { entries: RankedShare[]; eligible: number };
+  preferred: { entries: RankedShare[]; eligible: number };
+  /** How customers reacted to what was recommended. */
+  response: { entries: RankedShare[]; classified: number };
+};
+
+export function productPath(cohort: readonly PopulationRow[], limit = 5): ProductPath {
+  return {
+    considered: rankedShare(cohort, ["products_considered"], limit),
+    recommended: rankedShare(cohort, ["products_recommended"], limit),
+    preferred: rankedShare(cohort, ["final_preferred_product"], limit),
+    response: distribution(
+      cohort,
+      (row) => present(row, "recommendation_response")[0]?.valueText ?? null,
+    ),
+  };
 }

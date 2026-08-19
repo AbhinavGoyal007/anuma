@@ -1,56 +1,123 @@
 import { redirect } from "next/navigation";
 
-import { IntelligenceFilterBar } from "@/components/intelligence/filter-bar";
-import { FrontlineIntelligenceView } from "@/components/intelligence/frontline-intelligence-view";
-import { PageHeader } from "@/components/ui/page-header";
-import { filtersToQuery, windowLabel } from "@/modules/intelligence/filters";
+import { IntelligenceDrawer } from "@/components/intelligence/intelligence-drawer";
+import { IntelligenceFilterBar, IntelligenceHead } from "@/components/intelligence/filter-bar";
+import {
+  FrontlineIntelligenceView,
+  STAGES,
+  type StageKey,
+} from "@/components/intelligence/frontline-intelligence-view";
+import { QUADRANT_TABS } from "@/components/intelligence/quadrant-benchmark";
+import { distribution, rankedShare } from "@/modules/intelligence/demand";
+import { intelligenceHref, single, windowLabel } from "@/modules/intelligence/filters";
 import {
   computeFrontline,
+  expandDetail,
   frontlineActionCohorts,
+  nextActions,
+  offerDetail,
   outcomeAssociations,
+  questionResponseComposition,
   responseCompositions,
 } from "@/modules/intelligence/frontline";
 import { resolveIntelligencePage } from "@/modules/intelligence/page-context";
 
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
+const BASE = "/intelligence/frontline";
+
 export default async function FrontlineIntelligencePage({ searchParams }: PageProps) {
-  const page = await resolveIntelligencePage(await searchParams);
+  const raw = await searchParams;
+  const page = await resolveIntelligencePage(raw);
   if ("redirect" in page) redirect(page.redirect);
 
-  const { filters, current, previous, stores, representatives, categories, selectedStoreName } =
-    page;
+  const {
+    organizationId,
+    filters,
+    current,
+    previous,
+    stores,
+    representatives,
+    categories,
+    intents,
+    languages,
+    storeCount,
+    selectedStoreName,
+  } = page;
+  const rows = current.rows;
+
+  const stage: StageKey =
+    STAGES.find((item) => item.key === single(raw, "stage"))?.key ?? "understand";
+  const quadrantTab =
+    QUADRANT_TABS.find((tab) => tab.key === single(raw, "q1"))?.key ?? "benchmark";
+  const openDrawer = single(raw, "drawer");
+  const carry = { stage, q1: quadrantTab };
+
+  const compositions = responseCompositions(rows);
 
   return (
     <>
-      <PageHeader
-        eyebrow="Frontline intelligence"
-        title="Where frontline execution needs attention"
-      />
+      <IntelligenceHead title="Frontline" />
       <IntelligenceFilterBar
-        basePath="/intelligence/frontline"
+        basePath={BASE}
         filters={filters}
         stores={stores}
         categories={categories}
         representatives={representatives}
+        intents={intents}
+        languages={languages}
+        interactions={rows.length}
+        storeCount={storeCount}
+        carry={carry}
       />
-      <p className="fl-context">
-        {current.rows.length} analysed interaction{current.rows.length === 1 ? "" : "s"} in{" "}
-        {windowLabel(filters.days)}
-        {selectedStoreName ? ` at ${selectedStoreName}` : ""}
-        {previous ? `, against ${previous.rows.length} in the ${filters.days} days before` : ""}.
-      </p>
       <FrontlineIntelligenceView
-        metrics={computeFrontline(current.rows)}
-        compositions={responseCompositions(current.rows)}
+        metrics={computeFrontline(rows)}
         previousMetrics={previous ? computeFrontline(previous.rows) : null}
-        cohorts={frontlineActionCohorts(current.rows)}
-        associations={outcomeAssociations(current.rows)}
-        analysed={current.rows.length}
+        actions={frontlineActionCohorts(rows).slice(0, 3)}
+        actionHref={(cohortKey) => intelligenceHref(BASE, filters, { ...carry, drawer: cohortKey })}
+        stage={stage}
+        stageHref={(key) => intelligenceHref(BASE, filters, { ...carry, stage: key, drawer: null })}
+        detail={{
+          questions: rankedShare(rows, ["customer_questions"], 40),
+          questionComposition: questionResponseComposition(rows),
+          recommended: rankedShare(rows, ["products_recommended"], 40),
+          reasons: rankedShare(rows, ["recommendation_reasons"], 40),
+          recommendationResponse: distribution(
+            rows,
+            (row) =>
+              row.values.find(
+                (value) => value.fieldKey === "recommendation_response" && !value.abstention,
+              )?.valueText ?? null,
+          ),
+          objection: compositions.objection,
+          finance: compositions.finance,
+          offer: offerDetail(rows, 40),
+          expand: expandDetail(rows, 40),
+          commitment: rankedShare(rows, ["customer_commitment_signals"], 40),
+          closes: rankedShare(rows, ["close_attempts"], 40),
+          nextAction: nextActions(rows, 40),
+        }}
+        associations={outcomeAssociations(rows)}
+        analysed={rows.length}
         withoutMetrics={current.withoutMetrics}
-        periodLabel={windowLabel(filters.days)}
-        cohortQuery={filtersToQuery(filters)}
+        quadrantTab={quadrantTab}
+        quadrantHref={(key) => intelligenceHref(BASE, filters, { ...carry, q1: key })}
       />
+      {openDrawer ? (
+        <IntelligenceDrawer
+          organizationId={organizationId}
+          rows={rows}
+          cohortKey={openDrawer}
+          journeyCohort="all"
+          scopeChips={[
+            windowLabel(filters.days),
+            selectedStoreName ?? `${storeCount} store${storeCount === 1 ? "" : "s"}`,
+            filters.category ?? "All categories",
+          ]}
+          closeHref={intelligenceHref(BASE, filters, { ...carry, drawer: null })}
+          fullHref={intelligenceHref(`/intelligence/cohort/${openDrawer}`, filters)}
+        />
+      ) : null}
     </>
   );
 }

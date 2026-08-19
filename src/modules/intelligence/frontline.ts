@@ -1,3 +1,4 @@
+import { distribution, rankedShare, type RankedShare } from "@/modules/intelligence/demand";
 import {
   DEFAULT_GUARDRAILS,
   measure,
@@ -95,6 +96,10 @@ function applicableRate(
 }
 
 export type FrontlineMetrics = {
+  /** Of interactions where a question was asked, how many carry a response state. */
+  questionResponseCoverage: Measure;
+  /** How often a close was attempted at all, regardless of what preceded it. */
+  closeAttemptRate: Measure;
   recommendationRate: Measure;
   recommendationRationale: Measure;
   fullObjectionHandling: Measure;
@@ -165,7 +170,27 @@ export function computeFrontline(rows: readonly PopulationRow[]): FrontlineMetri
 
   const nextActionSupported = rows.filter((row) => supported(row, "next_action"));
 
+  const questionsAsked = rows.filter((row) => has(row, "customer_questions"));
+  const closeSupported = rows.filter((row) => supported(row, "close_attempts"));
+
   return {
+    // Coverage of our own record, not a judgement of the representative. A
+    // question with no recorded response state means we did not capture what
+    // happened next; it does not mean nobody answered.
+    questionResponseCoverage: measure(
+      questionsAsked.filter((row) =>
+        present(row, "question_response_status").some(
+          (value) => normalizeResponseState(value.valueText) !== null,
+        ),
+      ).length,
+      base,
+      questionsAsked.length,
+    ),
+    closeAttemptRate: measure(
+      closeSupported.filter((row) => has(row, "close_attempts")).length,
+      base,
+      closeSupported.length,
+    ),
     recommendationRate: measure(recommending.length, base, base),
     // Provisional: matched at interaction level because the record does not link
     // a reason to the recommendation it belongs to. Flagged in the registry and
@@ -318,6 +343,18 @@ export function frontlineActionCohorts(rows: readonly PopulationRow[]): ActionCo
       conversationIds: matched.map((row) => row.conversationId),
     });
   };
+
+  // Flags raised during extraction, surfaced as work rather than as a badge on a
+  // conversation nobody opens. The flag itself is the evidence.
+  const flagSupported = rows.filter((row) => supported(row, "red_flags"));
+  push(
+    "red_flag_raised",
+    "carried a red flag raised during analysis",
+    "At least one red flag was recorded against the interaction",
+    ["red_flags"],
+    flagSupported.length,
+    flagSupported.filter((row) => has(row, "red_flags")),
+  );
 
   const recommending = rows.filter((row) => row.productsRecommendedCount > 0);
   push(
@@ -500,4 +537,120 @@ export function outcomeAssociations(
   }).sort((a, b) => Math.abs(b.differencePoints ?? 0) - Math.abs(a.differencePoints ?? 0));
 
   return { rows: associations, saleN: sales.length, noSaleN: noSales.length, strength };
+}
+
+/**
+ * What was pitched alongside, and what was pitched above.
+ *
+ * The hierarchy fields are kept in their own lists rather than paired with the
+ * pitch they belong to. The record does not link a hierarchy value to a
+ * specific pitch, so joining them here would assert a pairing nobody stored —
+ * and a manager reading "accessory, pitched with the washing machine" would
+ * have no way to know we had guessed.
+ */
+export type ExpandDetail = {
+  crossSell: { entries: RankedShare[]; eligible: number };
+  crossSellHierarchy: { entries: RankedShare[]; eligible: number };
+  upsell: { entries: RankedShare[]; eligible: number };
+  upsellHierarchy: { entries: RankedShare[]; eligible: number };
+};
+
+export function expandDetail(rows: readonly PopulationRow[], limit = 5): ExpandDetail {
+  return {
+    crossSell: rankedShare(rows, ["cross_sell_pitch"], limit),
+    crossSellHierarchy: rankedShare(rows, ["cross_sell_hierarchy"], limit),
+    upsell: rankedShare(rows, ["upsell_pitch"], limit),
+    upsellHierarchy: rankedShare(rows, ["upsell_hierarchy"], limit),
+  };
+}
+
+/** What was offered, and how the customer answered it. */
+export type OfferDetail = {
+  made: { entries: RankedShare[]; eligible: number };
+  response: { entries: RankedShare[]; classified: number };
+};
+
+export function offerDetail(rows: readonly PopulationRow[], limit = 5): OfferDetail {
+  return {
+    made: rankedShare(rows, ["commercial_offer_made"], limit),
+    response: distribution(
+      rows,
+      (row) => present(row, "commercial_offer_response")[0]?.valueText ?? null,
+    ),
+  };
+}
+
+/** The steps agreed at the end, as recorded. */
+export function nextActions(
+  rows: readonly PopulationRow[],
+  limit = 5,
+): { entries: RankedShare[]; eligible: number } {
+  return rankedShare(rows, ["next_action"], limit);
+}
+
+/** How questions were answered overall, per interaction that asked one. */
+export function questionResponseComposition(rows: readonly PopulationRow[]): StateSlice[] {
+  const counts: Record<ResponseState, number> = {
+    answered: 0,
+    partial: 0,
+    unanswered: 0,
+    uncertain: 0,
+  };
+  let unrecorded = 0;
+  for (const row of rows) {
+    if (!has(row, "customer_questions")) continue;
+    const states = present(row, "question_response_status").flatMap((value) => {
+      const state = normalizeResponseState(value.valueText);
+      return state ? [state] : [];
+    });
+    if (states.length === 0) {
+      unrecorded += 1;
+      continue;
+    }
+    // The weakest recorded state wins: an interaction with one unanswered
+    // question has an unanswered question, whatever else went well.
+    const worst: ResponseState = states.includes("unanswered")
+      ? "unanswered"
+      : states.includes("partial")
+        ? "partial"
+        : states.includes("uncertain")
+          ? "uncertain"
+          : "answered";
+    counts[worst] += 1;
+  }
+  return [
+    { key: "full", label: "Fully answered", count: counts.answered },
+    { key: "partial", label: "Partly answered", count: counts.partial },
+    { key: "none", label: "Not answered", count: counts.unanswered },
+    { key: "uncertain", label: "Uncertain", count: counts.uncertain },
+    { key: "unrecorded", label: "No response status recorded", count: unrecorded },
+  ];
+}
+
+/**
+ * The short label an action card carries, per cohort.
+ *
+ * Fixed templates rather than the cohort's own sentence, because a card is read
+ * at a glance and a clause needs a second pass. Nothing here is generated: the
+ * same data always produces the same words, so two managers reading the same
+ * morning see the same page.
+ */
+const ACTION_LABELS: Readonly<Record<string, string>> = {
+  red_flag_raised: "Red flag raised",
+  recommendation_without_rationale: "Recommendation lacks rationale",
+  finance_question_without_response: "Finance response status missing",
+  objection_handling_gap: "Objection partially resolved",
+  commitment_without_close_attempt: "No close after commitment",
+  ready_to_buy_without_close_attempt: "Ready to buy, no close attempt",
+  follow_up_without_next_action: "No next action recorded",
+  clarity_not_reached: "Requirement still unclear",
+  no_preference_formed: "No preferred product",
+  no_commitment_signal: "No commitment signal",
+  commitment_then_no_sale: "Signalled, then no sale",
+  commitment_outcome_unknown: "Signalled, outcome unknown",
+  ready_to_buy_no_sale: "Ready to buy, no sale",
+};
+
+export function actionLabel(cohortKey: string): string {
+  return ACTION_LABELS[cohortKey] ?? "Needs review";
 }

@@ -1,34 +1,50 @@
 import Link from "next/link";
 
-import type { ActionCohort } from "@/modules/intelligence/frontline";
+import { DataState, type SlotState } from "@/components/intelligence/data-state";
+import { RankedBars } from "@/components/intelligence/interactive-ranked-bar";
+import { formatPercent } from "@/components/intelligence/metric-tile";
+import { SectionTabs } from "@/components/intelligence/section-tabs";
+import { SegmentedBar, type Segment } from "@/components/intelligence/segmented-bar";
+import { actionLabel, type ActionCohort } from "@/modules/intelligence/frontline";
 import { DEFAULT_GUARDRAILS, type Measure } from "@/modules/intelligence/guardrails";
 import {
   COHORT_LABELS,
-  type OutcomeSlice,
   JOURNEY_COHORTS,
   type InterventionRate,
   type JourneyBreakdownRow,
   type JourneyCohortKey,
   type JourneyStage,
+  type OutcomeSlice,
+  type ProductPath,
 } from "@/modules/intelligence/journey";
 
 /**
- * How far the selected group of customers got.
+ * Journey — how far a selected group of customers got.
  *
- * A horizontal rail rather than a funnel. A funnel's tapering width asserts that
- * everyone at the top had to pass through every stage, and these conversations
- * did not: a customer can arrive already decided, or leave without ever forming
- * a preference, and neither is a failure. The rail keeps every stage the same
- * width and puts the number in the text, which is the weaker and truer claim.
+ * A rail rather than a funnel. A funnel's tapering width asserts that everyone
+ * at the top had to pass through every stage, and these conversations did not: a
+ * customer can arrive already decided, or leave without ever forming a
+ * preference, and neither is a failure.
  *
- * The gap between two stages is the clickable part, because the interesting
- * question is never "how many reached commitment" but "who stopped just before
- * it, and what did they say".
+ * Nothing here is described as broken, lost or dropped. A state we did not
+ * observe is a hole in our record, and naming it a failure would be an
+ * accusation drawn from our own missing data.
  */
 
-function percent(value: number | null): string {
-  return value === null ? "—" : `${Math.round(value * 100)}%`;
-}
+const BUSINESS_TONE: Readonly<Record<string, Segment["tone"]>> = {
+  sale: "teal",
+  no_sale: "coral",
+  unknown: "slate",
+};
+
+const DECISION_TONE: Readonly<Record<string, Segment["tone"]>> = {
+  purchased: "teal",
+  follow_up_scheduled: "indigo",
+  researching: "amber",
+  deferred: "amber",
+  rejected: "coral",
+  unknown: "slate",
+};
 
 /**
  * One cell of the breakdown, suppressed on its own denominator.
@@ -41,86 +57,59 @@ function percent(value: number | null): string {
 function Cell({ measure: m }: { measure: Measure }) {
   if (m.value === null || m.observed === 0) {
     return (
-      <td className="jr-cell-thin" title="Not measurable in this group">
+      <td className="ip-cell-thin" title="Not measurable in this group">
         —
       </td>
     );
   }
   if (m.observed < DEFAULT_GUARDRAILS.minimumForComparison) {
     return (
-      <td className="jr-cell-thin" title={`Only ${m.observed} measurable — too few to compare`}>
+      <td className="ip-cell-thin" title={`Only ${m.observed} measurable — too few to compare`}>
         {m.affected ?? 0}/{m.observed}
       </td>
     );
   }
   return (
     <td>
-      {percent(m.value)}
-      <span className="jr-cell-n"> {m.observed}</span>
+      {formatPercent(m.value)}
+      <span className="ip-cell-n"> {m.observed}</span>
     </td>
   );
 }
 
-/**
- * One composition, as a single 100% bar.
- *
- * The states are mutually exclusive and there are few of them, which is the one
- * case a stacked bar reads better than separate bars. Every segment carries its
- * own text label, so colour is never the only thing distinguishing a sale from
- * an outcome nobody established.
- */
-function OutcomeStrip({
+function ProductColumn({
   title,
-  slices,
-  note,
+  list,
+  hrefFor,
+  emptyState,
 }: {
   title: string;
-  slices: OutcomeSlice[];
-  note: string;
+  list: { entries: { value: string; interactions: number; share: number; label: string | null }[] };
+  hrefFor: (value: string) => string;
+  emptyState: SlotState;
 }) {
-  const total = slices.reduce((sum, slice) => sum + slice.count, 0);
-  if (total === 0) return null;
   return (
-    <div className="dm-panel">
+    <div className="ip-productcol">
       <h3>{title}</h3>
-      <div
-        className="os-bar"
-        role="img"
-        aria-label={slices.map((s) => `${s.label} ${s.count}`).join(", ")}
-      >
-        {slices
-          .filter((slice) => slice.count > 0)
-          .map((slice) => (
-            <span
-              key={slice.key}
-              className={`os-seg os-seg--${slice.key}`}
-              style={{ width: `${(slice.count / total) * 100}%` }}
-            />
-          ))}
-      </div>
-      <ul className="os-key">
-        {slices
-          .filter((slice) => slice.count > 0)
-          .map((slice) => (
-            <li key={slice.key}>
-              <span className={`os-swatch os-seg--${slice.key}`} aria-hidden="true" />
-              {slice.label} <strong>{slice.count}</strong>
-              <span className="os-share">{percent(slice.share)}</span>
+      {list.entries.length === 0 ? (
+        <DataState state={emptyState} compact />
+      ) : (
+        <ul className="ip-productlist">
+          {list.entries.map((entry) => (
+            <li key={entry.value}>
+              <Link
+                className="ip-link ip-tip"
+                data-tip={`${entry.value} · ${entry.interactions} interactions · ${Math.round(entry.share * 100)}%`}
+                href={hrefFor(entry.value)}
+              >
+                <span className="ip-product-name">{entry.value}</span>
+                <span className="ip-meta">{entry.interactions}</span>
+              </Link>
             </li>
           ))}
-      </ul>
-      <p className="fl-note">{note}</p>
+        </ul>
+      )}
     </div>
-  );
-}
-
-function Sample({ measure: m }: { measure: Measure }) {
-  const thin = m.observed > 0 && m.observed < DEFAULT_GUARDRAILS.minimumForConfidentDisplay;
-  return (
-    <span className="jr-sample">
-      {m.affected ?? 0} of {m.observed}
-      {thin ? <span className="fl-lowsample">small sample</span> : null}
-    </span>
   );
 }
 
@@ -129,223 +118,263 @@ export function JourneyView({
   cohortSizes,
   stages,
   lanes,
-  leakage,
+  gaps,
   breakdown,
   breakdownLabel,
   outcomes,
-  cohortQuery,
-  periodLabel,
+  products,
+  cohortHref,
+  gapHref,
+  productHref,
 }: {
   cohortKey: JourneyCohortKey;
   cohortSizes: Record<JourneyCohortKey, number>;
   stages: JourneyStage[];
   lanes: InterventionRate[];
-  leakage: ActionCohort[];
+  gaps: ActionCohort[];
   breakdown: JourneyBreakdownRow[];
   breakdownLabel: string;
   outcomes: { business: OutcomeSlice[]; decision: OutcomeSlice[] };
-  cohortQuery: (key: JourneyCohortKey) => string;
-  periodLabel: string;
+  products: ProductPath;
+  cohortHref: (key: JourneyCohortKey) => string;
+  gapHref: (cohortKey: string) => string;
+  productHref: (fieldKey: string, value: string) => string;
 }) {
   const size = cohortSizes[cohortKey];
-  // The cohort link points at the journey page; a group link points at the
-  // shared drill-down carrying the same query, so the set opened is the set
-  // counted.
-  // Groups whose cells could carry a rate at all. Below two of them the section
-  // stops presenting itself as a comparison.
-  const comparable = breakdown.filter((row) =>
-    [row.requirementClear, row.preferenceFormed, row.commitment, row.sale].some(
-      (m) => m.observed >= DEFAULT_GUARDRAILS.minimumForComparison,
-    ),
-  );
+  const pathState: SlotState = size === 0 ? "NO_OBSERVATIONS" : "POPULATED";
+  const materialGaps = gaps.filter((gap) => gap.conversationIds.length > 0).slice(0, 4);
 
-  const gapLink = (key: string) =>
-    `/intelligence/cohort/${key}${cohortQuery(cohortKey).replace("/intelligence/journey", "")}`;
+  const businessSegments: Segment[] = outcomes.business.map((slice) => ({
+    key: slice.key,
+    label: slice.label,
+    count: slice.count,
+    tone: BUSINESS_TONE[slice.key] ?? "slate",
+  }));
+  const decisionSegments: Segment[] = outcomes.decision.map((slice) => ({
+    key: slice.key,
+    label: slice.label,
+    count: slice.count,
+    tone: DECISION_TONE[slice.key] ?? "slate",
+  }));
 
   return (
-    <>
-      <div className="jr-cohorts" role="group" aria-label="Cohort">
-        <span className="ifb-label">Cohort</span>
-        {JOURNEY_COHORTS.map((key) => (
-          <Link
-            key={key}
-            className={`ifb-chip${key === cohortKey ? " ifb-chip--active" : ""}`}
-            href={cohortQuery(key)}
-            aria-current={key === cohortKey ? "true" : undefined}
-          >
-            {COHORT_LABELS[key]} ({cohortSizes[key]})
-          </Link>
-        ))}
+    <div className="ip-grid12">
+      <div className="ip-col-12">
+        <SectionTabs
+          tabs={JOURNEY_COHORTS.map((key) => ({
+            key,
+            label: `${COHORT_LABELS[key]} (${cohortSizes[key]})`,
+          }))}
+          active={cohortKey}
+          hrefFor={(key) => cohortHref(key as JourneyCohortKey)}
+          label="Cohort"
+        />
       </div>
 
-      <p className="fl-note">
-        Observed within the selected group in {periodLabel}. These states are not a sequence
-        everyone passes through — a customer can show a buying signal without ever settling on one
-        product, so a later state can hold more interactions than an earlier one. Each gap counts
-        exactly the interactions its link opens.
-      </p>
-
-      {size === 0 ? (
-        <section className="fl-empty">
-          <p>Nobody in this group in {periodLabel}.</p>
-          <p className="fl-empty-note">
-            Try a wider group above, or a longer period. On this data almost every arrival is
-            classified exploratory, so the decided-arrival groups are small.
-          </p>
-        </section>
-      ) : (
-        <>
-          <ol className="jr-rail">
-            {stages.map((stage, index) => (
-              <li key={stage.key}>
-                {index > 0 ? (
-                  <div className="jr-gap">
-                    {stage.lost > 0 && stage.gapCohortKey ? (
-                      <Link className="jr-gap-link" href={gapLink(stage.gapCohortKey)}>
-                        {stage.lost} without this next state observed →
-                      </Link>
-                    ) : (
-                      <span className="jr-gap-none">
-                        {stage.lost === 0
-                          ? "No missing next-state observations"
-                          : `${stage.lost} not observed`}
-                      </span>
-                    )}
-                    {stage.progression?.value !== null && stage.progression ? (
-                      <span className="jr-progress">
-                        {percent(stage.progression.value)} of those observed in the previous state
-                      </span>
-                    ) : null}
-                  </div>
-                ) : null}
-                <div className="jr-stage">
-                  <p className="jr-stage-label">{stage.label}</p>
-                  <p className="jr-stage-count">
-                    <strong>{stage.reached}</strong>
-                    <span className="jr-stage-share">{percent(stage.reach.value)}</span>
-                  </p>
-                  <p className="jr-stage-meaning">{stage.meaning}</p>
-                  <Sample measure={stage.reach} />
-                </div>
-              </li>
-            ))}
-          </ol>
-
-          <section className="fl-section" aria-labelledby="jr-outcome">
-            <h2 id="jr-outcome">How these interactions ended</h2>
-            <div className="dm-grid">
-              <OutcomeStrip
-                title="Business result"
-                slices={outcomes.business}
-                note="What the store got. Unconfirmed is an outcome we never established, which is not the same as a no sale."
-              />
-              <OutcomeStrip
-                title="Customer closing state"
-                slices={outcomes.decision}
-                note="Where the customer landed. A customer who agreed to come back is a follow-up, not a failure."
-              />
-            </div>
-          </section>
-
-          <section className="fl-section" aria-labelledby="jr-lane">
-            <h2 id="jr-lane">What the representative did alongside</h2>
-            <p className="fl-note">
-              These are not stages the customer passed through. They sit beside the journey because
-              placing them inside it would imply an order that does not exist.
-            </p>
-            <dl className="fl-rates">
-              {lanes.map((lane) => (
-                <div key={lane.key} className="fl-rate">
-                  <dt>{lane.label}</dt>
-                  <dd>
-                    <strong>{percent(lane.measure.value)}</strong>
-                    <p className="fl-sample">
-                      {lane.measure.affected ?? 0} of {lane.measure.observed}
-                    </p>
-                  </dd>
+      <section className="ip-panel ip-rail ip-col-12" aria-labelledby="jr-path">
+        <div className="ip-section-title">
+          <h2 id="jr-path">Decision path</h2>
+          <span className="ip-meta">{size} in cohort</span>
+        </div>
+        {pathState === "POPULATED" ? (
+          <>
+            <div className="ip-nodes">
+              {stages.map((stage) => (
+                <div className="ip-node" key={stage.key}>
+                  <span className="ip-dot" aria-hidden="true" />
+                  <strong>{stage.reached}</strong>
+                  <span className="ip-label">{stage.label}</span>
+                  <small className="ip-meta">
+                    {formatPercent(stage.reach.value)} of {stage.reach.observed} measurable
+                  </small>
                 </div>
               ))}
-            </dl>
-          </section>
+            </div>
+            <div className="ip-gaps">
+              {stages.slice(1).map((stage) =>
+                stage.gap ? (
+                  <div className="ip-gapcell" key={stage.key}>
+                    <span className="ip-gap-observed">
+                      {stage.gap.observed} of {stage.gap.measurable} had next state observed ·{" "}
+                      {formatPercent(stage.gap.share)}
+                    </span>
+                    {stage.gap.missing > 0 ? (
+                      <Link className="ip-gap" href={gapHref(stage.gap.cohortKey)}>
+                        {stage.gap.missing} next-state observations missing →
+                      </Link>
+                    ) : (
+                      <span className="ip-gap ip-gap--none">
+                        No next-state observations missing
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="ip-gapcell" key={stage.key}>
+                    <DataState state="NOT_SUPPORTED" compact />
+                  </div>
+                ),
+              )}
+            </div>
+          </>
+        ) : (
+          <DataState state={pathState} />
+        )}
+      </section>
 
-          <section className="fl-section" aria-labelledby="jr-leak">
-            <h2 id="jr-leak">Where the next state was not observed</h2>
-            {leakage.length === 0 ? (
-              <p className="fl-none">
-                Every state that could be observed was. With {size} interactions that reads as “none
-                surfaced”, not “none exist”.
-              </p>
-            ) : (
-              <ul className="fl-actions">
-                {leakage.map((cohort) => (
-                  <li key={cohort.key}>
-                    <p className="fl-action-headline">
-                      <strong>{cohort.conversationIds.length}</strong> {cohort.headline}.
-                    </p>
-                    <p className="fl-action-reason">{cohort.reason}</p>
-                    <Link className="fl-action-link" href={gapLink(cohort.key)}>
-                      Review {cohort.conversationIds.length} interaction
-                      {cohort.conversationIds.length === 1 ? "" : "s"} →
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+      <section className="ip-panel ip-col-6" aria-labelledby="jr-business">
+        <div className="ip-section-title">
+          <h2 id="jr-business">Business result</h2>
+        </div>
+        {size === 0 ? (
+          <DataState state="NO_OBSERVATIONS" />
+        ) : (
+          <SegmentedBar segments={businessSegments} unit="interactions" />
+        )}
+        <p className="ip-note">
+          What the store got. Unconfirmed is an outcome we never established, not a no sale.
+        </p>
+      </section>
 
-          <section className="fl-section" aria-labelledby="jr-where">
-            <h2 id="jr-where">
-              {comparable.length >= 2
-                ? "Where the journey differs"
-                : `Journey by ${breakdownLabel.toLowerCase()}`}
-            </h2>
-            {breakdown.length < 2 ? (
-              <p className="fl-none">
-                Only one {breakdownLabel.toLowerCase()} in this group; nothing to compare.
-              </p>
-            ) : (
-              <>
-                {comparable.length < 2 ? (
-                  <p className="fl-note">
-                    No {breakdownLabel.toLowerCase()} has enough interactions to compare rates
-                    against another, so counts are shown instead. A rate from two conversations is
-                    0% or 100% and would read as a performance difference it cannot support.
-                  </p>
+      <section className="ip-panel ip-col-6" aria-labelledby="jr-customer">
+        <div className="ip-section-title">
+          <h2 id="jr-customer">Customer state</h2>
+        </div>
+        {size === 0 || decisionSegments.length === 0 ? (
+          <DataState state={size === 0 ? "NO_OBSERVATIONS" : "NOT_SUPPORTED"} />
+        ) : (
+          <SegmentedBar segments={decisionSegments} unit="interactions" />
+        )}
+        <p className="ip-note">
+          Where the customer landed — a separate axis from the business result.
+        </p>
+      </section>
+
+      <section className="ip-panel ip-col-12" aria-labelledby="jr-products">
+        <div className="ip-section-title">
+          <h2 id="jr-products">Product path</h2>
+          <span className="ip-meta">Click a product for its evidence</span>
+        </div>
+        <div className="ip-productpath">
+          <ProductColumn
+            title="Considered"
+            list={products.considered}
+            hrefFor={(value) => productHref("products_considered", value)}
+            emptyState={products.considered.eligible === 0 ? "NOT_SUPPORTED" : "NO_OBSERVATIONS"}
+          />
+          <ProductColumn
+            title="Recommended"
+            list={products.recommended}
+            hrefFor={(value) => productHref("products_recommended", value)}
+            emptyState={products.recommended.eligible === 0 ? "NOT_SUPPORTED" : "NO_OBSERVATIONS"}
+          />
+          <ProductColumn
+            title="Preferred"
+            list={products.preferred}
+            hrefFor={(value) => productHref("final_preferred_product", value)}
+            emptyState={products.preferred.eligible === 0 ? "NOT_SUPPORTED" : "NO_OBSERVATIONS"}
+          />
+        </div>
+        {products.response.entries.length > 0 ? (
+          <div className="ip-response-mix">
+            <h3>Recommendation response</h3>
+            <RankedBars
+              entries={products.response.entries}
+              eligible={products.response.classified}
+              controlled
+              unit={`of ${products.response.classified} interactions with a recorded response`}
+            />
+          </div>
+        ) : (
+          <DataState state="NOT_SUPPORTED" compact />
+        )}
+      </section>
+
+      <section className="ip-panel ip-lanes ip-col-12" aria-label="Frontline actions">
+        {lanes.map((lane) => (
+          <div
+            className="ip-pitem ip-tip"
+            key={lane.key}
+            tabIndex={0}
+            data-tip={`${lane.label} · ${formatPercent(lane.measure.value)} · ${lane.measure.affected ?? 0} of ${lane.measure.observed}`}
+          >
+            <span className="ip-label">{lane.label}</span>
+            <strong>{formatPercent(lane.measure.value)}</strong>
+            <span className="ip-meta">
+              {lane.measure.affected ?? 0} of {lane.measure.observed}
+            </span>
+          </div>
+        ))}
+      </section>
+
+      <section className="ip-panel ip-col-7" aria-labelledby="jr-gaps">
+        <div className="ip-section-title">
+          <h2 id="jr-gaps">Gaps</h2>
+          <span className="ip-meta">Top 4</span>
+        </div>
+        {materialGaps.length === 0 ? (
+          <DataState state="NO_OBSERVATIONS" />
+        ) : (
+          materialGaps.map((gap) => (
+            <Link
+              className="ip-action ip-tip"
+              key={gap.key}
+              href={gapHref(gap.key)}
+              data-tip={`${actionLabel(gap.key)} · ${gap.conversationIds.length}${gap.measurable ? ` of ${gap.measurable}` : ""} · ${gap.reason}`}
+            >
+              <span className="ip-action-n">{gap.conversationIds.length}</span>
+              <span className="ip-action-label">
+                {actionLabel(gap.key)}
+                {gap.measurable && gap.measurable > 0 ? (
+                  <em className="ip-meta"> of {gap.measurable}</em>
                 ) : null}
-                <table className="fl-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">{breakdownLabel}</th>
-                      <th scope="col">n</th>
-                      <th scope="col">Requirement clear</th>
-                      <th scope="col">Preference formed</th>
-                      <th scope="col">Commitment signal</th>
-                      <th scope="col">Sale</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {breakdown.map((row) => (
-                      <tr key={row.key}>
-                        <th scope="row">{row.label}</th>
-                        <td>{row.size}</td>
-                        <Cell measure={row.requirementClear} />
-                        <Cell measure={row.preferenceFormed} />
-                        <Cell measure={row.commitment} />
-                        <Cell measure={row.sale} />
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </>
-            )}
-            <p className="fl-note">
-              Each cell is judged on its own denominator, not on the row total: a store with fifty
-              conversations can still have only two usable outcomes. Cells below{" "}
-              {DEFAULT_GUARDRAILS.minimumForComparison} show the count rather than a percentage.
-            </p>
-          </section>
-        </>
-      )}
-    </>
+              </span>
+              <span className="ip-arrow" aria-hidden="true">
+                →
+              </span>
+            </Link>
+          ))
+        )}
+      </section>
+
+      <section className="ip-panel ip-col-5" aria-labelledby="jr-breakdown">
+        <div className="ip-section-title">
+          <h2 id="jr-breakdown">{breakdownLabel}</h2>
+        </div>
+        {breakdown.length < 2 ? (
+          <DataState state="NOT_SUPPORTED" />
+        ) : (
+          <div className="ip-table-scroll">
+            <table className="ip-table">
+              <thead>
+                <tr>
+                  <th scope="col">{breakdownLabel}</th>
+                  <th scope="col">n</th>
+                  <th scope="col">Requirement clear</th>
+                  <th scope="col">Preference formed</th>
+                  <th scope="col">Commitment signal</th>
+                  <th scope="col">Sale</th>
+                </tr>
+              </thead>
+              <tbody>
+                {breakdown.map((row) => (
+                  <tr key={row.key}>
+                    <th scope="row">{row.label}</th>
+                    <td>{row.size}</td>
+                    <Cell measure={row.requirementClear} />
+                    <Cell measure={row.preferenceFormed} />
+                    <Cell measure={row.commitment} />
+                    <Cell measure={row.sale} />
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="ip-note">
+          Each cell is judged on its own denominator. Below{" "}
+          {DEFAULT_GUARDRAILS.minimumForComparison} measurable it shows a count, not a percentage.
+        </p>
+      </section>
+    </div>
   );
 }

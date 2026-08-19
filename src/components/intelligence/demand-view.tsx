@@ -1,218 +1,171 @@
-import Link from "next/link";
+import { Fragment } from "react";
 
+import { DataState, stateFor, type SlotState } from "@/components/intelligence/data-state";
+import { RankedBars } from "@/components/intelligence/interactive-ranked-bar";
+import { Delta, formatMoney, formatPercent, tipText } from "@/components/intelligence/metric-tile";
+import { SectionTabs, type Tab } from "@/components/intelligence/section-tabs";
+import { SegmentedBar, type Segment } from "@/components/intelligence/segmented-bar";
 import {
   CLARITY_LABELS,
   type BudgetPicture,
   type ClarityMatrix,
+  type ContextPrices,
   type DemandMetrics,
+  type NoSaleReasons,
   type RankedShare,
 } from "@/modules/intelligence/demand";
-import { displayValue, readableLabel } from "@/modules/intelligence/display";
-import { change, DEFAULT_GUARDRAILS, type Measure } from "@/modules/intelligence/guardrails";
-import { metric } from "@/modules/intelligence/metric-registry";
+import type { Measure } from "@/modules/intelligence/guardrails";
 
 /**
- * Who walked in, what they wanted, and what stopped them.
+ * Demand — what customers came in wanting, in their own words.
  *
- * Ranked bars throughout rather than a variety of chart types. Length from a
- * common baseline is the comparison people read most accurately, and using one
- * grammar repeatedly means a reader learns the page once instead of decoding
- * each panel. Nothing here is a pie.
+ * Customer-side only. What the representative did about any of it belongs to
+ * Frontline; keeping the two apart is what lets a manager see that finance
+ * demand rose without that fact immediately becoming an accusation about the
+ * floor staff.
  *
- * Free-text fields are shown as they were spoken and labelled as such. Merging
- * "battery life" with "Battery Life" would look tidier and would be a taxonomy
- * the business never agreed to.
+ * Free-text fields are shown as they were spoken. Merging "battery life" with
+ * "Battery Life" would look tidier and would be a taxonomy the business never
+ * agreed to — and the number underneath would quietly change meaning.
  */
 
-function percent(value: number | null): string {
-  return value === null ? "—" : `${Math.round(value * 100)}%`;
-}
+export const NEED_TABS: readonly Tab[] = [
+  { key: "initial_request", label: "Initial request" },
+  { key: "use_cases", label: "Use cases" },
+  { key: "requirements", label: "Requirements" },
+  { key: "drivers", label: "Decision drivers" },
+  { key: "brands", label: "Brands" },
+];
 
-function money(minor: number | null, currency: string | null): string {
-  if (minor === null) return "—";
-  const major = minor / 100;
-  const symbol = currency === "INR" ? "₹" : currency ? `${currency} ` : "";
-  if (major >= 100000) return `${symbol}${(major / 100000).toFixed(1).replace(/\.0$/, "")} lakh`;
-  if (major >= 1000) return `${symbol}${Math.round(major / 1000)}K`;
-  return `${symbol}${Math.round(major)}`;
-}
+export type NeedTabKey = (typeof NEED_TABS)[number]["key"];
 
-function Sample({ measure: m }: { measure: Measure }) {
-  if (m.value === null) return <p className="fl-sample">Not measured in this period</p>;
-  const thin = m.observed < DEFAULT_GUARDRAILS.minimumForConfidentDisplay;
-  return (
-    <p className={`fl-sample${thin ? " fl-sample--thin" : ""}`}>
-      {m.affected ?? 0} of {m.observed}
-      {thin ? <span className="fl-lowsample">small sample</span> : null}
-    </p>
-  );
-}
+export const VOICE_TABS: readonly Tab[] = [
+  { key: "context", label: "Context" },
+  { key: "competitors", label: "Competitors" },
+  { key: "stock", label: "Stock & offers" },
+  { key: "questions", label: "Questions" },
+  { key: "objections", label: "Objections" },
+  { key: "conditions", label: "Conditions" },
+];
 
-function Kpi({
-  metricKey,
-  measure: m,
-  previous,
+export type RankedList = { entries: RankedShare[]; eligible: number };
+export type Distribution = { entries: RankedShare[]; classified: number };
+
+/** One list inside the Context & voice section; several share a tab. */
+export type VoicePanel = {
+  key: string;
+  title: string;
+  list: RankedList | Distribution;
+  unit: string;
+  controlled: boolean;
+};
+
+/** The four fixed arrival intents, in the order a customer moves through them. */
+const INTENT_ORDER: readonly { value: string; label: string; tone: Segment["tone"] }[] = [
+  { value: "exploratory", label: "Exploratory", tone: "slate" },
+  { value: "comparing", label: "Comparing", tone: "amber" },
+  { value: "specific_product", label: "Specific product", tone: "indigo" },
+  { value: "ready_to_buy", label: "Ready to buy", tone: "teal" },
+];
+
+function Figure({
+  label,
+  value,
+  measure: m = null,
+  previous = null,
+  meta,
 }: {
-  metricKey: string;
-  measure: Measure;
+  label: string;
+  value: string;
+  measure?: Measure | null;
   previous?: Measure | null;
+  meta?: string;
 }) {
-  const definition = metric(metricKey);
-  const delta = previous ? change(m, previous) : null;
   return (
-    <div className="fl-rate">
-      <dt>{definition.label}</dt>
-      <dd>
-        <strong>{percent(m.value)}</strong>
-        {delta?.comparable && delta.deltaPoints !== null ? (
-          <span className="fl-delta">
-            {delta.deltaPoints > 0 ? "+" : ""}
-            {Math.round(delta.deltaPoints)}pp
-          </span>
-        ) : null}
-        <Sample measure={m} />
-      </dd>
+    <div
+      className="ip-pitem ip-tip"
+      tabIndex={0}
+      data-tip={tipText({ label, value, measure: m, previous })}
+    >
+      <span className="ip-label">{label}</span>
+      <strong>{value}</strong>
+      {m ? <Delta measure={m} previous={previous} /> : null}
+      <span className="ip-meta">{meta ?? (m ? `${m.affected ?? 0} of ${m.observed}` : "—")}</span>
     </div>
   );
 }
 
-/**
- * Turns a stored enum into something a person reads.
- *
- * Applied only to controlled vocabularies. Free-text values are already prose
- * and rewriting them would misrepresent what was said.
- */
-function readable(token: string): string {
-  const spaced = token.replaceAll("_", " ");
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-}
-
-/** The four "what customers need" lists, one shown at a time. */
-export const NEED_TABS = [
-  { key: "use_cases", label: "Use cases" },
-  { key: "requirements", label: "Requirements" },
-  { key: "drivers", label: "Decision drivers" },
-  { key: "brands", label: "Brand preferences" },
-] as const;
-
-export type NeedTabKey = (typeof NEED_TABS)[number]["key"];
-
-/** A ranked bar list. The only comparison shape on this page. */
-function Ranked({
-  title,
-  note,
-  entries,
-  eligible,
+/** A ranked list inside a tab, with its own data state. */
+function ListPanel({
+  list,
   unit,
   controlled,
   limit,
   expandHref,
+  hrefFor,
 }: {
-  title: string;
-  note?: string;
-  entries: RankedShare[];
-  eligible: number;
+  list: RankedList | Distribution;
   unit: string;
-  /** Whether the values come from a fixed vocabulary and may be relabelled. */
   controlled?: boolean;
-  /** Show only this many until the reader asks for the rest. */
   limit?: number;
   expandHref?: string | null;
+  hrefFor?: (value: string) => string;
 }) {
-  if (entries.length === 0) {
-    return (
-      <div className="dm-panel">
-        <h3>{title}</h3>
-        <p className="fl-none">Nothing recorded in this period.</p>
-      </div>
-    );
-  }
-  const widest = entries[0]!.interactions || 1;
-  // Long free-text lists open at five. The rest are a link away rather than
-  // absent — the data must stay reachable, it just should not consume the page
-  // before the reader has decided they want it.
-  const hidden = limit && expandHref ? Math.max(0, entries.length - limit) : 0;
-  const shown = hidden > 0 ? entries.slice(0, limit) : entries;
+  const eligible = "eligible" in list ? list.eligible : list.classified;
+  const state: SlotState =
+    eligible === 0 ? "NOT_SUPPORTED" : list.entries.length === 0 ? "NO_OBSERVATIONS" : "POPULATED";
+  if (state !== "POPULATED") return <DataState state={state} />;
   return (
-    <div className="dm-panel">
-      <h3>{title}</h3>
-      <ul className="dm-bars">
-        {shown.map((entry) => (
-          <li key={`${entry.label ?? ""}-${entry.value}`}>
-            <span className="dm-bar-label" title={entry.value}>
-              {entry.label ? <em>{readableLabel(entry.label)}</em> : null}
-              {controlled ? readable(entry.value) : displayValue(entry.label, entry.value).text}
-            </span>
-            <span className="dm-bar-track" aria-hidden="true">
-              <span
-                className="dm-bar-fill"
-                style={{ width: `${Math.max(2, (entry.interactions / widest) * 100)}%` }}
-              />
-            </span>
-            <span className="dm-bar-value">
-              {entry.interactions} · {percent(entry.share)}
-            </span>
-          </li>
-        ))}
-      </ul>
-      <p className="fl-sample">
-        {unit.startsWith("of ") ? unit : `of ${eligible} ${unit}`}
-        {hidden > 0 && expandHref ? (
-          <>
-            {" · "}
-            <Link href={expandHref}>Show all {entries.length}</Link>
-          </>
-        ) : null}
-      </p>
-      {note ? <p className="fl-note">{note}</p> : null}
-    </div>
+    <RankedBars
+      entries={list.entries}
+      eligible={eligible}
+      unit={unit}
+      controlled={controlled}
+      limit={limit}
+      expandHref={expandHref}
+      hrefFor={hrefFor}
+    />
   );
 }
 
 function ClarityGrid({ matrix }: { matrix: ClarityMatrix }) {
-  if (matrix.paired === 0) {
-    return <p className="fl-none">No interaction had both an opening and a closing clarity.</p>;
-  }
+  if (matrix.paired === 0) return <DataState state="NO_OBSERVATIONS" />;
   const busiest = Math.max(...matrix.cells.flat(), 1);
+  // One sequential family, not four hues. The reading is ordinal — more or
+  // fewer interactions — and a rainbow would invent categories.
+  const step = (count: number) =>
+    count === 0 ? "" : ` ip-h${Math.min(4, Math.ceil((count / busiest) * 4))}`;
   return (
-    <table className="dm-matrix">
-      <caption className="fl-sample">
-        Rows: clarity on arrival. Columns: clarity at the close. {matrix.paired} interactions.
-      </caption>
-      <thead>
-        <tr>
-          <th scope="col">
-            <span className="dm-matrix-corner">arrival ↓ / close →</span>
-          </th>
-          {CLARITY_LABELS.map((label) => (
-            <th key={label} scope="col">
-              {label}
-            </th>
+    <div className="ip-matrix" role="table" aria-label="Requirement clarity, arrival against close">
+      <span className="ip-mcell ip-mhead" role="columnheader">
+        ↓ arrival
+      </span>
+      {CLARITY_LABELS.map((label) => (
+        <span className="ip-mcell ip-mhead" key={`head-${label}`} role="columnheader">
+          {label}
+        </span>
+      ))}
+      {matrix.cells.map((rowCells, start) => (
+        // Flat rather than a nested grid: a sub-grid re-declaring the same
+        // tracks pushed the whole matrix wider than its panel.
+        <Fragment key={CLARITY_LABELS[start]}>
+          <span className="ip-mcell ip-mhead" role="rowheader">
+            {CLARITY_LABELS[start]}
+          </span>
+          {rowCells.map((count, end) => (
+            <span
+              className={`ip-mcell${step(count)} ip-tip`}
+              key={end}
+              role="cell"
+              tabIndex={0}
+              data-tip={`Arrived ${CLARITY_LABELS[start]} · closed ${CLARITY_LABELS[end]} · ${count} of ${matrix.paired}`}
+            >
+              {count || ""}
+            </span>
           ))}
-        </tr>
-      </thead>
-      <tbody>
-        {matrix.cells.map((rowCells, start) => (
-          <tr key={CLARITY_LABELS[start]}>
-            <th scope="row">{CLARITY_LABELS[start]}</th>
-            {rowCells.map((count, end) => (
-              <td
-                key={end}
-                // Weight, not hue. A single ink at varying strength keeps the
-                // reading ordinal and survives being printed or colour-blind.
-                style={{
-                  background: count
-                    ? `rgba(20,20,19,${0.06 + (count / busiest) * 0.5})`
-                    : undefined,
-                }}
-              >
-                {count || ""}
-              </td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+        </Fragment>
+      ))}
+    </div>
   );
 }
 
@@ -220,228 +173,247 @@ export function DemandView({
   metrics,
   previous,
   budget,
+  prices,
   clarity,
+  origins,
   categories,
   intents,
-  useCases,
-  requirements,
-  drivers,
-  brands,
-  questions,
-  blockers,
-  conditions,
-  periodLabel,
+  needs,
   need,
   needHref,
   expandHref,
+  voice,
+  voiceTab,
+  voiceHref,
+  blockers,
+  categoryHref,
+  categoryExpandHref,
+  intentHref,
 }: {
   metrics: DemandMetrics;
   previous: DemandMetrics | null;
   budget: BudgetPicture;
+  prices: ContextPrices;
   clarity: ClarityMatrix;
-  categories: { entries: RankedShare[]; classified: number };
-  intents: { entries: RankedShare[]; classified: number };
-  useCases: { entries: RankedShare[]; eligible: number };
-  requirements: { entries: RankedShare[]; eligible: number };
-  drivers: { entries: RankedShare[]; eligible: number };
-  brands: { entries: RankedShare[]; eligible: number };
-  questions: { entries: RankedShare[]; eligible: number };
-  blockers: {
-    entries: RankedShare[];
-    classified: number;
-    confirmedNoSales: number;
-    coverage: number | null;
-  };
-  conditions: { entries: RankedShare[]; eligible: number };
-  periodLabel: string;
-  /** Which of the four need lists is showing. */
-  need: NeedTabKey;
-  needHref: (key: NeedTabKey) => string;
-  /** Link that reveals every entry, or null when already expanded. */
+  origins: RankedList;
+  categories: Distribution;
+  intents: Distribution;
+  needs: RankedList;
+  need: string;
+  needHref: (key: string) => string;
   expandHref: string | null;
+  voice: VoicePanel[];
+  voiceTab: string;
+  voiceHref: (key: string) => string;
+  blockers: NoSaleReasons;
+  categoryHref: (value: string) => string;
+  /** Reveals every category, or null when they are all already shown. */
+  categoryExpandHref: string | null;
+  intentHref: (value: string) => string;
 }) {
-  if (metrics.analysed === 0) {
-    return (
-      <section className="fl-empty">
-        <p>No analysed interactions in {periodLabel}.</p>
-        <p className="fl-empty-note">
-          Conversations appear here once they have been transcribed, speaker-mapped and analysed.
-        </p>
-      </section>
-    );
-  }
+  const intentSegments: Segment[] = INTENT_ORDER.map((intent) => ({
+    key: intent.value,
+    label: intent.label,
+    tone: intent.tone,
+    count: intents.entries.find((entry) => entry.value === intent.value)?.interactions ?? 0,
+    href: intentHref(intent.value),
+  }));
+  const intentState: SlotState = intents.classified === 0 ? "NO_OBSERVATIONS" : "POPULATED";
+  const blockerState: SlotState =
+    blockers.confirmedNoSales === 0
+      ? "NO_OBSERVATIONS"
+      : blockers.classified === 0
+        ? "NOT_SUPPORTED"
+        : "POPULATED";
 
   return (
-    <>
-      <section className="fl-section" aria-labelledby="dm-pulse">
-        <h2 id="dm-pulse">Who walked in</h2>
-        <dl className="fl-rates">
-          <Kpi
-            metricKey="high_intent_arrival"
-            measure={metrics.highIntent}
-            previous={previous?.highIntent}
-          />
-          <Kpi
-            metricKey="finance_demand"
-            measure={metrics.financeDemand}
-            previous={previous?.financeDemand}
-          />
-          <Kpi
-            metricKey="competitor_pressure"
-            measure={metrics.competitorPressure}
-            previous={previous?.competitorPressure}
-          />
-        </dl>
+    <div className="ip-grid12">
+      <section className="ip-panel ip-snapshot ip-col-12" aria-label="Snapshot">
+        <Figure
+          label="Analysed interactions"
+          value={String(metrics.analysed)}
+          meta="in the selected scope"
+        />
+        <Figure
+          label="Median target budget"
+          value={formatMoney(budget.targetMedian, budget.currency)}
+          meta={`stated in ${budget.targetObserved} interaction${budget.targetObserved === 1 ? "" : "s"}`}
+        />
+        <Figure
+          label="Finance demand"
+          value={formatPercent(metrics.financeDemand.value)}
+          measure={metrics.financeDemand}
+          previous={previous?.financeDemand ?? null}
+        />
+        <Figure
+          label="Competitor mentions"
+          value={formatPercent(metrics.competitorPressure.value)}
+          measure={metrics.competitorPressure}
+          previous={previous?.competitorPressure ?? null}
+        />
       </section>
 
-      <section className="fl-section" aria-labelledby="dm-wanted">
-        <h2 id="dm-wanted">What they came for</h2>
-        <div className="dm-grid">
-          <Ranked
-            title="Category"
-            controlled
-            entries={categories.entries}
-            eligible={categories.classified}
-            unit="interactions with a category"
-          />
-          <Ranked
-            title="How decided they were on arrival"
-            controlled
-            entries={intents.entries}
-            eligible={intents.classified}
-            unit="interactions with a readable intent"
-          />
+      <section className="ip-panel ip-col-7" aria-labelledby="dm-mix">
+        <div className="ip-section-title">
+          <h2 id="dm-mix">Demand mix</h2>
+          <span className="ip-meta">Click a category to filter</span>
         </div>
-        <div className="dm-needs" role="group" aria-label="What customers need">
-          <span className="ifb-label">Showing</span>
-          {NEED_TABS.map((tab) => (
-            <Link
-              key={tab.key}
-              className={`ifb-chip${tab.key === need ? " ifb-chip--active" : ""}`}
-              href={needHref(tab.key)}
-              aria-current={tab.key === need ? "true" : undefined}
-            >
-              {tab.label}
-            </Link>
-          ))}
+        <ListPanel
+          list={categories}
+          controlled
+          unit={`of ${categories.classified} interactions with a category`}
+          limit={categoryExpandHref === null ? undefined : 8}
+          expandHref={categoryExpandHref}
+          hrefFor={categoryHref}
+        />
+      </section>
+
+      <section className="ip-panel ip-col-5" aria-labelledby="dm-intent">
+        <div className="ip-section-title">
+          <h2 id="dm-intent">Arrival intent</h2>
+          <span className="ip-meta">Click a segment to filter</span>
         </div>
-        {need === "use_cases" ? (
-          <Ranked
-            title="What they wanted it for"
-            entries={useCases.entries}
-            eligible={useCases.eligible}
-            unit="interactions had at least one use case recorded"
-            limit={5}
-            expandHref={expandHref}
-            note="One customer can want several things, so these add to more than 100%. Shown as spoken — near-identical wordings are not merged, because doing so would invent a taxonomy nobody agreed to."
-          />
-        ) : need === "requirements" ? (
-          <Ranked
-            title="Requirements"
-            entries={requirements.entries}
-            eligible={requirements.eligible}
-            unit="interactions had at least one requirement recorded"
-            limit={5}
-            expandHref={expandHref}
-          />
-        ) : need === "drivers" ? (
-          <Ranked
-            title="Decision drivers"
-            entries={drivers.entries}
-            eligible={drivers.eligible}
-            unit="interactions had at least one driver recorded"
-            limit={5}
-            expandHref={expandHref}
-            note="Free text, shown as spoken."
-          />
+        {intentState === "POPULATED" ? (
+          <SegmentedBar segments={intentSegments} unit="interactions with a readable intent" />
         ) : (
-          <Ranked
-            title="Brands they named a preference for"
-            entries={brands.entries}
-            eligible={brands.eligible}
-            unit="interactions had a brand preference recorded"
-            limit={5}
-            expandHref={expandHref}
-          />
+          <DataState state={intentState} />
         )}
       </section>
 
-      <section className="fl-section" aria-labelledby="dm-spend">
-        <h2 id="dm-spend">What they were willing to spend</h2>
-        <dl className="fl-rates">
-          <div className="fl-rate">
-            <dt>Median stated budget</dt>
-            <dd>
-              <strong>{money(budget.targetMedian, budget.currency)}</strong>
-              <p className="fl-sample">stated in {budget.targetObserved} interactions</p>
-            </dd>
-          </div>
-          <div className="fl-rate">
-            <dt>Median ceiling</dt>
-            <dd>
-              <strong>{money(budget.maximumMedian, budget.currency)}</strong>
-              <p className="fl-sample">stated in {budget.maximumObserved} interactions</p>
-            </dd>
-          </div>
-          <div className="fl-rate">
-            <dt>Room above the opening budget</dt>
-            <dd>
-              <strong>{money(budget.stretchMedian, budget.currency)}</strong>
-              <p className="fl-sample">both figures in {budget.stretchObserved} interactions</p>
-            </dd>
-          </div>
-        </dl>
-        <p className="fl-note">
-          Medians of what customers actually said. An interaction where no budget came up is left
-          out rather than counted as zero, which is why the counts differ from the total.
+      <section className="ip-panel ip-col-12" aria-labelledby="dm-needs">
+        <div className="ip-section-title">
+          <h2 id="dm-needs">Needs</h2>
+          <SectionTabs tabs={NEED_TABS} active={need} hrefFor={needHref} label="Need" />
+        </div>
+        <ListPanel
+          list={needs}
+          unit={`of ${needs.eligible} interactions carried this field`}
+          limit={5}
+          expandHref={expandHref}
+        />
+        <p className="ip-note">
+          Shown as spoken, never merged. One customer can want several things, so these exceed 100%
+          — penetration, not a mix.
         </p>
       </section>
 
-      <section className="fl-section" aria-labelledby="dm-clarity">
-        <h2 id="dm-clarity">Did the conversation help them work out what they needed?</h2>
-        <dl className="fl-rates">
-          <Kpi metricKey="clarity_improved" measure={clarity.improved} previous={null} />
-          <div className="fl-rate">
-            <dt>Arrived unclear and left unclear</dt>
-            <dd>
-              <strong>{clarity.stalledLow}</strong>
-              <p className="fl-sample">of {clarity.paired} with both states</p>
-            </dd>
-          </div>
-        </dl>
-        <ClarityGrid matrix={clarity} />
+      <section className="ip-panel ip-col-6" aria-labelledby="dm-budget">
+        <div className="ip-section-title">
+          <h2 id="dm-budget">Budget</h2>
+        </div>
+        <div className="ip-figure-row">
+          <Figure
+            label="Median target"
+            value={formatMoney(budget.targetMedian, budget.currency)}
+            meta={`${budget.targetObserved} stated`}
+          />
+          <Figure
+            label="Median maximum"
+            value={formatMoney(budget.maximumMedian, budget.currency)}
+            meta={`${budget.maximumObserved} stated`}
+          />
+          <Figure
+            label="Paired median stretch"
+            value={formatMoney(budget.stretchMedian, budget.currency)}
+            meta={`${budget.stretchObserved} with both`}
+          />
+          <Figure
+            label="Coverage"
+            value={formatPercent(budget.observationRate.value)}
+            measure={budget.observationRate}
+          />
+        </div>
+        <div className="ip-figure-row">
+          <Figure
+            label="Store price quoted"
+            value={formatMoney(prices.storeQuotedMedian, prices.currency)}
+            meta={`median of ${prices.storeQuotedObserved} quoted`}
+          />
+          <Figure
+            label="Customer-stated competitor price"
+            value={formatMoney(prices.competitorClaimMedian, prices.currency)}
+            meta={`median of ${prices.competitorClaimObserved} claim${prices.competitorClaimObserved === 1 ? "" : "s"}`}
+          />
+        </div>
+        <p className="ip-note">
+          Medians of what was said; an interaction with no budget is left out, not counted as zero.
+          The competitor figure is customer-stated and unverified.
+        </p>
       </section>
 
-      <section className="fl-section" aria-labelledby="dm-stuck">
-        <h2 id="dm-stuck">What stopped progress</h2>
-        <div className="dm-grid">
-          <Ranked
-            title="Primary observed reason among confirmed no-sales"
-            controlled
-            entries={blockers.entries}
-            eligible={blockers.classified}
-            unit={`of ${blockers.confirmedNoSales} confirmed no-sales, ${blockers.classified} carried an observed reason`}
-            note="Confirmed no-sales only. Interactions where the outcome was never established are not counted here, because a reason cannot be read from a result we do not have. This is what was observed and classified, not a proven cause."
+      <section className="ip-panel ip-col-6" aria-labelledby="dm-clarity">
+        <div className="ip-section-title">
+          <h2 id="dm-clarity">Clarity</h2>
+          <span className="ip-meta">
+            Improved {formatPercent(clarity.improved.value)} · {clarity.improved.affected ?? 0} of{" "}
+            {clarity.improved.observed}
+          </span>
+        </div>
+        <ClarityGrid matrix={clarity} />
+        <p className="ip-note">Rows: clarity on arrival. Columns: clarity at the close.</p>
+        {origins.eligible > 0 ? (
+          <SegmentedBar
+            segments={origins.entries.map((entry, index) => ({
+              key: entry.value,
+              label: entry.value.charAt(0).toUpperCase() + entry.value.slice(1),
+              count: entry.interactions,
+              tone: (["teal", "indigo", "slate"] as const)[index] ?? "slate",
+            }))}
+            unit="requirement origins observed"
           />
-          <Ranked
-            title="What customers said would close it"
-            entries={conditions.entries}
-            eligible={conditions.eligible}
-            unit="unresolved interactions asked"
-            note="What the customer explicitly stated, not our guess at what would have worked. Free text: the same condition phrased four ways counts as four here, because merging them would be us deciding they meant the same thing."
+        ) : (
+          <DataState state="NOT_SUPPORTED" compact />
+        )}
+      </section>
+
+      <section className="ip-panel ip-col-12" aria-labelledby="dm-voice">
+        <div className="ip-section-title">
+          <h2 id="dm-voice">Context &amp; voice</h2>
+          <SectionTabs
+            tabs={VOICE_TABS}
+            active={voiceTab}
+            hrefFor={voiceHref}
+            label="Context and voice"
           />
+        </div>
+        <div className="ip-subgrid">
+          {voice.map((panel) => (
+            <div className="ip-subpanel" key={panel.key}>
+              <h3>{panel.title}</h3>
+              <ListPanel
+                list={panel.list}
+                unit={panel.unit}
+                controlled={panel.controlled}
+                limit={6}
+              />
+            </div>
+          ))}
         </div>
       </section>
 
-      <section className="fl-section" aria-labelledby="dm-asking">
-        <h2 id="dm-asking">What they were asking about</h2>
-        <Ranked
-          title="Question topics"
-          entries={questions.entries}
-          eligible={questions.eligible}
-          unit="interactions asked"
-        />
+      <section className="ip-panel ip-col-12" aria-labelledby="dm-blockers">
+        <div className="ip-section-title">
+          <h2 id="dm-blockers">No-sale blockers</h2>
+          <span className="ip-meta">
+            {blockers.confirmedNoSales} confirmed no-sales · {blockers.classified} with a reason ·{" "}
+            {formatPercent(blockers.coverage)} coverage
+          </span>
+        </div>
+        {blockerState === "POPULATED" ? (
+          <RankedBars
+            entries={blockers.entries}
+            eligible={blockers.classified}
+            controlled
+            unit={`of ${blockers.classified} confirmed no-sales carrying an observed reason`}
+          />
+        ) : (
+          <DataState state={blockerState} />
+        )}
+        <p className="ip-note">
+          Confirmed no-sales only — a reason cannot be read from a result we never established.
+          Observed and classified, never a proven cause.
+        </p>
       </section>
-    </>
+    </div>
   );
 }

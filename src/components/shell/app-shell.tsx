@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { applicationRoutes } from "@/modules/application/routes";
+import { FILTER_PARAM_KEYS } from "@/modules/intelligence/filters";
 import { roleLabel, type MembershipRole } from "@/modules/identity/roles";
 import { createClient } from "@/lib/supabase/client";
 
@@ -24,12 +25,32 @@ type AppShellProps = {
 export function AppShell({ children, context, switchOrganization }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { currentOrganization } = context;
   const navigationGroups = ["Interactions", "Intelligence", "Configure"] as const;
   // A section's own sub-pages keep it selected. Without this, opening category
   // mapping from Administration leaves nothing in the sidebar marked, and the
   // reader loses track of where in the product they are.
   const isCurrentSection = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+
+  /**
+   * Moving between the four Intelligence pages keeps the selection.
+   *
+   * A manager who has narrowed to one store and a fortnight, then clicks
+   * Journey, is still asking about that store and that fortnight. Only the
+   * population filters travel — the open tab, the selected stage and the
+   * evidence drawer are page-local and would be meaningless anywhere else.
+   */
+  const hrefFor = (href: string) => {
+    if (!href.startsWith("/intelligence/") || !pathname.startsWith("/intelligence/")) return href;
+    const carried = new URLSearchParams();
+    for (const key of FILTER_PARAM_KEYS) {
+      const value = searchParams.get(key);
+      if (value) carried.set(key, value);
+    }
+    const query = carried.toString();
+    return query ? `${href}?${query}` : href;
+  };
   const assignmentSummary =
     context.assignmentCount > 0
       ? `${context.assignmentCount} active scope assignment${context.assignmentCount === 1 ? "" : "s"}`
@@ -62,7 +83,7 @@ export function AppShell({ children, context, switchOrganization }: AppShellProp
                     <Link
                       aria-current={active ? "page" : undefined}
                       className={active ? "nav-link nav-link-active" : "nav-link"}
-                      href={route.href}
+                      href={hrefFor(route.href)}
                       key={route.href}
                     >
                       {route.label}
@@ -134,7 +155,7 @@ export function AppShell({ children, context, switchOrganization }: AppShellProp
               <Link
                 aria-current={active ? "page" : undefined}
                 className={active ? "mobile-nav-link mobile-nav-link-active" : "mobile-nav-link"}
-                href={route.href}
+                href={hrefFor(route.href)}
                 key={route.href}
               >
                 {route.label}

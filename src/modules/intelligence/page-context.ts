@@ -3,6 +3,8 @@ import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { getApplicationContext } from "@/modules/identity/application-context";
 import {
+  narrowByScope,
+  observedLanguages,
   parseFilters,
   resolvePeriods,
   type IntelligenceFilters,
@@ -31,7 +33,13 @@ export type IntelligencePageContext = {
   stores: FilterOption[];
   representatives: FilterOption[];
   categories: string[];
+  /** Arrival intents actually observed in the authorized slice. */
+  intents: string[];
+  /** Languages actually observed in the authorized slice. */
+  languages: string[];
   selectedStoreName: string | null;
+  /** Distinct stores represented in the current, fully narrowed population. */
+  storeCount: number;
 };
 
 /**
@@ -127,7 +135,7 @@ export async function resolveIntelligencePage(
   // because their slice is empty would widen the page back to every
   // representative without the reader asking for it.
   const narrowed = selectedRep !== null || scopedFilters.category !== null;
-  const [current, previous] = await Promise.all([
+  const [currentAll, previousAll] = await Promise.all([
     narrowed
       ? load(
           periods.current.from,
@@ -146,6 +154,17 @@ export async function resolveIntelligencePage(
       : null,
   ]);
 
+  // Interaction-level dimensions are applied after the read, to the same
+  // population both periods are drawn from. A selection matching nothing stays
+  // selected and returns zero rows rather than quietly widening.
+  const current: PopulationSummary = {
+    ...currentAll,
+    rows: narrowByScope(currentAll.rows, scopedFilters),
+  };
+  const previous: PopulationSummary | null = previousAll
+    ? { ...previousAll, rows: narrowByScope(previousAll.rows, scopedFilters) }
+    : null;
+
   return {
     organizationId: organization.id,
     filters: scopedFilters,
@@ -156,6 +175,12 @@ export async function resolveIntelligencePage(
     representatives,
     // From the unnarrowed slice, so choosing a category never removes the others.
     categories: base.availableCategories,
+    intents: [
+      ...new Set(base.rows.flatMap((row) => (row.arrivalIntent ? [row.arrivalIntent] : []))),
+    ].sort(),
+    languages: observedLanguages(base.rows),
     selectedStoreName: selectedStore?.name ?? null,
+    storeCount: new Set(current.rows.flatMap((row) => (row.locationId ? [row.locationId] : [])))
+      .size,
   };
 }

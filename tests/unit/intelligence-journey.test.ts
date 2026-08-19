@@ -102,7 +102,7 @@ describe("how far the cohort got", () => {
     expect(preference.reached).toBe(2);
     expect(preference.reach.value).toBe(0.5);
     expect(preference.progression!.value).toBe(0.5);
-    expect(preference.lost).toBe(2);
+    expect(preference.gap!.missing).toBe(2);
   });
 
   it("does not count a record that predates a field as failing to reach a state", () => {
@@ -133,10 +133,13 @@ describe("how far the cohort got", () => {
     const leakage = journeyLeakageCohorts(cohort);
     const bySize = new Map(leakage.map((item) => [item.key, item.conversationIds.length]));
     for (const stage of journeyStages(cohort, leakage)) {
-      if (!stage.gapCohortKey) continue;
-      expect(stage.lost, `${stage.key} gap disagrees with its cohort`).toBe(
-        bySize.get(stage.gapCohortKey) ?? 0,
+      if (!stage.gap) continue;
+      expect(stage.gap.missing, `${stage.key} gap disagrees with its cohort`).toBe(
+        bySize.get(stage.gap.cohortKey) ?? 0,
       );
+      // The two lines the rail prints have to be complementary, or a reader is
+      // handed two numbers that cannot both be true.
+      expect(stage.gap.observed + stage.gap.missing).toBe(stage.gap.measurable);
     }
   });
 
@@ -144,7 +147,7 @@ describe("how far the cohort got", () => {
     const stages = journeyStages([through("clear"), through("clear")]);
     expect(stages[0]!.reach.value).toBe(1);
     expect(stages[0]!.progression).toBeNull();
-    expect(stages[0]!.lost).toBe(0);
+    expect(stages[0]!.gap).toBeNull();
   });
 });
 
@@ -167,7 +170,11 @@ describe("where the journey broke", () => {
     expect(
       cohorts.find((cohort) => cohort.key === "commitment_then_no_sale")?.conversationIds,
     ).toHaveLength(1);
-    expect(cohorts.find((cohort) => cohort.key === "commitment_outcome_unknown")).toBeUndefined();
+    // The group exists as a fixed slot — the rail takes its denominator from
+    // here — but nothing is in it.
+    expect(
+      cohorts.find((cohort) => cohort.key === "commitment_outcome_unknown")?.conversationIds,
+    ).toHaveLength(0);
   });
 
   it("cites something that was said, never an absence", () => {
@@ -203,14 +210,21 @@ describe("resolving a cohort for the drill-down", () => {
 });
 
 describe("the frontline lane beside the journey", () => {
-  it("measures each behaviour against the cohort, excluding unasked records", () => {
+  it("measures each behaviour on the population that could answer it", () => {
+    // Two records answered the demo question, one of them yes. The two that
+    // were never asked are not misses — counting them as such made the same
+    // behaviour read 25% here and 50% on Frontline, which is how a reader
+    // decides the dashboard cannot be trusted.
     const rates = interventions([
       row({ demoPerformed: "yes" }),
       row({ demoPerformed: "no" }),
       row({ values: [value("close_attempts", "shall I bill it")] }),
       row({ values: [] }),
     ]);
-    expect(rates.find((rate) => rate.key === "demo")!.measure.value).toBe(0.25);
+    const demo = rates.find((rate) => rate.key === "demo")!.measure;
+    expect(demo.value).toBe(0.5);
+    expect(demo.observed).toBe(2);
+    expect(demo.eligible).toBe(4);
     expect(rates.find((rate) => rate.key === "close")!.measure.observed).toBe(1);
   });
 });

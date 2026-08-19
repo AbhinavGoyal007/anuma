@@ -3869,1040 +3869,1442 @@ a {
   }
 }
 
-/* Frontline intelligence.
-   Deliberately few containers: sections separated by rules and spacing rather
-   than each number floating in its own card, and the denominator sitting with
-   the figure it qualifies instead of hiding in a tooltip. */
-.fl-context {
-  color: var(--graphite);
-  font-size: 0.88rem;
-  margin: 0 0 1.75rem;
-}
-
-.fl-section {
-  border-top: 1px solid var(--border);
-  margin-top: 2rem;
-  padding-top: 1.4rem;
-}
-
-.fl-section > h2 {
-  font-size: 1.02rem;
-  letter-spacing: -0.01em;
-  margin: 0 0 1rem;
-}
-
-.fl-actions {
-  display: grid;
-  gap: 1.1rem;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.fl-actions > li {
-  border-left: 2px solid var(--carbon);
-  padding-left: 0.9rem;
-}
-
-.fl-action-headline {
-  color: var(--carbon);
-  font-size: 0.98rem;
-  line-height: 1.45;
-  margin: 0;
-}
-
-.fl-action-headline strong {
-  font-size: 1.25rem;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-  margin-right: 0.15rem;
-}
-
-.fl-action-reason {
-  color: var(--muted);
-  font-size: 0.8rem;
-  margin: 0.25rem 0 0;
-}
-
-.fl-action-link {
-  display: inline-block;
-  font-size: 0.82rem;
-  margin-top: 0.45rem;
-}
-
-.fl-rates {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin: 0;
-}
-
-.fl-rate {
-  border-bottom: 1px solid var(--border);
-  padding: 0.85rem 1.25rem 0.85rem 0;
-}
-
-.fl-rate dt {
-  color: var(--graphite);
-  font-size: 0.75rem;
-  font-weight: 650;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.fl-rate dd {
-  align-items: baseline;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin: 0.3rem 0 0;
-}
-
-.fl-rate dd strong {
-  color: var(--carbon);
-  font-size: 1.5rem;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.025em;
-}
-
-.fl-sample {
-  color: var(--muted);
-  font-size: 0.76rem;
-  font-variant-numeric: tabular-nums;
-  margin: 0;
-}
-
-.fl-sample--thin {
-  color: var(--graphite);
-}
-
-.fl-provisional {
-  border: 1px solid var(--border);
-  border-radius: 2px;
-  color: var(--muted);
-  cursor: help;
-  font-size: 0.66rem;
-  letter-spacing: 0.05em;
-  padding: 0.08rem 0.32rem;
-  text-transform: uppercase;
-}
-
-.fl-table {
-  border-collapse: collapse;
-  font-variant-numeric: tabular-nums;
-  width: 100%;
-}
-
-.fl-table th,
-.fl-table td {
-  border-bottom: 1px solid var(--border);
-  padding: 0.6rem 0.75rem 0.6rem 0;
-  text-align: right;
-}
-
-.fl-table thead th {
-  color: var(--graphite);
-  font-size: 0.72rem;
-  font-weight: 650;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.fl-table th:first-child,
-.fl-table tbody th {
-  font-weight: 500;
-  text-align: left;
-}
-
-.fl-note,
-.fl-none,
-.fl-footnote,
-.fl-empty-note {
-  color: var(--graphite);
-  font-size: 0.82rem;
-  line-height: 1.55;
-  margin: 0.9rem 0 0;
-  max-width: 74ch;
-}
-
-.fl-footnote {
-  border-top: 1px solid var(--border);
-  color: var(--muted);
-  margin-top: 2rem;
-  padding-top: 1rem;
-}
-
-.fl-empty {
-  border-top: 1px solid var(--border);
-  padding-top: 1.5rem;
-}
-
-@media (max-width: 900px) {
-  .fl-rates {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 560px) {
-  .fl-rates {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .fl-table {
-    display: block;
-    overflow-x: auto;
-  }
-}
-
-/* Intelligence filter bar. Chips rather than dropdowns: the whole selection is
-   readable at a glance and every state is a real address. */
-.ifb {
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 1.6rem;
-  margin: 0 0 1.5rem;
-  padding-bottom: 0.9rem;
-}
-
-.ifb-group {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.ifb-label {
-  color: var(--muted);
-  font-size: 0.68rem;
-  font-weight: 650;
-  letter-spacing: 0.08em;
-  margin-right: 0.15rem;
-  text-transform: uppercase;
-}
-
-.ifb-chip {
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  color: var(--graphite);
-  font-size: 0.78rem;
-  padding: 0.2rem 0.55rem;
-  text-decoration: none;
-}
-
-.ifb-chip:hover {
-  border-color: var(--graphite);
-  color: var(--carbon);
-}
-
-.ifb-chip--active {
-  background: var(--carbon);
-  border-color: var(--carbon);
-  color: var(--paper, #fff);
-}
-
-.fl-delta {
-  color: var(--graphite);
-  font-size: 0.8rem;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Cohort drill-down: the interactions behind one number, each with the
-   transcript line that put it there. */
-.cohort-list {
-  display: grid;
-  gap: 0;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.cohort-item {
-  border-bottom: 1px solid var(--border);
-  padding: 1.05rem 0;
-}
-
-.cohort-head {
-  align-items: baseline;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  justify-content: space-between;
-}
-
-.cohort-title {
-  color: var(--carbon);
-  font-size: 0.95rem;
-  font-weight: 550;
-}
-
-.cohort-meta {
-  color: var(--muted);
-  font-size: 0.76rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.cohort-reason {
-  color: var(--graphite);
-  font-size: 0.8rem;
-  margin: 0.25rem 0 0;
-}
-
-.cohort-evidence {
-  border-left: 2px solid var(--border);
-  display: grid;
-  gap: 0.4rem;
-  list-style: none;
-  margin: 0.7rem 0 0;
-  padding: 0 0 0 0.85rem;
-}
-
-.cohort-evidence li {
-  color: var(--carbon);
-  font-size: 0.85rem;
-  line-height: 1.5;
-}
-
-.cohort-stamp,
-.cohort-role {
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-variant-numeric: tabular-nums;
-  margin-right: 0.5rem;
-}
-
-.cohort-role {
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.cohort-evidence q {
-  quotes: "\201C" "\201D";
-}
-
-.cohort-noevidence {
-  color: var(--muted);
-  font-size: 0.8rem;
-  font-style: italic;
-  margin: 0.6rem 0 0;
-}
-
-/* Customer demand. One comparison grammar throughout: ranked bars from a common
-   baseline, because length against a shared start is the comparison people read
-   most accurately and repeating it means the page is learned once. */
-.dm-grid {
-  display: grid;
-  gap: 2rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-bottom: 1.5rem;
-}
-
-.dm-panel > h3 {
-  color: var(--graphite);
-  font-size: 0.75rem;
-  font-weight: 650;
-  letter-spacing: 0.07em;
-  margin: 0 0 0.7rem;
-  text-transform: uppercase;
-}
-
-.dm-bars {
-  display: grid;
-  gap: 0.3rem;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.dm-bars li {
-  align-items: baseline;
-  display: grid;
-  gap: 0.6rem;
-  grid-template-columns: minmax(0, 11rem) 1fr auto;
-}
-
-.dm-bar-label {
-  color: var(--carbon);
-  /* Two lines rather than an aggressive ellipsis: a requirement a customer
-     actually spoke is the content, and "architecture work using Aut…" is not a
-     finding anyone can act on. The full value stays in the title for the rest. */
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  font-size: 0.82rem;
-  line-height: 1.3;
-  overflow: hidden;
-}
-
-.dm-bar-label em {
-  color: var(--muted);
-  font-size: 0.7rem;
-  font-style: normal;
-  letter-spacing: 0.04em;
-  margin-right: 0.35rem;
-  text-transform: uppercase;
-}
-
-.dm-bar-track {
-  background: var(--border);
-  display: block;
-  height: 0.55rem;
-}
-
-.dm-bar-fill {
-  background: var(--carbon);
-  display: block;
-  height: 100%;
-}
-
-.dm-bar-value {
-  color: var(--muted);
-  font-size: 0.74rem;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.dm-matrix {
-  border-collapse: collapse;
-  font-variant-numeric: tabular-nums;
-  margin-top: 1rem;
-}
-
-.dm-matrix caption {
-  caption-side: bottom;
-  padding-top: 0.6rem;
-  text-align: left;
-}
-
-.dm-matrix th,
-.dm-matrix td {
-  border: 1px solid var(--border);
-  min-width: 4.5rem;
-  padding: 0.45rem 0.6rem;
-  text-align: center;
-}
-
-.dm-matrix thead th,
-.dm-matrix tbody th {
-  color: var(--graphite);
-  font-size: 0.72rem;
-  font-weight: 650;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.dm-matrix tbody th {
-  text-align: left;
-}
-
-.dm-matrix-corner {
-  color: var(--muted);
-  font-size: 0.62rem;
-  font-weight: 400;
-  letter-spacing: 0.02em;
-  text-transform: none;
-}
-
-@media (max-width: 900px) {
-  .dm-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .dm-bars li {
-    grid-template-columns: minmax(0, 8rem) 1fr auto;
-  }
-}
-
-/* Decision journey. A rail of equal-width stages rather than a tapering funnel:
-   the width of a funnel asserts that everyone had to pass through every stage,
-   and these conversations did not. The gap between stages is the clickable part,
-   because "who stopped just before this" is the question worth asking. */
-.jr-cohorts {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-bottom: 1rem;
-}
-
-.jr-rail {
-  display: grid;
-  gap: 0;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  list-style: none;
-  margin: 1.5rem 0 0;
-  padding: 0;
-}
-
-.jr-rail > li {
-  display: grid;
-  grid-template-rows: auto 1fr;
-}
-
-.jr-gap {
-  border-left: 1px solid var(--border);
-  display: grid;
-  gap: 0.1rem;
-  padding: 0 0 0.6rem 0.7rem;
-}
-
-.jr-gap-link,
-.jr-gap-none {
-  color: var(--graphite);
-  font-size: 0.76rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.jr-gap-none {
-  color: var(--muted);
-}
-
-.jr-progress {
-  color: var(--muted);
-  font-size: 0.7rem;
-}
-
-.jr-stage {
-  border-top: 2px solid var(--carbon);
-  padding: 0.7rem 1rem 0 0;
-}
-
-.jr-rail > li:first-child .jr-stage {
-  padding-left: 0;
-}
-
-.jr-stage-label {
-  color: var(--graphite);
-  font-size: 0.72rem;
-  font-weight: 650;
-  letter-spacing: 0.06em;
-  margin: 0;
-  text-transform: uppercase;
-}
-
-.jr-stage-count {
-  align-items: baseline;
-  display: flex;
-  gap: 0.45rem;
-  margin: 0.25rem 0 0;
-}
-
-.jr-stage-count strong {
-  color: var(--carbon);
-  font-size: 1.5rem;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.025em;
-}
-
-.jr-stage-share {
-  color: var(--graphite);
-  font-size: 0.85rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.jr-stage-meaning {
-  color: var(--muted);
-  font-size: 0.74rem;
-  line-height: 1.45;
-  margin: 0.35rem 0 0.3rem;
-}
-
-.jr-sample {
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.jr-thin {
-  color: var(--muted);
-  cursor: help;
-  margin-left: 0.2rem;
-}
-
-@media (max-width: 900px) {
-  .jr-rail {
-    grid-auto-flow: row;
-  }
-  .jr-gap {
-    border-left: none;
-    border-top: 1px solid var(--border);
-    padding: 0.5rem 0 0.5rem 0;
-  }
-  .jr-stage {
-    padding-right: 0;
-  }
-}
-
-/* Overview. A short list, not a report: findings carry their own weight through
-   a rule at the left edge rather than each sitting in its own floating card. */
-.ov-list {
-  display: grid;
-  gap: 1.15rem;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.ov-item {
-  border-left: 2px solid var(--border);
-  padding-left: 0.9rem;
-}
-
-.ov-item--high {
-  border-left-color: var(--carbon);
-}
-
-.ov-item--medium {
-  border-left-color: var(--graphite);
-}
-
-.ov-headline {
-  color: var(--carbon);
-  font-size: 1rem;
-  line-height: 1.45;
-  margin: 0;
-}
-
-.ov-sowhat {
-  color: var(--muted);
-  font-size: 0.82rem;
-  line-height: 1.5;
-  margin: 0.25rem 0 0;
-  max-width: 68ch;
-}
-
-.ifb-reset {
-  align-self: center;
-  color: var(--graphite);
-  font-family: ui-sans-serif, sans-serif;
-  font-size: 0.76rem;
-  margin-left: auto;
-}
-
-/* Management tracking chart. A polyline, dots and a baseline — no library, so
-   the type scale and palette stay ANUMA's. Breaks in the line are the point:
-   a period that could not carry the metric must not be joined through. */
-.tc {
-  border: 1px solid var(--border);
-  padding: 1rem 1.1rem 0.9rem;
-}
-
-.tc-head {
-  align-items: baseline;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem 1.2rem;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-}
-
-.tc-metric {
-  color: var(--carbon);
-  font-family: ui-sans-serif, sans-serif;
-  font-size: 0.95rem;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-  margin: 0;
-}
-
-.tc-move {
-  color: var(--signal-coral, #b3441d);
-  font-family: ui-sans-serif, sans-serif;
-  font-size: 0.8rem;
-  font-variant-numeric: tabular-nums;
-  margin: 0.15rem 0 0;
-}
-
-.tc-move--flat {
-  color: var(--muted);
-}
-
-.tc-picker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
-}
-
-.tc-svg {
-  display: block;
-  height: auto;
-  width: 100%;
-}
-
-.tc-axis {
-  stroke: var(--border);
-  stroke-width: 1;
-}
-
-.tc-line {
-  fill: none;
-  stroke: var(--carbon);
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.8;
-}
-
-.tc-dot {
-  fill: var(--carbon);
-}
-
-.tc-dot--last {
-  fill: var(--signal-coral, #b3441d);
-}
-
-.tc-thin {
-  fill: var(--muted);
-  opacity: 0.55;
-}
-
-.tc-endlabel {
-  fill: var(--signal-coral, #b3441d);
-  font-family: ui-sans-serif, sans-serif;
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.tc-tick {
-  fill: var(--muted);
-  font-family: ui-sans-serif, sans-serif;
-  font-size: 11px;
-}
-
-.jr-cell-thin {
-  color: var(--muted);
-  cursor: help;
-  font-variant-numeric: tabular-nums;
-}
-
-.jr-cell-n {
-  color: var(--muted);
-  font-size: 0.78em;
-}
-
-/* Outcome composition. One 100% bar per axis: the states are mutually exclusive
-   and few, which is the case a stacked bar reads better than separate bars.
-   Every segment is labelled in text, so colour never carries meaning alone. */
-.os-bar {
-  display: flex;
-  height: 0.7rem;
-  margin-bottom: 0.6rem;
-  overflow: hidden;
-  width: 100%;
-}
-
-.os-seg {
-  display: block;
-  height: 100%;
-}
-
-.os-seg--sale,
-.os-seg--purchased {
-  background: var(--electric-aqua, #0f6d78);
-}
-
-.os-seg--no_sale,
-.os-seg--rejected {
-  background: var(--signal-coral, #b3441d);
-}
-
-.os-seg--unknown {
-  background: var(--border);
-}
-
-.os-seg--follow_up_scheduled {
-  background: var(--graphite);
-}
-
-.os-seg--researching,
-.os-seg--deferred {
-  background: var(--muted);
-}
-
-.os-key {
-  display: grid;
-  gap: 0.25rem;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.os-key li {
-  align-items: center;
-  color: var(--carbon);
-  display: flex;
-  font-family: ui-sans-serif, sans-serif;
-  font-size: 0.8rem;
-  gap: 0.4rem;
-}
-
-.os-key strong {
-  font-variant-numeric: tabular-nums;
-}
-
-.os-swatch {
-  display: inline-block;
-  height: 0.6rem;
-  width: 0.6rem;
-}
-
-.os-share {
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  margin-left: auto;
-}
-
-/* Low sample is a property of the number, said once, quietly — not a phrase
-   repeated beside every descriptive rate on the page. */
-.fl-lowsample {
-  border: 1px solid var(--border);
-  border-radius: 2px;
-  color: var(--muted);
-  font-size: 0.64rem;
-  letter-spacing: 0.05em;
-  margin-left: 0.4rem;
-  padding: 0.04rem 0.28rem;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-/* Intelligence pages only: a tighter header so the first management signal is
-   in the viewport rather than below it. Scoped deliberately — other pages are
-   read, not scanned, and their headers are correct as they are. */
-/* Adds a styling hook without adding a box: the shell lays out main's children
-   directly, and an extra block element collapsed the whole page. */
+/* ============================================================================
+   Intelligence.
+
+   A separate visual system from the rest of the product, scoped to the four
+   Intelligence pages. Those pages are scanned in the first minute of a shift;
+   the rest of ANUMA is read. The tokens below are Intelligence-only so the
+   brand sidebar and every other surface stay exactly as they are.
+
+   Semantics are fixed and never decorative:
+     indigo = the primary analytical series, the selected mark, current focus
+     coral  = management attention, a gap, work to do, a confirmed no-sale
+     teal   = an observed completion, a recorded response, a sale
+     amber  = partial, caution, thin sample
+     slate  = the prior period, unconfirmed, unsupported context
+
+   No per-category hues. A rainbow of stores or categories asserts that the
+   colours mean something, and the reader then spends the morning working out
+   what.
+   ========================================================================= */
+
+:root {
+  --intel-bg: #f5f7fa;
+  --intel-surface: #ffffff;
+  --intel-surface-subtle: #f0f3f7;
+  --intel-ink: #10131a;
+  --intel-text: #344054;
+  --intel-muted: #667085;
+  --intel-border: #e4e7ec;
+  --intel-grid: #d7dde5;
+  --intel-indigo: #4658c9;
+  --intel-indigo-soft: #eef0ff;
+  --intel-coral: #ff4f3d;
+  --intel-coral-text: #b42318;
+  --intel-coral-soft: #fff0ed;
+  --intel-teal: #087f74;
+  --intel-aqua: #20d6c7;
+  --intel-teal-soft: #e8f6f3;
+  --intel-amber: #a8660a;
+  --intel-amber-soft: #fff5e6;
+  --intel-viz-muted: #7a8699;
+}
+
+/* Adds a styling hook without adding a box: the shell lays out the page
+   container's children directly, and a real block element here collapsed the
+   whole page. */
 .intelligence-page {
   display: contents;
 }
 
-.intelligence-page .page-header,
-.intelligence-page > header {
-  margin-bottom: 1rem;
-  padding-bottom: 0;
+/* The container these pages actually live in belongs to the shell, so it is
+   selected rather than replaced. 1440px, 28px of horizontal padding, and a
+   compact top — the contract's budget for getting the answer above the fold. */
+.page-content:has(.intelligence-page) {
+  width: min(100%, 1440px);
+  background: var(--intel-bg);
+  padding: 18px 28px 60px;
 }
 
-.intelligence-page h1 {
-  font-size: clamp(1.5rem, 2.6vw, 1.9rem);
-  letter-spacing: -0.025em;
-  margin-bottom: 0.2rem;
+.ip-pagehead {
+  margin-bottom: 10px;
 }
 
-.intelligence-page .fl-section {
-  margin-top: 2rem;
-  padding-top: 1.1rem;
-}
-
-.intelligence-page .fl-section--lead {
-  border-top: none;
-  margin-top: 0.75rem;
-  padding-top: 0;
-}
-
-/* Execution pathway. Five columns of the same shape, so the eye reads across
-   the job a conversation is doing rather than down a list of unrelated rates. */
-.fp-grid {
-  display: grid;
-  gap: 1px;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  background: var(--border);
-  border: 1px solid var(--border);
-}
-
-.fp-stage {
-  background: var(--paper, #fff);
-  display: flex;
-  flex-direction: column;
-  padding: 0.75rem 0.85rem 0.9rem;
-}
-
-.fp-stage-title {
-  color: var(--graphite);
-  font-family: ui-sans-serif, sans-serif;
-  font-size: 0.66rem;
-  font-weight: 700;
+.ip-eyebrow {
+  color: var(--intel-muted);
+  font-size: 10px;
+  font-weight: 800;
   letter-spacing: 0.12em;
-  margin: 0 0 0.5rem;
+  margin: 0;
   text-transform: uppercase;
 }
 
-.fp-stage-metrics {
+.ip-pagehead h1 {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 34px;
+  margin: 2px 0 0;
+}
+
+/* ---- Filters ------------------------------------------------------------ */
+
+.ip-filters {
+  background: var(--intel-bg);
+  border-bottom: 1px solid var(--intel-border);
+  margin-bottom: 16px;
+  padding: 8px 0 8px;
+  position: sticky;
+  top: 0;
+  z-index: 25;
+}
+
+.ip-filter-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ip-filter-form {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ip-filter-label {
+  color: var(--intel-muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  margin: 0 0 6px;
+  text-transform: uppercase;
+}
+
+/* One control per dimension. Four dimensions with eight values each is fifty
+   buttons across the top of the page, and a filter row that reads as the page's
+   main content pushes the findings below the fold. */
+.ip-dim {
+  position: relative;
+}
+
+.ip-filter {
+  background: var(--intel-surface);
+  border: 1px solid var(--intel-border);
+  border-radius: 8px;
+  color: var(--intel-text);
+  cursor: pointer;
+  display: inline-block;
+  font-size: 11px;
+  list-style: none;
+  padding: 7px 10px;
+  text-decoration: none;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease;
+  white-space: nowrap;
+}
+
+.ip-filter::-webkit-details-marker {
+  display: none;
+}
+
+.ip-filter:hover {
+  border-color: #c5cdd8;
+}
+
+.ip-filter--active {
+  background: var(--intel-indigo-soft);
+  border-color: var(--intel-indigo);
+  color: var(--intel-indigo);
+  font-weight: 700;
+}
+
+.ip-dim-panel {
+  background: var(--intel-surface);
+  border: 1px solid var(--intel-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgb(16 24 40 / 12%);
+  left: 0;
+  min-width: 200px;
+  padding: 12px;
+  position: absolute;
+  top: calc(100% + 6px);
+  z-index: 40;
+}
+
+.ip-options {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.ip-option {
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--intel-text);
+  font-size: 11px;
+  padding: 5px 8px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.ip-option:hover {
+  background: var(--intel-surface-subtle);
+}
+
+.ip-option--active {
+  background: var(--intel-indigo-soft);
+  border-color: #c8cefa;
+  color: var(--intel-indigo);
+  font-weight: 700;
+}
+
+.ip-more {
+  margin-left: auto;
+}
+
+.ip-more-panel {
   display: grid;
-  gap: 0.65rem;
+  gap: 10px;
+  grid-template-columns: 1fr 1fr;
+  left: auto;
+  right: 0;
+  width: max-content;
+}
+
+.ip-more-panel .ip-dim-panel {
+  position: static;
+  box-shadow: none;
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.ip-select {
+  background: var(--intel-surface);
+  border: 1px solid var(--intel-border);
+  border-radius: 7px;
+  color: var(--intel-text);
+  font-size: 11px;
+  max-width: 14rem;
+  padding: 5px 8px;
+}
+
+.ip-apply,
+.ip-reset {
+  background: none;
+  border: 1px solid var(--intel-border);
+  border-radius: 7px;
+  color: var(--intel-muted);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 5px 9px;
+  text-decoration: none;
+}
+
+.ip-apply:hover,
+.ip-reset:hover {
+  border-color: var(--intel-muted);
+  color: var(--intel-ink);
+}
+
+.ip-scope {
+  color: var(--intel-muted);
+  font-size: 11px;
+  line-height: 15px;
+  margin: 8px 0 0;
+}
+
+/* ---- Grid and panels ---------------------------------------------------- */
+
+.ip-grid12 {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  /* Wide content scrolls inside its own panel; the analytical grid never makes
+     the page scroll sideways. Applied here rather than to the page container so
+     the evidence drawer, which is fixed and a sibling of this grid, is not
+     clipped by it. */
+  overflow-x: clip;
+}
+
+.ip-col-4 {
+  grid-column: span 4;
+}
+.ip-col-5 {
+  grid-column: span 5;
+}
+.ip-col-6 {
+  grid-column: span 6;
+}
+.ip-col-7 {
+  grid-column: span 7;
+}
+.ip-col-8 {
+  grid-column: span 8;
+}
+.ip-col-12 {
+  grid-column: span 12;
+}
+
+.ip-panel {
+  background: var(--intel-surface);
+  border: 1px solid var(--intel-border);
+  border-radius: 10px;
+  min-width: 0;
+  padding: 16px;
+}
+
+.ip-section-title {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  margin: 0 0 12px;
+}
+
+.ip-section-title h2 {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 22px;
   margin: 0;
 }
 
-.fp-stage-metrics .fl-rate {
-  border-bottom: none;
+.ip-panel h3 {
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 20px;
+  margin: 0 0 8px;
+}
+
+.ip-label {
+  color: var(--intel-muted);
+  display: block;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 15px;
+}
+
+.ip-meta {
+  color: var(--intel-muted);
+  font-size: 10px;
+  line-height: 15px;
+}
+
+.ip-note {
+  color: var(--intel-muted);
+  font-size: 11px;
+  line-height: 16px;
+  margin: 8px 0 0;
+  max-width: 78ch;
+}
+
+.ip-link {
+  color: var(--intel-indigo);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.ip-link:hover {
+  text-decoration: underline;
+}
+
+.ip-visually-hidden {
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+/* ---- Fixed data states -------------------------------------------------- */
+
+/* Never a blank space. A slot that goes missing when its field is empty teaches
+   a reader that the page changes shape every morning, and hides the fact that
+   something we expected to measure was not there. */
+.ip-state {
+  align-content: center;
+  background: var(--intel-surface-subtle);
+  border: 1px dashed #cad1dc;
+  border-radius: 8px;
+  color: var(--intel-muted);
+  display: grid;
+  font-size: 11px;
+  gap: 4px;
+  line-height: 16px;
+  min-height: 120px;
+  padding: 14px;
+  text-align: center;
+}
+
+.ip-state strong {
+  color: var(--intel-text);
+  font-size: 12px;
+}
+
+.ip-state--compact {
+  min-height: 0;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+/* ---- Tooltips ----------------------------------------------------------- */
+
+/* CSS only, on hover and on keyboard focus. A tooltip that appears only under a
+   mouse is a tooltip half the readers never see. */
+.ip-tip {
+  position: relative;
+}
+
+/* Empty until it is wanted. An always-present absolutely positioned box is
+   still measured by its scroll container, and a 260px tooltip on every mark
+   made the page scroll sideways at every width. */
+.ip-tip::after {
+  background: var(--intel-ink);
+  border-radius: 7px;
+  color: #fff;
+  content: "";
+  font-size: 10px;
+  font-weight: 500;
+  left: 0;
+  line-height: 15px;
+  opacity: 0;
+  padding: 0;
+  pointer-events: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  transition: opacity 150ms ease;
+  width: 0;
+  z-index: 60;
+}
+
+.ip-tip:hover::after,
+.ip-tip:focus-visible::after,
+.ip-tip:focus-within::after {
+  content: attr(data-tip);
+  max-width: 260px;
+  opacity: 1;
+  padding: 7px 9px;
+  width: max-content;
+}
+
+/* ---- Signals, actions, pulse -------------------------------------------- */
+
+.ip-signal-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.ip-signal {
+  background: var(--intel-surface);
+  border: 1px solid var(--intel-border);
+  border-radius: 9px;
+  color: inherit;
+  display: block;
+  padding: 12px;
+  text-decoration: none;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+a.ip-signal:hover,
+a.ip-signal:focus-visible {
+  background: var(--intel-indigo-soft);
+  border-color: var(--intel-indigo);
+  box-shadow: 0 4px 16px rgb(16 24 40 / 6%);
+}
+
+.ip-signal--attention {
+  border-left: 3px solid var(--intel-coral);
+}
+
+.ip-metric {
+  display: block;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 32px;
+  margin: 4px 0 2px;
+}
+
+.ip-delta {
+  font-size: 10px;
+  font-weight: 750;
+  margin-left: 6px;
+}
+
+.ip-delta--up {
+  color: var(--intel-indigo);
+}
+
+.ip-delta--down {
+  color: var(--intel-coral-text);
+}
+
+.ip-action {
+  align-items: center;
+  border-bottom: 1px solid var(--intel-border);
+  color: inherit;
+  display: grid;
+  gap: 9px;
+  grid-template-columns: auto 1fr auto;
+  padding: 10px 2px;
+  text-decoration: none;
+  transition: background-color 150ms ease;
+}
+
+.ip-action:last-child {
+  border-bottom: 0;
+}
+
+a.ip-action:hover,
+a.ip-action:focus-visible {
+  background: var(--intel-indigo-soft);
+}
+
+.ip-action--empty {
+  display: block;
+}
+
+.ip-action-n {
+  color: var(--intel-coral-text);
+  font-size: 19px;
+  font-weight: 800;
+}
+
+.ip-action-label {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.ip-action-label em {
+  font-style: normal;
+}
+
+.ip-arrow {
+  color: var(--intel-indigo);
+  font-weight: 800;
+}
+
+.ip-pulse,
+.ip-snapshot,
+.ip-lanes {
+  display: grid;
   padding: 0;
 }
 
-.fp-stage-metrics .fl-rate dt {
-  font-size: 0.7rem;
-  letter-spacing: 0.02em;
-  text-transform: none;
+.ip-pulse {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
-.fp-stage-metrics .fl-rate dd strong {
-  font-size: 1.15rem;
+.ip-snapshot {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-/* Overview leads with two parallel questions rather than one above the other. */
-.ov-split {
+.ip-lanes {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.ip-pitem {
+  border-right: 1px solid var(--intel-border);
+  padding: 13px 14px;
+}
+
+.ip-pitem:last-child {
+  border-right: 0;
+}
+
+.ip-pitem strong {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+  margin-top: 3px;
+}
+
+.ip-figure-row {
+  border: 1px solid var(--intel-border);
+  border-radius: 9px;
   display: grid;
-  gap: 2rem;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  margin-bottom: 10px;
+  overflow: hidden;
 }
 
-@media (max-width: 1100px) {
-  .fp-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
+/* ---- Ranked bars -------------------------------------------------------- */
 
-@media (max-width: 900px) {
-  .ov-split {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0;
-  }
-}
-
-@media (max-width: 620px) {
-  .fp-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-/* Past the chip limit a dimension becomes a select. A plain GET form: keyboard
-   accessible, works without JavaScript, lands on a real URL like the chips. */
-.ifb-form {
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.ifb-select {
-  background: var(--raised, #fff);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  color: var(--carbon);
-  font-family: ui-sans-serif, sans-serif;
-  font-size: 0.78rem;
-  max-width: 12rem;
-  padding: 0.18rem 0.4rem;
-}
-
-.ifb-apply {
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  color: var(--graphite);
-  cursor: pointer;
-  font-family: ui-sans-serif, sans-serif;
-  font-size: 0.76rem;
-  padding: 0.18rem 0.5rem;
-}
-
-.ifb-apply:hover {
-  border-color: var(--graphite);
-  color: var(--carbon);
-}
-
-/* Behaviour in sales against non-sales. The distance between the dots is the
-   comparison; both ends are labelled so colour is never load-bearing. */
-.db-legend {
-  align-items: center;
-  color: var(--graphite);
-  display: flex;
-  font-family: ui-sans-serif, sans-serif;
-  font-size: 0.78rem;
-  gap: 0.3rem;
-  margin: 0 0 0.8rem;
-}
-
-.db-swatch {
-  border-radius: 50%;
-  display: inline-block;
-  height: 0.55rem;
-  width: 0.55rem;
-}
-
-.db-list {
+.ip-bars {
   display: grid;
-  gap: 0.55rem;
+  gap: 8px;
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.db-row {
+.ip-bar {
   align-items: center;
+  color: inherit;
   display: grid;
-  gap: 0.8rem;
-  grid-template-columns: minmax(0, 13rem) 1fr auto;
+  gap: 9px;
+  grid-template-columns: minmax(110px, 190px) minmax(0, 1fr) 68px;
+  text-decoration: none;
 }
 
-.db-label {
-  color: var(--carbon);
-  font-family: ui-sans-serif, sans-serif;
-  font-size: 0.82rem;
+.ip-bar--action {
+  cursor: pointer;
 }
 
-.db-track {
-  background: var(--border);
+.ip-bar-name {
+  font-size: 11px;
+  line-height: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Free text may wrap to two lines; past that it is truncated with the full
+     value still available on hover and in the evidence. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.ip-bar-name em {
+  color: var(--intel-muted);
   display: block;
-  height: 1px;
-  position: relative;
+  font-size: 9px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.db-connector {
-  background: var(--graphite);
+.ip-track {
+  background: #e8ecf2;
+  border-radius: 999px;
   display: block;
-  height: 2px;
-  position: absolute;
-  top: -0.5px;
+  height: 9px;
+  overflow: hidden;
 }
 
-.db-dot {
-  border-radius: 50%;
+.ip-fill {
+  background: var(--intel-indigo);
+  border-radius: 999px;
   display: block;
-  height: 0.62rem;
-  margin-left: -0.31rem;
-  position: absolute;
-  top: -0.28rem;
-  width: 0.62rem;
+  height: 100%;
+  transition: background-color 150ms ease;
 }
 
-.db-dot--sale {
-  background: var(--electric-aqua, #0f6d78);
+.ip-bar--action:hover .ip-fill,
+.ip-bar--action:focus-visible .ip-fill {
+  background: var(--intel-coral);
 }
 
-.db-dot--nosale {
-  background: var(--signal-coral, #b3441d);
-}
-
-.db-values {
-  display: flex;
-  font-family: ui-sans-serif, sans-serif;
-  font-size: 0.76rem;
-  font-variant-numeric: tabular-nums;
-  gap: 0.5rem;
+.ip-value {
+  color: var(--intel-muted);
+  font-size: 10px;
+  text-align: right;
   white-space: nowrap;
 }
 
-.db-v--sale {
-  color: var(--electric-aqua, #0f6d78);
+/* ---- Stacked compositions ----------------------------------------------- */
+
+.ip-stack {
+  background: #e9edf3;
+  border-radius: 7px;
+  display: flex;
+  height: 24px;
+  overflow: hidden;
 }
 
-.db-v--nosale {
-  color: var(--signal-coral, #b3441d);
+.ip-seg {
+  display: block;
+  height: 100%;
+  transition: opacity 150ms ease;
 }
 
-@media (max-width: 720px) {
-  .db-row {
-    grid-template-columns: minmax(0, 8rem) 1fr auto;
+a.ip-seg {
+  cursor: pointer;
+}
+
+a.ip-seg:hover,
+a.ip-seg:focus-visible {
+  opacity: 0.72;
+}
+
+.ip-seg--indigo {
+  background: var(--intel-indigo);
+}
+.ip-seg--teal {
+  background: var(--intel-teal);
+}
+.ip-seg--coral {
+  background: var(--intel-coral);
+}
+.ip-seg--amber {
+  background: var(--intel-amber);
+}
+.ip-seg--slate {
+  background: var(--intel-viz-muted);
+}
+
+.ip-legend {
+  color: var(--intel-text);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 10px;
+  gap: 12px;
+  list-style: none;
+  margin: 9px 0 0;
+  padding: 0;
+}
+
+.ip-swatch {
+  border-radius: 2px;
+  display: inline-block;
+  height: 8px;
+  margin-right: 4px;
+  width: 8px;
+}
+
+.ip-legend-share {
+  color: var(--intel-muted);
+  margin-left: 4px;
+}
+
+/* ---- Tabs --------------------------------------------------------------- */
+
+.ip-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.ip-tab {
+  background: var(--intel-surface);
+  border: 1px solid var(--intel-border);
+  border-radius: 7px;
+  color: var(--intel-text);
+  font-size: 10px;
+  padding: 6px 9px;
+  text-decoration: none;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+.ip-tab:hover {
+  border-color: #bfc7d5;
+}
+
+.ip-tab--active {
+  background: var(--intel-indigo-soft);
+  border-color: #c8cefa;
+  color: var(--intel-indigo);
+  font-weight: 750;
+}
+
+.ip-subgrid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.ip-subpanel {
+  min-width: 0;
+}
+
+/* ---- Tables ------------------------------------------------------------- */
+
+.ip-table-scroll {
+  /* The table scrolls inside its own panel; the page never scrolls sideways. */
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.ip-table {
+  border-collapse: collapse;
+  font-size: 11px;
+  width: 100%;
+}
+
+.ip-table caption {
+  margin-bottom: 8px;
+  text-align: left;
+}
+
+.ip-table th,
+.ip-table td {
+  border-bottom: 1px solid var(--intel-border);
+  padding: 7px 8px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ip-table thead th {
+  color: var(--intel-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  /* Headers wrap so a narrow panel reads without sideways scrolling; the data
+     cells stay on one line so a rate and its denominator never split. */
+  white-space: normal;
+}
+
+.ip-table th:first-child,
+.ip-table tbody th {
+  font-weight: 650;
+  text-align: left;
+}
+
+.ip-cell-thin {
+  color: var(--intel-muted);
+}
+
+.ip-cell-n {
+  color: var(--intel-muted);
+  font-size: 9px;
+}
+
+.ip-table--ghost tbody td {
+  color: var(--intel-grid);
+}
+
+/* ---- Clarity matrix ----------------------------------------------------- */
+
+/* One sequential family, not four hues: the reading is ordinal. */
+.ip-matrix {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: 68px repeat(4, minmax(0, 1fr));
+}
+
+.ip-mcell {
+  align-items: center;
+  background: #f2f4f7;
+  border-radius: 5px;
+  display: grid;
+  font-size: 10px;
+  justify-items: center;
+  min-height: 32px;
+}
+
+.ip-mhead {
+  background: transparent;
+  color: var(--intel-muted);
+  font-weight: 700;
+}
+
+.ip-h1 {
+  background: #e4f4f1;
+}
+.ip-h2 {
+  background: #bde4de;
+}
+.ip-h3 {
+  background: #7bcbc0;
+}
+.ip-h4 {
+  background: #37a99c;
+  color: #fff;
+}
+
+/* ---- Chart -------------------------------------------------------------- */
+
+.ip-chart-svg {
+  display: block;
+  height: 178px;
+  width: 100%;
+}
+
+.ip-chart-move {
+  color: var(--intel-muted);
+  font-size: 11px;
+  margin: 0 0 4px;
+}
+
+.ip-chart-move strong {
+  color: var(--intel-indigo);
+}
+
+.ip-chart-grid {
+  stroke: var(--intel-grid);
+  stroke-dasharray: 2 4;
+  stroke-width: 1;
+}
+
+.ip-chart-axis {
+  stroke: var(--intel-border);
+  stroke-width: 1;
+}
+
+.ip-chart-line {
+  fill: none;
+  stroke: var(--intel-indigo);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+}
+
+.ip-chart-dot {
+  fill: var(--intel-indigo);
+}
+
+.ip-chart-dot--last {
+  stroke: #fff;
+  stroke-width: 2;
+}
+
+.ip-chart-thin {
+  fill: var(--intel-viz-muted);
+}
+
+.ip-chart-end {
+  fill: var(--intel-ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ip-chart-tick {
+  fill: var(--intel-muted);
+  font-size: 10px;
+}
+
+/* ---- Journey rail ------------------------------------------------------- */
+
+.ip-nodes {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  position: relative;
+}
+
+.ip-nodes::before {
+  background: #dce2ea;
+  content: "";
+  height: 3px;
+  left: 7%;
+  position: absolute;
+  right: 7%;
+  top: 27px;
+}
+
+.ip-node {
+  position: relative;
+  text-align: center;
+  z-index: 1;
+}
+
+.ip-dot {
+  background: #fff;
+  border: 4px solid var(--intel-indigo);
+  border-radius: 50%;
+  display: block;
+  height: 17px;
+  margin: 18px auto 9px;
+  width: 17px;
+}
+
+.ip-node strong {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.ip-gaps {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+.ip-gapcell {
+  display: grid;
+  gap: 4px;
+}
+
+.ip-gap-observed {
+  color: var(--intel-muted);
+  font-size: 10px;
+}
+
+.ip-gap {
+  background: var(--intel-coral-soft);
+  border: 1px solid #ffd2cb;
+  border-radius: 8px;
+  color: var(--intel-coral-text);
+  display: block;
+  font-size: 10px;
+  padding: 8px 10px;
+  text-decoration: none;
+  transition: border-color 150ms ease;
+}
+
+a.ip-gap:hover,
+a.ip-gap:focus-visible {
+  border-color: var(--intel-coral);
+}
+
+.ip-gap--none {
+  background: var(--intel-surface-subtle);
+  border-color: var(--intel-border);
+  color: var(--intel-muted);
+}
+
+.ip-productpath {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ip-productcol {
+  background: var(--intel-surface-subtle);
+  border-left: 3px solid var(--intel-indigo);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+.ip-productcol h3 {
+  font-size: 11px;
+  margin: 0 0 7px;
+}
+
+.ip-productlist {
+  display: grid;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.ip-productlist li {
+  font-size: 10px;
+}
+
+/* Name and count in separate columns: run together, "…CWH 2" reads as part of
+   the product name rather than as two interactions. */
+.ip-productlist a {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.ip-product-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ip-response-mix {
+  margin-top: 14px;
+}
+
+/* ---- Frontline ---------------------------------------------------------- */
+
+.ip-front-actions {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ip-action-card {
+  background: var(--intel-surface);
+  border: 1px solid var(--intel-border);
+  border-left: 3px solid var(--intel-coral);
+  border-radius: 9px;
+  color: inherit;
+  display: block;
+  padding: 11px 12px;
+  text-decoration: none;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+a.ip-action-card:hover,
+a.ip-action-card:focus-visible {
+  border-color: #c5cdd8;
+  border-left-color: var(--intel-coral);
+  box-shadow: 0 4px 16px rgb(16 24 40 / 6%);
+}
+
+.ip-action-card strong {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.ip-action-card span {
+  font-size: 11px;
+  margin-left: 5px;
+}
+
+.ip-action-card--empty {
+  border-left-color: var(--intel-border);
+}
+
+.ip-execution {
+  display: grid;
+  gap: 9px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.ip-stage {
+  background: var(--intel-surface);
+  border: 1px solid var(--intel-border);
+  border-radius: 9px;
+  color: inherit;
+  display: block;
+  min-width: 0;
+  padding: 11px;
+  text-decoration: none;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease;
+}
+
+.ip-stage:hover {
+  border-color: #bfc7d5;
+}
+
+.ip-stage--active {
+  background: var(--intel-indigo-soft);
+  border-color: var(--intel-indigo);
+  box-shadow: inset 0 0 0 1px var(--intel-indigo);
+}
+
+.ip-stage h3 {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin: 0 0 8px;
+  text-transform: uppercase;
+}
+
+.ip-stage dl {
+  margin: 0;
+}
+
+.ip-row {
+  border-top: 1px solid #e9ecf1;
+  display: flex;
+  font-size: 10px;
+  gap: 5px;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+
+.ip-row dt,
+.ip-row dd {
+  margin: 0;
+}
+
+.ip-row dd {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.ip-rate-row {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  margin-bottom: 14px;
+}
+
+.ip-rate {
+  border: 1px solid var(--intel-border);
+  border-radius: 9px;
+  padding: 10px 12px;
+}
+
+.ip-rate strong {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+/* Behaviour in sales against non-sales. The distance between the dots is the
+   comparison; both ends are labelled so colour is never load-bearing. */
+.ip-dumb {
+  display: grid;
+  gap: 9px;
+}
+
+.ip-drow {
+  align-items: center;
+  display: grid;
+  font-size: 10px;
+  gap: 10px;
+  grid-template-columns: minmax(110px, 190px) minmax(0, 1fr) 68px;
+}
+
+.ip-dline {
+  background: linear-gradient(to right, transparent 49.5%, #e5e9ef 50%, transparent 50.5%);
+  height: 16px;
+  position: relative;
+}
+
+.ip-dline::before {
+  background: #b8c0cc;
+  content: "";
+  height: 2px;
+  left: var(--a);
+  position: absolute;
+  right: calc(100% - var(--b));
+  top: 7px;
+}
+
+.ip-dline i,
+.ip-dline b {
+  border-radius: 50%;
+  height: 9px;
+  position: absolute;
+  top: 3px;
+  transform: translateX(-50%);
+  width: 9px;
+}
+
+.ip-dline i {
+  background: var(--intel-coral);
+}
+
+.ip-dline b {
+  background: var(--intel-teal);
+}
+
+.ip-panel > details > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.ip-panel > details > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* ---- Evidence drawer ---------------------------------------------------- */
+
+.ip-drawer-bg {
+  background: rgb(16 19 26 / 28%);
+  inset: 0;
+  position: fixed;
+  z-index: 100;
+}
+
+.ip-drawer {
+  background: var(--intel-surface);
+  box-shadow: -10px 0 35px rgb(16 24 40 / 14%);
+  height: 100%;
+  overflow: auto;
+  padding: 22px;
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: min(460px, 94vw);
+}
+
+.ip-drawer h2 {
+  font-size: 18px;
+  line-height: 24px;
+  margin: 4px 0;
+}
+
+.ip-close {
+  background: var(--intel-surface);
+  border: 1px solid var(--intel-border);
+  border-radius: 7px;
+  color: var(--intel-text);
+  float: right;
+  font-size: 16px;
+  height: 32px;
+  line-height: 30px;
+  text-align: center;
+  text-decoration: none;
+  width: 32px;
+}
+
+.ip-scope-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  list-style: none;
+  margin: 8px 0 14px;
+  padding: 0;
+}
+
+.ip-scope-chips li {
+  background: var(--intel-surface-subtle);
+  border-radius: 999px;
+  color: var(--intel-muted);
+  font-size: 10px;
+  padding: 4px 9px;
+}
+
+.ip-drawer-section {
+  color: var(--intel-muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  margin: 16px 0 4px;
+  text-transform: uppercase;
+}
+
+.ip-drawer-value {
+  margin: 0;
+}
+
+.ip-drawer-value strong {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.ip-drawer-value span {
+  color: var(--intel-muted);
+  font-size: 11px;
+}
+
+.ip-evrow {
+  border-top: 1px solid var(--intel-border);
+  font-size: 11px;
+  padding: 11px 0;
+}
+
+.ip-ev-title {
+  color: var(--intel-ink);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.ip-ev-title:hover {
+  text-decoration: underline;
+}
+
+.ip-quote {
+  background: var(--intel-teal-soft);
+  border-left: 3px solid var(--intel-teal);
+  color: var(--intel-text);
+  font-size: 11px;
+  line-height: 1.45;
+  margin-top: 7px;
+  padding: 10px;
+}
+
+.ip-quote .ip-meta {
+  display: block;
+  margin-bottom: 3px;
+}
+
+.ip-drawer-foot {
+  border-top: 1px solid var(--intel-border);
+  margin: 14px 0 0;
+  padding-top: 12px;
+}
+
+/* ---- Responsive --------------------------------------------------------- */
+
+/* Tablet: the same order, on a narrower logical grid. The lead pair stays side
+   by side so the page still answers its question near the top; the diagnostic
+   pairs below stack, because two half-width tables at this width are two
+   unreadable tables. */
+@media (max-width: 1179px) {
+  .ip-col-8 {
+    grid-column: span 7;
+  }
+
+  .ip-col-4 {
+    grid-column: span 5;
+  }
+
+  .ip-col-5,
+  .ip-col-7 {
+    grid-column: span 12;
+  }
+
+  .ip-pulse {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ip-execution {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .ip-lanes {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
-.dm-needs {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  margin-bottom: 1rem;
+@media (max-width: 767px) {
+  .page-content:has(.intelligence-page) {
+    padding: 14px 12px 50px;
+  }
+
+  /* Every pairing becomes a single column. The tablet rule above narrows the
+     lead pair rather than stacking it, and without this a 4-of-12 panel stayed
+     beside an 8-of-12 one at phone width. */
+  .ip-col-4,
+  .ip-col-5,
+  .ip-col-6,
+  .ip-col-7,
+  .ip-col-8 {
+    grid-column: span 12;
+  }
+
+  .ip-signal-grid,
+  .ip-front-actions,
+  .ip-execution,
+  .ip-productpath {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ip-pulse,
+  .ip-snapshot,
+  .ip-lanes {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ip-nodes {
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .ip-nodes::before {
+    display: none;
+  }
+
+  .ip-gaps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ip-bar,
+  .ip-drow {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 54px;
+  }
+
+  .ip-pitem {
+    border-bottom: 1px solid var(--intel-border);
+  }
+
+  /* Drawers become full-screen sheets. */
+  .ip-drawer {
+    width: 100%;
+  }
+
+  .ip-more {
+    margin-left: 0;
+  }
+
+  .ip-more-panel {
+    grid-template-columns: minmax(0, 1fr);
+    left: 0;
+    right: auto;
+    width: min(320px, 90vw);
+  }
+
+  .ip-pagehead h1 {
+    font-size: 26px;
+  }
 }

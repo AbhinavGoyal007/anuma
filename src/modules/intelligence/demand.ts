@@ -282,3 +282,101 @@ export function nonConversionReasons(rows: readonly PopulationRow[]): NoSaleReas
     coverage: confirmed.length > 0 ? classified / confirmed.length : null,
   };
 }
+
+/**
+ * Party size, bucketed to the three groups a manager acts on.
+ *
+ * The stored value is free text — "2", "two", "couple with child". Only values
+ * that read as a number are bucketed; anything else stays out of the
+ * distribution rather than being guessed into one, and the raw value is still
+ * reachable through the evidence path.
+ */
+export function partySizeDistribution(rows: readonly PopulationRow[]): {
+  entries: RankedShare[];
+  classified: number;
+} {
+  return distribution(rows, (row) => {
+    const text = present(row, "customer_party_size")[0]?.valueText ?? null;
+    if (!text) return null;
+    const digits = text.match(/\d+/);
+    if (!digits) return null;
+    const size = Number(digits[0]);
+    if (!Number.isFinite(size) || size <= 0) return null;
+    return size >= 3 ? "3+" : String(size);
+  });
+}
+
+/**
+ * Where a requirement came from: the customer said it, the conversation drew it
+ * out, or we inferred it.
+ *
+ * Counted per interaction per distinct origin, so an interaction carrying both
+ * a stated and a discovered requirement appears in both — which is what the
+ * field records, and collapsing it to one would lose the discovery.
+ */
+export const REQUIREMENT_ORIGINS = ["stated", "discovered", "inferred"] as const;
+
+export function originStrip(rows: readonly PopulationRow[]): {
+  entries: RankedShare[];
+  eligible: number;
+} {
+  const eligible = rows.filter((row) => supported(row, "requirement_origin")).length;
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const seen = new Set<string>();
+    for (const value of present(row, "requirement_origin")) {
+      const token = (value.valueText ?? "").trim().toLowerCase();
+      const origin = REQUIREMENT_ORIGINS.find((option) => option === token);
+      if (!origin || seen.has(origin)) continue;
+      seen.add(origin);
+      counts.set(origin, (counts.get(origin) ?? 0) + 1);
+    }
+  }
+  return {
+    entries: REQUIREMENT_ORIGINS.map((origin) => ({
+      value: origin,
+      interactions: counts.get(origin) ?? 0,
+      share: eligible > 0 ? (counts.get(origin) ?? 0) / eligible : 0,
+      label: null,
+    })),
+    eligible,
+  };
+}
+
+/**
+ * The two prices spoken in the room, kept apart from the customer's budget.
+ *
+ * A competitor price is what the customer said a competitor charges. Nobody has
+ * checked it, and presenting it beside our own quoted prices without saying so
+ * would turn hearsay into a market rate — so the label travels with the number
+ * everywhere it is shown.
+ */
+export type ContextPrices = {
+  storeQuotedMedian: number | null;
+  storeQuotedObserved: number;
+  competitorClaimMedian: number | null;
+  competitorClaimObserved: number;
+  currency: string | null;
+};
+
+export function contextPrices(rows: readonly PopulationRow[]): ContextPrices {
+  const amounts = (fieldKey: string): number[] =>
+    rows.flatMap((row) =>
+      present(row, fieldKey).flatMap((value) =>
+        typeof value.amountMinor === "number" ? [value.amountMinor] : [],
+      ),
+    );
+  const quoted = amounts("store_price_quoted");
+  const claimed = amounts("competitor_price_claim");
+  return {
+    storeQuotedMedian: median(quoted),
+    storeQuotedObserved: quoted.length,
+    competitorClaimMedian: median(claimed),
+    competitorClaimObserved: claimed.length,
+    currency:
+      rows.flatMap((row) => present(row, "store_price_quoted")).find((value) => value.currency)
+        ?.currency ??
+      rows.find((row) => row.budgetCurrency)?.budgetCurrency ??
+      null,
+  };
+}

@@ -326,6 +326,38 @@ export const metricRegistry: readonly MetricDefinition[] = [
     drilldownFieldKeys: ["product_demo_performed"],
   }),
   frontline({
+    key: "question_response_coverage",
+    label: "Question response coverage",
+    businessQuestion: "When a customer asked something, did we record what we told them?",
+    definition:
+      "Interactions containing at least one customer question that also carry at least one response status in a readable state.",
+    grain: "interaction",
+    requiredFields: ["customer_questions", "question_response_status"],
+    eligibilityRule: "Interactions where at least one customer question was recorded.",
+    numeratorRule: "at least one response status is recorded in a readable state",
+    denominatorRule: "interactions where a question was asked",
+    format: "percent",
+    directionality: "higher_is_better",
+    comparison: "previous_period",
+    provisional:
+      "Coverage of our own record. A question with no recorded response state means we did not capture what happened next; it is not evidence that nobody answered.",
+    drilldownFieldKeys: ["customer_questions", "question_response_status"],
+  }),
+  frontline({
+    key: "close_attempt_rate",
+    label: "Close attempt incidence",
+    businessQuestion: "How often does the floor actually ask for the sale?",
+    definition:
+      "Interactions with at least one recorded close attempt, among interactions where the field was recorded either way.",
+    grain: "interaction",
+    requiredFields: ["close_attempts"],
+    eligibilityRule: "Interactions where close_attempts was recorded either way.",
+    format: "percent",
+    directionality: "higher_is_better",
+    comparison: "previous_period",
+    drilldownFieldKeys: ["close_attempts", "customer_commitment_signals"],
+  }),
+  frontline({
     key: "finance_question_response",
     label: "Finance questions with a recorded response",
     businessQuestion: "When a customer asked about finance, did we record an answer?",

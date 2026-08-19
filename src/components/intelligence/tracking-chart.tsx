@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import type { TrendMetric, TrendSeries } from "@/modules/intelligence/trend";
 
 /**
@@ -11,29 +9,20 @@ import type { TrendMetric, TrendSeries } from "@/modules/intelligence/trend";
  *
  * The important behaviour is what it refuses to draw. A bin that could not carry
  * the metric leaves a break in the line rather than dropping to the floor, and
- * the marker underneath says the week existed but was too thin to plot. A
+ * the marker underneath says the period existed but was too thin to plot. A
  * continuous line across a quiet fortnight would be the single most misleading
  * thing this page could show.
  */
 
 const W = 720;
-const H = 168;
-const PAD = { top: 14, right: 12, bottom: 26, left: 34 };
+const H = 178;
+const PAD = { top: 16, right: 14, bottom: 26, left: 36 };
 
 function formatValue(value: number, format: TrendMetric["format"]): string {
   return format === "percent" ? `${Math.round(value * 100)}%` : String(value);
 }
 
-export function TrackingChart({
-  series,
-  available,
-  metricHref,
-}: {
-  series: TrendSeries;
-  available: readonly TrendMetric[];
-  /** Builds the link that switches the plotted signal, preserving filters. */
-  metricHref: (key: string) => string;
-}) {
+export function TrackingChart({ series }: { series: TrendSeries }) {
   const { points, metric } = series;
   const plotted = points.filter((point) => point.value !== null);
   const highest =
@@ -46,7 +35,7 @@ export function TrackingChart({
   const y = (value: number) => PAD.top + innerH - (value / highest) * innerH;
 
   // Broken into runs so a gap stays a gap. One polyline through every plotted
-  // point would silently bridge the weeks nobody walked in.
+  // point would silently bridge the periods nobody walked in.
   const runs: { index: number; value: number }[][] = [];
   let run: { index: number; value: number }[] = [];
   points.forEach((point, index) => {
@@ -67,43 +56,37 @@ export function TrackingChart({
   }.`;
 
   return (
-    <div className="tc">
-      <div className="tc-head">
-        <div>
-          <p className="tc-metric">{metric.label}</p>
-          {series.movement ? (
-            <p className="tc-move">
+    <div className="ip-chart">
+      <p className="ip-chart-move">
+        {series.movement ? (
+          <>
+            <strong>
               {series.movement.points > 0 ? "+" : ""}
-              {Math.round(series.movement.points)}pp between {series.movement.fromLabel} and{" "}
-              {series.movement.toLabel}
-            </p>
-          ) : metric.format === "percent" ? (
-            <p className="tc-move tc-move--flat">No movement large enough to call out</p>
-          ) : (
-            // Movement is only assessed for rates. Saying "no movement" about a
-            // count would report a conclusion we never tested.
-            <p className="tc-move tc-move--flat">Volume over time</p>
-          )}
-        </div>
-        {available.length > 1 ? (
-          <div className="tc-picker" role="group" aria-label="Tracked signal">
-            {available.map((option) => (
-              <Link
-                key={option.key}
-                className={`ifb-chip${option.key === metric.key ? " ifb-chip--active" : ""}`}
-                href={metricHref(option.key)}
-                aria-current={option.key === metric.key ? "true" : undefined}
-              >
-                {option.label}
-              </Link>
-            ))}
-          </div>
-        ) : null}
-      </div>
-
-      <svg className="tc-svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={summary}>
+              {Math.round(series.movement.points)}pp
+            </strong>{" "}
+            {series.movement.fromLabel} → {series.movement.toLabel}
+          </>
+        ) : metric.format === "percent" ? (
+          "No movement large enough to call out"
+        ) : (
+          // Movement is only assessed for rates. Saying "no movement" about a
+          // count would report a conclusion we never tested.
+          "Volume over time"
+        )}
+      </p>
+      <svg className="ip-chart-svg" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={summary}>
+        {[0.25, 0.5, 0.75].map((fraction) => (
+          <line
+            className="ip-chart-grid"
+            key={fraction}
+            x1={PAD.left}
+            x2={W - PAD.right}
+            y1={PAD.top + innerH * fraction}
+            y2={PAD.top + innerH * fraction}
+          />
+        ))}
         <line
-          className="tc-axis"
+          className="ip-chart-axis"
           x1={PAD.left}
           x2={W - PAD.right}
           y1={PAD.top + innerH}
@@ -112,36 +95,38 @@ export function TrackingChart({
         {runs.map((segment, index) => (
           <polyline
             key={index}
-            className="tc-line"
+            className="ip-chart-line"
             points={segment.map((point) => `${x(point.index)},${y(point.value)}`).join(" ")}
           />
         ))}
         {points.map((point, index) =>
           point.value === null ? (
-            // The week happened; it just could not carry the metric. Marked on
+            // The period happened; it just could not carry the metric. Marked on
             // the baseline so the reader sees the hole rather than inferring a
             // smooth run of data.
             point.eligible > 0 ? (
               <circle
                 key={point.from}
-                className="tc-thin"
+                className="ip-chart-thin"
                 cx={x(index)}
                 cy={PAD.top + innerH}
-                r={2}
+                r={2.4}
               />
             ) : null
           ) : (
             <circle
               key={point.from}
-              className={`tc-dot${point === last ? " tc-dot--last" : ""}`}
+              className={`ip-chart-dot${point === last ? " ip-chart-dot--last" : ""}`}
               cx={x(index)}
               cy={y(point.value)}
-              r={point === last ? 4 : 2.6}
-            />
+              r={point === last ? 4.5 : 3}
+            >
+              <title>{`${point.label} · ${formatValue(point.value, metric.format)} · ${point.matched} of ${point.eligible}`}</title>
+            </circle>
           ),
         )}
         {last ? (
-          <text className="tc-endlabel" x={x(points.indexOf(last)) - 8} y={y(last.value!) - 10}>
+          <text className="ip-chart-end" x={x(points.indexOf(last)) - 8} y={y(last.value!) - 10}>
             {formatValue(last.value!, metric.format)}
           </text>
         ) : null}
@@ -149,7 +134,7 @@ export function TrackingChart({
           index === 0 || index === points.length - 1 ? (
             <text
               key={`t-${point.from}`}
-              className="tc-tick"
+              className="ip-chart-tick"
               x={x(index)}
               y={H - 8}
               textAnchor={index === 0 ? "start" : "end"}
@@ -159,11 +144,10 @@ export function TrackingChart({
           ) : null,
         )}
       </svg>
-
-      <p className="fl-sample">
+      <p className="ip-note">
         {plotted.length} of {points.length} periods had enough interactions to plot
         {points.some((point) => point.value === null && point.eligible > 0)
-          ? "; the marks on the baseline are periods that were too thin"
+          ? "; baseline marks are periods that were too thin"
           : ""}
         .
       </p>

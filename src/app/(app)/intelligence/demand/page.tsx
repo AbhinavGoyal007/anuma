@@ -1,89 +1,236 @@
 import { redirect } from "next/navigation";
 
-import { DemandView, NEED_TABS, type NeedTabKey } from "@/components/intelligence/demand-view";
-import { IntelligenceFilterBar } from "@/components/intelligence/filter-bar";
-import { PageHeader } from "@/components/ui/page-header";
-import { resolveIntelligencePage } from "@/modules/intelligence/page-context";
+import {
+  DemandView,
+  NEED_TABS,
+  VOICE_TABS,
+  type VoicePanel,
+} from "@/components/intelligence/demand-view";
+import { IntelligenceFilterBar, IntelligenceHead } from "@/components/intelligence/filter-bar";
 import {
   budgetPicture,
   clarityMatrix,
   computeDemand,
+  contextPrices,
   distribution,
   nonConversionReasons,
+  originStrip,
+  partySizeDistribution,
   rankedShare,
 } from "@/modules/intelligence/demand";
-import { filtersToQuery, windowLabel } from "@/modules/intelligence/filters";
+import { intelligenceHref, single } from "@/modules/intelligence/filters";
 import { isUnresolved } from "@/modules/intelligence/outcome";
-import { loadPopulation, type PopulationRow } from "@/modules/intelligence/population";
+import { resolveIntelligencePage } from "@/modules/intelligence/page-context";
+import type { PopulationRow } from "@/modules/intelligence/population";
 
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
+
+const BASE = "/intelligence/demand";
+
+/** Which fields each Needs tab reads, fixed by the field-home map. */
+const NEED_FIELDS: Readonly<Record<string, string[]>> = {
+  initial_request: ["initial_request"],
+  use_cases: ["purchase_use_cases"],
+  requirements: ["specification_requirements", "additional_requirements", "other_constraints"],
+  drivers: ["decision_drivers"],
+  brands: ["brand_preferences"],
+};
+
+function voicePanels(tab: string, rows: readonly PopulationRow[]): VoicePanel[] {
+  const list = (fieldKeys: string[]) => rankedShare(rows, fieldKeys, 40);
+  const unit = (label: string) => `of ${rows.length} interactions · ${label}`;
+
+  switch (tab) {
+    case "competitors":
+      return [
+        {
+          key: "competitor_named",
+          title: "Competitors named",
+          list: list(["competitor_named"]),
+          unit: unit("named by the customer"),
+          controlled: false,
+        },
+        {
+          key: "competitor_product",
+          title: "Competitor products",
+          list: list(["competitor_product"]),
+          unit: unit("as described"),
+          controlled: false,
+        },
+        {
+          key: "competitor_price_claim",
+          title: "Customer-stated competitor price",
+          list: list(["competitor_price_claim"]),
+          unit: unit("claimed, never verified"),
+          controlled: false,
+        },
+      ];
+    case "stock":
+      return [
+        {
+          key: "stock_status",
+          title: "Stock status",
+          list: list(["stock_status"]),
+          unit: unit("as recorded"),
+          controlled: true,
+        },
+        {
+          key: "promotion_discussed",
+          title: "Promotions discussed",
+          list: list(["promotion_discussed"]),
+          unit: unit("as recorded"),
+          controlled: false,
+        },
+        {
+          key: "finance_requested",
+          title: "Finance raised",
+          list: list(["finance_requested"]),
+          unit: unit("as recorded"),
+          controlled: true,
+        },
+      ];
+    case "questions":
+      return [
+        {
+          key: "customer_questions",
+          title: "Question topics",
+          list: list(["customer_questions"]),
+          unit: unit("asked"),
+          controlled: false,
+        },
+        {
+          key: "question_response_status",
+          title: "Response status",
+          list: list(["question_response_status"]),
+          unit: unit("recorded against a question"),
+          controlled: true,
+        },
+      ];
+    case "objections":
+      return [
+        {
+          key: "objections",
+          title: "Objections raised",
+          list: list(["objections"]),
+          unit: unit("raised by the customer"),
+          controlled: false,
+        },
+      ];
+    case "conditions":
+      return [
+        {
+          key: "customer_purchase_conditions",
+          title: "What customers said would close it",
+          // Only from interactions that did not close: a customer who bought had
+          // no condition left to state.
+          list: rankedShare(
+            rows.filter((row) => isUnresolved(row.outcome)),
+            ["customer_purchase_conditions"],
+            40,
+          ),
+          unit: "of unresolved interactions · stated explicitly, not our guess",
+          controlled: false,
+        },
+      ];
+    default:
+      return [
+        {
+          key: "language_mix",
+          title: "Language",
+          list: list(["language_mix"]),
+          unit: unit("as spoken"),
+          controlled: false,
+        },
+        {
+          key: "customer_party_size",
+          title: "Party size",
+          list: partySizeDistribution(rows),
+          unit: unit("with a readable party size"),
+          controlled: false,
+        },
+        {
+          key: "purchase_timing",
+          title: "Purchase timing",
+          list: list(["purchase_timing"]),
+          unit: unit("as stated"),
+          controlled: true,
+        },
+      ];
+  }
+}
 
 export default async function CustomerDemandPage({ searchParams }: PageProps) {
   const raw = await searchParams;
   const page = await resolveIntelligencePage(raw);
   if ("redirect" in page) redirect(page.redirect);
 
-  const { filters, current, previous, stores, representatives, categories, selectedStoreName } =
-    page;
+  const {
+    filters,
+    current,
+    previous,
+    stores,
+    representatives,
+    categories,
+    intents,
+    languages,
+    storeCount,
+  } = page;
   const rows = current.rows;
-  // Purchase conditions read only from interactions that did not close, so the
-  // panel is not diluted by customers who had nothing left to ask for.
-  const unresolved: PopulationRow[] = rows.filter((row) => isUnresolved(row.outcome));
 
-  // Which need list is showing, and whether it is expanded. Both live in the
-  // URL like every other selection here, so a narrowed view stays shareable and
-  // the control works without JavaScript.
-  const requestedNeed = Array.isArray(raw.need) ? raw.need[0] : raw.need;
-  const need: NeedTabKey = NEED_TABS.find((tab) => tab.key === requestedNeed)?.key ?? "use_cases";
-  const expanded = (Array.isArray(raw.all) ? raw.all[0] : raw.all) === "1";
-  // Expanding has to mean everything, or "Show all 10" would be a promise the
-  // page does not keep when the underlying list is longer than ten.
-  const listLimit = expanded ? Number.MAX_SAFE_INTEGER : 12;
-  const withParams = (extra: Record<string, string>) => {
-    const query = filtersToQuery(filters).replace(/^\?/, "");
-    const params = new URLSearchParams(query);
-    for (const [key, value] of Object.entries(extra)) params.set(key, value);
-    return `/intelligence/demand?${params.toString()}`;
+  // Which panel is showing, and whether it is expanded. Both live in the URL
+  // like every other selection here, so a narrowed view stays shareable and the
+  // control works without JavaScript.
+  const need = NEED_TABS.find((tab) => tab.key === single(raw, "need"))?.key ?? "use_cases";
+  const voiceTab = VOICE_TABS.find((tab) => tab.key === single(raw, "voice"))?.key ?? "context";
+  const expanded = single(raw, "all") === "1";
+  const allCategories = single(raw, "cats") === "1";
+  // Expanding has to mean everything, or "Show all 10" is a promise the page
+  // does not keep when the underlying list is longer than ten.
+  const listLimit = expanded ? Number.MAX_SAFE_INTEGER : 40;
+  const carry: Record<string, string> = {
+    need,
+    voice: voiceTab,
+    ...(expanded ? { all: "1" } : {}),
+    ...(allCategories ? { cats: "1" } : {}),
   };
 
   return (
     <>
-      <PageHeader eyebrow="Customer demand" title="Who walked in, and what stopped them" />
+      <IntelligenceHead title="Demand" />
       <IntelligenceFilterBar
-        basePath="/intelligence/demand"
+        basePath={BASE}
         filters={filters}
         stores={stores}
         categories={categories}
         representatives={representatives}
+        intents={intents}
+        languages={languages}
+        interactions={rows.length}
+        storeCount={storeCount}
+        carry={carry}
       />
-      <p className="fl-context">
-        {rows.length} analysed interaction{rows.length === 1 ? "" : "s"} in{" "}
-        {windowLabel(filters.days)}
-        {selectedStoreName ? ` at ${selectedStoreName}` : ""}
-        {previous ? `, against ${previous.rows.length} in the ${filters.days} days before` : ""}.
-      </p>
       <DemandView
         metrics={computeDemand(rows)}
         previous={previous ? computeDemand(previous.rows) : null}
         budget={budgetPicture(rows)}
+        prices={contextPrices(rows)}
         clarity={clarityMatrix(rows)}
+        origins={originStrip(rows)}
         categories={distribution(rows, (row) => row.purchaseCategory)}
+        categoryExpandHref={
+          allCategories ? null : intelligenceHref(BASE, filters, { ...carry, cats: "1" })
+        }
         intents={distribution(rows, (row) => row.arrivalIntent)}
-        useCases={rankedShare(rows, ["purchase_use_cases"], listLimit)}
-        requirements={rankedShare(
-          rows,
-          ["specification_requirements", "additional_requirements", "other_constraints"],
-          listLimit,
-        )}
-        drivers={rankedShare(rows, ["decision_drivers"], listLimit)}
-        brands={rankedShare(rows, ["brand_preferences"], listLimit)}
-        questions={rankedShare(rows, ["customer_questions"])}
-        blockers={nonConversionReasons(rows)}
-        conditions={rankedShare(unresolved, ["customer_purchase_conditions"])}
-        periodLabel={windowLabel(filters.days)}
+        needs={rankedShare(rows, NEED_FIELDS[need]!, listLimit)}
         need={need}
-        needHref={(key) => withParams({ need: key })}
-        expandHref={expanded ? null : withParams({ need, all: "1" })}
+        needHref={(key) => intelligenceHref(BASE, filters, { ...carry, need: key, all: null })}
+        expandHref={expanded ? null : intelligenceHref(BASE, filters, { ...carry, all: "1" })}
+        voice={voicePanels(voiceTab, rows)}
+        voiceTab={voiceTab}
+        voiceHref={(key) => intelligenceHref(BASE, filters, { ...carry, voice: key })}
+        blockers={nonConversionReasons(rows)}
+        categoryHref={(value) => intelligenceHref(BASE, { ...filters, category: value }, carry)}
+        intentHref={(value) => intelligenceHref(BASE, { ...filters, intent: value }, carry)}
       />
     </>
   );
