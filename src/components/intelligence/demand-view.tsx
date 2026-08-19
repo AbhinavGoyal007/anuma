@@ -5,6 +5,7 @@ import {
   type DemandMetrics,
   type RankedShare,
 } from "@/modules/intelligence/demand";
+import { displayValue, readableLabel } from "@/modules/intelligence/display";
 import { change, DEFAULT_GUARDRAILS, type Measure } from "@/modules/intelligence/guardrails";
 import { metric } from "@/modules/intelligence/metric-registry";
 
@@ -116,9 +117,9 @@ function Ranked({
       <ul className="dm-bars">
         {entries.map((entry) => (
           <li key={`${entry.label ?? ""}-${entry.value}`}>
-            <span className="dm-bar-label">
-              {entry.label ? <em>{entry.label.replaceAll("_", " ")}</em> : null}
-              {controlled ? readable(entry.value) : entry.value}
+            <span className="dm-bar-label" title={entry.value}>
+              {entry.label ? <em>{readableLabel(entry.label)}</em> : null}
+              {controlled ? readable(entry.value) : displayValue(entry.label, entry.value).text}
             </span>
             <span className="dm-bar-track" aria-hidden="true">
               <span

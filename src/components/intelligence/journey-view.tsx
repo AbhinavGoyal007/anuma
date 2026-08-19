@@ -29,6 +29,37 @@ function percent(value: number | null): string {
   return value === null ? "—" : `${Math.round(value * 100)}%`;
 }
 
+/**
+ * One cell of the breakdown, suppressed on its own denominator.
+ *
+ * A percentage from two usable interactions is 0% or 100% and reads, at a
+ * glance, as a real difference between stores. The row total is not the guard —
+ * a store with fifty conversations can still have two established outcomes — so
+ * every cell is judged on the population that could actually answer it.
+ */
+function Cell({ measure: m }: { measure: Measure }) {
+  if (m.value === null || m.observed === 0) {
+    return (
+      <td className="jr-cell-thin" title="Not measurable in this group">
+        —
+      </td>
+    );
+  }
+  if (m.observed < DEFAULT_GUARDRAILS.minimumForComparison) {
+    return (
+      <td className="jr-cell-thin" title={`Only ${m.observed} measurable — too few to compare`}>
+        {m.affected ?? 0}/{m.observed}
+      </td>
+    );
+  }
+  return (
+    <td>
+      {percent(m.value)}
+      <span className="jr-cell-n"> {m.observed}</span>
+    </td>
+  );
+}
+
 function Sample({ measure: m }: { measure: Measure }) {
   const thin = m.observed > 0 && m.observed < DEFAULT_GUARDRAILS.minimumForConfidentDisplay;
   return (
@@ -64,6 +95,14 @@ export function JourneyView({
   // The cohort link points at the journey page; a group link points at the
   // shared drill-down carrying the same query, so the set opened is the set
   // counted.
+  // Groups whose cells could carry a rate at all. Below two of them the section
+  // stops presenting itself as a comparison.
+  const comparable = breakdown.filter((row) =>
+    [row.requirementClear, row.preferenceFormed, row.commitment, row.sale].some(
+      (m) => m.observed >= DEFAULT_GUARDRAILS.minimumForComparison,
+    ),
+  );
+
   const gapLink = (key: string) =>
     `/intelligence/cohort/${key}${cohortQuery(cohortKey).replace("/intelligence/journey", "")}`;
 
@@ -181,47 +220,54 @@ export function JourneyView({
           </section>
 
           <section className="fl-section" aria-labelledby="jr-where">
-            <h2 id="jr-where">Where the journey looks different</h2>
+            <h2 id="jr-where">
+              {comparable.length >= 2
+                ? "Where the journey differs"
+                : `Journey by ${breakdownLabel.toLowerCase()}`}
+            </h2>
             {breakdown.length < 2 ? (
               <p className="fl-none">
-                Only one {breakdownLabel} in this group; nothing to compare.
+                Only one {breakdownLabel.toLowerCase()} in this group; nothing to compare.
               </p>
             ) : (
-              <table className="fl-table">
-                <thead>
-                  <tr>
-                    <th scope="col">{breakdownLabel}</th>
-                    <th scope="col">n</th>
-                    <th scope="col">Knew what they needed</th>
-                    <th scope="col">Settled on a product</th>
-                    <th scope="col">Showed they were ready</th>
-                    <th scope="col">Bought</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {breakdown.map((row) => (
-                    <tr key={row.key}>
-                      <th scope="row">{row.label}</th>
-                      <td>
-                        {row.size}
-                        {row.size < DEFAULT_GUARDRAILS.minimumForConfidentDisplay ? (
-                          <span className="jr-thin" title="Small sample — directional only">
-                            ·
-                          </span>
-                        ) : null}
-                      </td>
-                      <td>{percent(row.requirementClear.value)}</td>
-                      <td>{percent(row.preferenceFormed.value)}</td>
-                      <td>{percent(row.commitment.value)}</td>
-                      <td>{percent(row.sale.value)}</td>
+              <>
+                {comparable.length < 2 ? (
+                  <p className="fl-note">
+                    No {breakdownLabel.toLowerCase()} has enough interactions to compare rates
+                    against another, so counts are shown instead. A rate from two conversations is
+                    0% or 100% and would read as a performance difference it cannot support.
+                  </p>
+                ) : null}
+                <table className="fl-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">{breakdownLabel}</th>
+                      <th scope="col">n</th>
+                      <th scope="col">Requirement clear</th>
+                      <th scope="col">Preference formed</th>
+                      <th scope="col">Commitment signal</th>
+                      <th scope="col">Sale</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {breakdown.map((row) => (
+                      <tr key={row.key}>
+                        <th scope="row">{row.label}</th>
+                        <td>{row.size}</td>
+                        <Cell measure={row.requirementClear} />
+                        <Cell measure={row.preferenceFormed} />
+                        <Cell measure={row.commitment} />
+                        <Cell measure={row.sale} />
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
             )}
             <p className="fl-note">
-              A dot marks a group too small to compare against another. Ordering these into a
-              ranking would read as a judgement the sample cannot support.
+              Each cell is judged on its own denominator, not on the row total: a store with fifty
+              conversations can still have only two usable outcomes. Cells below{" "}
+              {DEFAULT_GUARDRAILS.minimumForComparison} show the count rather than a percentage.
             </p>
           </section>
         </>
