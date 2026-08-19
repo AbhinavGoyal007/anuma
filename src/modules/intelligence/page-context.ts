@@ -90,22 +90,30 @@ export async function resolveIntelligencePage(
   // hand-edited URL narrows to nothing rather than widening to everything.
   const scopedFilters: IntelligenceFilters = { ...filters, storeId: selectedStore?.id ?? null };
 
-  const load = (from: string, to: string, representativeMembershipId: string | null) =>
+  const load = (
+    from: string,
+    to: string,
+    representativeMembershipId: string | null,
+    purchaseCategory: string | null,
+  ) =>
     loadPopulation({
       organizationId: organization.id,
       from,
       to,
       locationId: selectedStore?.id ?? null,
-      purchaseCategory: scopedFilters.category,
+      purchaseCategory,
       representativeMembershipId,
     });
 
-  // Loaded once without the representative filter to learn who is selectable,
-  // then again narrowed if the selection turns out to be authorized.
-  const unscoped = await load(periods.current.from, periods.current.to, null);
+  // The option source: authorized store and period, narrowed by neither
+  // category nor representative. Deriving options from an already-narrowed
+  // slice is what made a selection erase its own alternatives — pick one
+  // category and the others vanished, pick a representative with no rows in
+  // that category and the filter silently widened back to everybody.
+  const base = await load(periods.current.from, periods.current.to, null, null);
   const representatives = await representativeOptions(organization.id, [
     ...new Set(
-      unscoped.rows.flatMap((row) =>
+      base.rows.flatMap((row) =>
         row.representativeMembershipId ? [row.representativeMembershipId] : [],
       ),
     ),
@@ -114,10 +122,27 @@ export async function resolveIntelligencePage(
     representatives.find((item) => item.id === scopedFilters.representativeMembershipId) ?? null;
   scopedFilters.representativeMembershipId = selectedRep?.id ?? null;
 
+  // An authorized representative with no rows in the selected category stays
+  // selected and returns nothing, which is the honest answer. Dropping them
+  // because their slice is empty would widen the page back to every
+  // representative without the reader asking for it.
+  const narrowed = selectedRep !== null || scopedFilters.category !== null;
   const [current, previous] = await Promise.all([
-    selectedRep ? load(periods.current.from, periods.current.to, selectedRep.id) : unscoped,
+    narrowed
+      ? load(
+          periods.current.from,
+          periods.current.to,
+          selectedRep?.id ?? null,
+          scopedFilters.category,
+        )
+      : base,
     periods.previous
-      ? load(periods.previous.from, periods.previous.to, selectedRep?.id ?? null)
+      ? load(
+          periods.previous.from,
+          periods.previous.to,
+          selectedRep?.id ?? null,
+          scopedFilters.category,
+        )
       : null,
   ]);
 
@@ -130,7 +155,7 @@ export async function resolveIntelligencePage(
     stores,
     representatives,
     // From the unnarrowed slice, so choosing a category never removes the others.
-    categories: unscoped.availableCategories,
+    categories: base.availableCategories,
     selectedStoreName: selectedStore?.name ?? null,
   };
 }

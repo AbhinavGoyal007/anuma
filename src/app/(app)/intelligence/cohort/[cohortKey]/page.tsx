@@ -2,17 +2,16 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { PageHeader } from "@/components/ui/page-header";
-import { getApplicationContext } from "@/modules/identity/application-context";
 import {
   evidenceForField,
   timestamp,
   type EvidenceLine,
   type FieldEvidence,
 } from "@/modules/intelligence/evidence";
-import { filtersToQuery, parseFilters, resolvePeriods } from "@/modules/intelligence/filters";
+import { filtersToQuery } from "@/modules/intelligence/filters";
+import { resolveIntelligencePage } from "@/modules/intelligence/page-context";
 import { resolveCohort } from "@/modules/intelligence/cohorts";
 import { JOURNEY_COHORTS, type JourneyCohortKey } from "@/modules/intelligence/journey";
-import { loadPopulation } from "@/modules/intelligence/population";
 import { createClient } from "@/lib/supabase/server";
 
 /** The distinct transcript lines behind an interaction, earliest first. */
@@ -44,34 +43,16 @@ type PageProps = {
  * nothing would tell anyone it had.
  */
 export default async function FrontlineCohortPage({ params, searchParams }: PageProps) {
-  const [context, { cohortKey }, raw] = await Promise.all([
-    getApplicationContext(),
-    params,
-    searchParams,
-  ]);
-  if (!context) redirect("/sign-in");
-  if (!context.current) redirect("/setup");
+  const [{ cohortKey }, raw] = await Promise.all([params, searchParams]);
 
-  const { organization, membership, assignments, locations } = context.current;
-  const filters = parseFilters(raw);
-  const periods = resolvePeriods(filters);
-
-  const assignedLocationIds = new Set(
-    assignments.flatMap((item) => (item.locationId ? [item.locationId] : [])),
-  );
-  const stores =
-    membership.role === "admin"
-      ? locations
-      : locations.filter((item) => assignedLocationIds.has(item.id));
-  const selectedStore = stores.find((item) => item.id === filters.storeId) ?? null;
-
-  const population = await loadPopulation({
-    organizationId: organization.id,
-    from: periods.current.from,
-    to: periods.current.to,
-    locationId: selectedStore?.id ?? null,
-    purchaseCategory: filters.category,
-  });
+  // The same resolver the four pages use, so the drill-down inherits the exact
+  // authorization and filter contract. Building the population separately here
+  // meant a page narrowed to one salesperson opened a cohort across all of
+  // them: the count on the page and the list behind it were computed from
+  // different populations, which is the one thing a drill-down must never do.
+  const page = await resolveIntelligencePage(raw);
+  if ("redirect" in page) redirect(page.redirect);
+  const { organizationId, filters, current: population, selectedStoreName } = page;
 
   // The journey groups are defined inside a selected cohort, so the same key
   // means a different set depending on which one the reader was looking at. It
@@ -82,17 +63,28 @@ export default async function FrontlineCohortPage({ params, searchParams }: Page
   const cohort = resolveCohort(population.rows, cohortKey, journeyCohort);
   if (!cohort) notFound();
 
-  const rows = population.rows.filter((row) => cohort.conversationIds.includes(row.conversationId));
+  const matched = new Set(cohort.conversationIds);
+  const rows = population.rows.filter((row) => matched.has(row.conversationId));
 
   const [{ data: conversations }, evidence] = await Promise.all([
     createClient().then((supabase) =>
       supabase
         .from("conversations")
         .select("id, title, started_at, locations(name)")
-        .eq("organization_id", organization.id)
+        .eq("organization_id", organizationId)
         .in("id", cohort.conversationIds),
     ),
-    evidenceForField(organization.id, cohort.conversationIds, cohort.evidenceFieldKeys),
+    // Evidence is asked for by record, not by conversation, so a reprocessed
+    // conversation cannot show a quote from an analysis the number did not
+    // come from.
+    evidenceForField(
+      organizationId,
+      rows.map((row) => ({
+        conversationId: row.conversationId,
+        interactionRecordId: row.recordId,
+      })),
+      cohort.evidenceFieldKeys,
+    ),
   ]);
   const detail = new Map((conversations ?? []).map((row) => [row.id, row]));
 
@@ -107,7 +99,7 @@ export default async function FrontlineCohortPage({ params, searchParams }: Page
       <PageHeader eyebrow="Frontline intelligence" title={`${rows.length} to review`} />
       <p className="fl-context">
         Interactions that {cohort.headline}
-        {selectedStore ? ` at ${selectedStore.name}` : ""}. <Link href={back}>Back</Link>
+        {selectedStoreName ? ` at ${selectedStoreName}` : ""}. <Link href={back}>Back</Link>
       </p>
 
       <ul className="cohort-list">

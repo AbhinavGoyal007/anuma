@@ -3,7 +3,7 @@ import Link from "next/link";
 import type {
   ActionCohort,
   FrontlineMetrics,
-  OutcomeAssociation,
+  OutcomeAssociationResult,
 } from "@/modules/intelligence/frontline";
 import { change, DEFAULT_GUARDRAILS, type Measure } from "@/modules/intelligence/guardrails";
 import { metric } from "@/modules/intelligence/metric-registry";
@@ -92,7 +92,7 @@ export function FrontlineIntelligenceView({
   metrics: FrontlineMetrics;
   previousMetrics: FrontlineMetrics | null;
   cohorts: ActionCohort[];
-  associations: OutcomeAssociation[];
+  associations: OutcomeAssociationResult;
   analysed: number;
   /** Null where a category is selected and the count cannot be stated honestly. */
   withoutMetrics: number | null;
@@ -214,11 +214,14 @@ export function FrontlineIntelligenceView({
 
       <section className="fl-section" aria-labelledby="fl-association">
         <h2 id="fl-association">What sales and non-sales looked different on</h2>
-        {associations.every((row) => row.differencePoints === null) ? (
+        {associations.strength === "suppressed" ? (
           <p className="fl-none">
-            Not enough interactions with an established outcome to compare. Both a sale group and a
-            no-sale group are needed, and interactions whose outcome was never settled belong to
-            neither.
+            Comparison suppressed — {associations.saleN} confirmed sale
+            {associations.saleN === 1 ? "" : "s"} and {associations.noSaleN} confirmed no-sale
+            {associations.noSaleN === 1 ? "" : "s"}. At least{" "}
+            {DEFAULT_GUARDRAILS.minimumForComparison} established outcomes are needed in each group
+            before behaviours can be compared. Interactions whose outcome was never settled belong
+            to neither group.
           </p>
         ) : (
           <table className="fl-table">
@@ -231,7 +234,7 @@ export function FrontlineIntelligenceView({
               </tr>
             </thead>
             <tbody>
-              {associations.map((row) => (
+              {associations.rows.map((row) => (
                 <tr key={row.behaviourKey}>
                   <th scope="row">{row.label}</th>
                   <td>{percent(row.saleRate)}</td>
@@ -246,11 +249,14 @@ export function FrontlineIntelligenceView({
             </tbody>
           </table>
         )}
-        <p className="fl-note">
-          Observed together, in {associations[0]?.saleN ?? 0} sales and{" "}
-          {associations[0]?.noSaleN ?? 0} non-sales. These conversations were recorded, not
-          controlled, so a behaviour being more common in sales does not mean it caused them.
-        </p>
+        {associations.strength !== "suppressed" ? (
+          <p className="fl-note">
+            Observed together, in {associations.saleN} sales and {associations.noSaleN} non-sales
+            {associations.strength === "directional" ? ", directional only at this sample" : ""}.
+            These conversations were recorded, not controlled, so a behaviour being more common in
+            sales does not mean it caused them.
+          </p>
+        ) : null}
       </section>
 
       {withoutMetrics !== null && withoutMetrics > 0 ? (

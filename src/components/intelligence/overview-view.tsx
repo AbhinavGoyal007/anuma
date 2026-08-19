@@ -1,6 +1,8 @@
 import Link from "next/link";
 
+import { TrackingChart } from "@/components/intelligence/tracking-chart";
 import type { IntelligenceCandidate } from "@/modules/intelligence/candidates";
+import type { TrendMetric, TrendSeries } from "@/modules/intelligence/trend";
 import { change, DEFAULT_GUARDRAILS, type Measure } from "@/modules/intelligence/guardrails";
 
 /**
@@ -58,6 +60,8 @@ export type CurrentFact = { key: string; sentence: string; detail?: string };
 export function OverviewView({
   changes,
   currentPicture,
+  tracking,
+  trackingHref,
   gaps,
   pulse,
   analysed,
@@ -69,6 +73,9 @@ export function OverviewView({
   changes: IntelligenceCandidate[];
   /** Shown in place of changes when no comparison clears the bar. */
   currentPicture: CurrentFact[];
+  /** The tracked signal, or null where the data cannot support a line. */
+  tracking: { series: TrendSeries; available: TrendMetric[] } | null;
+  trackingHref: (key: string) => string;
   gaps: IntelligenceCandidate[];
   pulse: PulseItem[];
   analysed: number;
@@ -90,6 +97,20 @@ export function OverviewView({
 
   return (
     <>
+      {/* The line leads only where the data earns it. Where it does not, the
+          page opens on the facts instead — an axis with three points on it
+          would be the most persuasive and least honest thing here. */}
+      {tracking ? (
+        <section className="fl-section fl-section--lead" aria-labelledby="ov-track">
+          <h2 id="ov-track">What is moving</h2>
+          <TrackingChart
+            series={tracking.series}
+            available={tracking.available}
+            metricHref={trackingHref}
+          />
+        </section>
+      ) : null}
+
       {changes.length > 0 ? (
         <section className="fl-section" aria-labelledby="ov-changed">
           <h2 id="ov-changed">What changed</h2>

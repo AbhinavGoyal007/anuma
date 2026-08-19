@@ -303,23 +303,73 @@ describe("the interactions behind each failure", () => {
 });
 
 describe("behaviour against outcome", () => {
-  it("drops interactions whose outcome was never established", () => {
-    // Filing an unknown outcome under no-sale would manufacture the comparison.
-    const associations = outcomeAssociations([
-      row({ demoPerformed: "yes", values: [value("confirmed_business_outcome", "sale")] }),
-      row({ demoPerformed: "no", values: [value("confirmed_business_outcome", "no_sale")] }),
-      row({ demoPerformed: "no", values: [] }),
-    ]);
-    const demo = associations.find((a) => a.behaviourKey === "demo");
-    expect(demo?.saleN).toBe(1);
-    expect(demo?.noSaleN).toBe(1);
-    expect(demo?.differencePoints).toBeCloseTo(100, 6);
+  const outcome = (business: "sale" | "no_sale", extra: Partial<PopulationRow> = {}) =>
+    row({ ...extra, values: [value("confirmed_business_outcome", business)] });
+
+  const group = (business: "sale" | "no_sale", count: number, withDemo: number) =>
+    Array.from({ length: count }, (_, index) =>
+      outcome(business, { demoPerformed: index < withDemo ? "yes" : "no" }),
+    );
+
+  it("renders nothing at all when either group is too small", () => {
+    // One sale against eight no-sales produced differences of sixty percentage
+    // points. A disclaimer underneath does not undo the impression the numbers
+    // have already made, so the comparison is not computed.
+    const result = outcomeAssociations([...group("sale", 1, 1), ...group("no_sale", 8, 2)]);
+    expect(result.strength).toBe("suppressed");
+    expect(result.rows).toEqual([]);
+    expect(result.saleN).toBe(1);
+    expect(result.noSaleN).toBe(8);
   });
 
-  it("reports nothing rather than a difference when one side is empty", () => {
-    const associations = outcomeAssociations([
-      row({ values: [value("confirmed_business_outcome", "sale")] }),
+  it("allows a directional comparison once both groups clear the lower bar", () => {
+    const result = outcomeAssociations([...group("sale", 10, 8), ...group("no_sale", 10, 2)]);
+    expect(result.strength).toBe("directional");
+    expect(result.rows.find((r) => r.behaviourKey === "demo")?.differencePoints).toBeCloseTo(60, 6);
+  });
+
+  it("allows an ordinary comparison once both groups are substantial", () => {
+    const result = outcomeAssociations([...group("sale", 30, 15), ...group("no_sale", 30, 15)]);
+    expect(result.strength).toBe("descriptive");
+  });
+
+  it("excludes interactions whose outcome was never established", () => {
+    // Filing an unknown outcome under no-sale would manufacture the comparison.
+    const result = outcomeAssociations([
+      ...group("sale", 10, 5),
+      ...group("no_sale", 10, 5),
+      ...Array.from({ length: 20 }, () => row({ demoPerformed: "yes", values: [] })),
     ]);
-    expect(associations.every((a) => a.differencePoints === null)).toBe(true);
+    expect(result.saleN).toBe(10);
+    expect(result.noSaleN).toBe(10);
+  });
+
+  it("reads cross-sell from the pitch fields, not the stored count", () => {
+    // The headline metric already reads the pitch fields. An association that
+    // read interaction_metrics instead would disagree with the number printed
+    // directly above it.
+    const result = outcomeAssociations([
+      ...Array.from({ length: 10 }, () =>
+        row({
+          crossSellCount: 3,
+          values: [
+            value("confirmed_business_outcome", "sale"),
+            value("cross_sell_pitch", null, null, "not_stated"),
+          ],
+        }),
+      ),
+      ...Array.from({ length: 10 }, () =>
+        row({
+          crossSellCount: 0,
+          values: [
+            value("confirmed_business_outcome", "no_sale"),
+            value("cross_sell_pitch", "laptop bag", "accessory"),
+          ],
+        }),
+      ),
+    ]);
+    const crossSell = result.rows.find((r) => r.behaviourKey === "cross_sell")!;
+    expect(crossSell.saleRate).toBe(0);
+    expect(crossSell.noSaleRate).toBe(1);
   });
 });

@@ -1,4 +1,9 @@
-import { measure, type Measure } from "@/modules/intelligence/guardrails";
+import {
+  DEFAULT_GUARDRAILS,
+  measure,
+  type Guardrails,
+  type Measure,
+} from "@/modules/intelligence/guardrails";
 import { isUnresolved } from "@/modules/intelligence/outcome";
 import type { PopulationRow, PopulationValue } from "@/modules/intelligence/population";
 
@@ -371,6 +376,16 @@ export type OutcomeAssociation = {
   differencePoints: number | null;
 };
 
+/** Whether the two outcome groups can carry a comparison, and how strongly. */
+export type AssociationStrength = "suppressed" | "directional" | "descriptive";
+
+export type OutcomeAssociationResult = {
+  rows: OutcomeAssociation[];
+  saleN: number;
+  noSaleN: number;
+  strength: AssociationStrength;
+};
+
 const BEHAVIOURS: readonly { key: string; label: string; test: (row: PopulationRow) => boolean }[] =
   [
     {
@@ -387,19 +402,43 @@ const BEHAVIOURS: readonly { key: string; label: string; test: (row: PopulationR
     {
       key: "cross_sell",
       label: "Pitched something alongside",
-      test: (row) => row.crossSellCount > 0,
+      test: (row) => has(row, "cross_sell_pitch"),
     },
-    { key: "upsell", label: "Moved the customer up a tier", test: (row) => row.upsellCount > 0 },
+    {
+      key: "upsell",
+      label: "Moved the customer up a tier",
+      test: (row) => has(row, "upsell_pitch"),
+    },
     { key: "close", label: "Asked for the sale", test: (row) => has(row, "close_attempts") },
   ];
 
-export function outcomeAssociations(rows: readonly PopulationRow[]): OutcomeAssociation[] {
+export function outcomeAssociations(
+  rows: readonly PopulationRow[],
+  guardrails: Guardrails = DEFAULT_GUARDRAILS,
+): OutcomeAssociationResult {
   const sales = rows.filter((row) => row.outcome.business === "sale");
   const noSales = rows.filter((row) => row.outcome.business === "no_sale");
 
-  return BEHAVIOURS.map(({ key, label, test }) => {
-    const saleRate = sales.length ? sales.filter(test).length / sales.length : null;
-    const noSaleRate = noSales.length ? noSales.filter(test).length / noSales.length : null;
+  // One confirmed sale against eight no-sales produces differences of sixty
+  // percentage points that mean nothing whatsoever, and a disclaimer under the
+  // table does not undo the impression the numbers already made. Below the bar
+  // the comparison is not computed at all, so there is nothing to render.
+  const strength: AssociationStrength =
+    sales.length < guardrails.minimumForComparison ||
+    noSales.length < guardrails.minimumForComparison
+      ? "suppressed"
+      : sales.length >= guardrails.minimumForConfidentDisplay &&
+          noSales.length >= guardrails.minimumForConfidentDisplay
+        ? "descriptive"
+        : "directional";
+
+  if (strength === "suppressed") {
+    return { rows: [], saleN: sales.length, noSaleN: noSales.length, strength };
+  }
+
+  const associations = BEHAVIOURS.map(({ key, label, test }) => {
+    const saleRate = sales.filter(test).length / sales.length;
+    const noSaleRate = noSales.filter(test).length / noSales.length;
     return {
       behaviourKey: key,
       label,
@@ -407,8 +446,9 @@ export function outcomeAssociations(rows: readonly PopulationRow[]): OutcomeAsso
       noSaleRate,
       saleN: sales.length,
       noSaleN: noSales.length,
-      differencePoints:
-        saleRate !== null && noSaleRate !== null ? (saleRate - noSaleRate) * 100 : null,
+      differencePoints: (saleRate - noSaleRate) * 100,
     };
   }).sort((a, b) => Math.abs(b.differencePoints ?? 0) - Math.abs(a.differencePoints ?? 0));
+
+  return { rows: associations, saleN: sales.length, noSaleN: noSales.length, strength };
 }

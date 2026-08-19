@@ -41,31 +41,43 @@ export type FieldEvidence = {
  * Batched because a cohort page shows twenty interactions and a per-row fetch
  * turns that into twenty sequential requests behind a spinner.
  */
+/** A conversation together with the record the dashboard actually counted. */
+export type RecordRef = { conversationId: string; interactionRecordId: string };
+
 export async function evidenceForField(
   organizationId: string,
-  conversationIds: readonly string[],
+  records: readonly RecordRef[],
   fieldKeys: readonly string[],
 ): Promise<Map<string, FieldEvidence[]>> {
   const byConversation = new Map<string, FieldEvidence[]>();
-  if (conversationIds.length === 0 || fieldKeys.length === 0) return byConversation;
+  if (records.length === 0 || fieldKeys.length === 0) return byConversation;
 
   const supabase = await createClient();
+  const conversationIds = records.map((record) => record.conversationId);
+  const recordIds = records.map((record) => record.interactionRecordId);
 
-  const { data: values } = await supabase
+  // Scoped to the exact records the population selected as current. Reading by
+  // conversation alone let a reprocessed conversation show a number from the
+  // latest analysis beside a quote from an older one — the two would disagree
+  // and the quote would be the more convincing of the pair.
+  const { data: values, error: valuesError } = await supabase
     .from("interaction_field_values")
-    .select("conversation_id, field_key, label, value_text, evidence_group_id")
+    .select(
+      "conversation_id, interaction_record_id, field_key, label, value_text, evidence_group_id",
+    )
     .eq("organization_id", organizationId)
-    .in("conversation_id", conversationIds as string[])
+    .in("interaction_record_id", recordIds)
     .in("field_key", fieldKeys as string[])
     .is("abstention", null)
     .not("evidence_group_id", "is", null);
+  if (valuesError) throw new Error(`Evidence values could not be read: ${valuesError.message}`);
 
   const groups = (values ?? []).flatMap((row) =>
     row.evidence_group_id ? [row.evidence_group_id] : [],
   );
   if (groups.length === 0) return byConversation;
 
-  const { data: references } = await supabase
+  const { data: references, error: referencesError } = await supabase
     .from("evidence_references")
     .select(
       "evidence_group_id, sequence_number, start_milliseconds, transcript_segment_id, transcript_segments(original_text, provider_speaker_identifier)",
@@ -73,16 +85,63 @@ export async function evidenceForField(
     .eq("organization_id", organizationId)
     .in("evidence_group_id", groups)
     .order("sequence_number", { ascending: true });
+  if (referencesError) {
+    throw new Error(`Evidence references could not be read: ${referencesError.message}`);
+  }
 
-  // Speaker roles come from the confirmed mapping, so a quote is attributed the
-  // same way the record was. Without it a customer's budget could be shown as
-  // something the representative said.
-  const { data: mappings } = await supabase
-    .from("speaker_mapping_entries")
-    .select("provider_speaker_identifier, participant_role, speaker_mapping_version_id")
-    .eq("organization_id", organizationId);
-  const roleFor = new Map(
-    (mappings ?? []).map((entry) => [entry.provider_speaker_identifier, entry.participant_role]),
+  // Speaker roles, keyed per conversation.
+  //
+  // Provider identifiers are only unique inside one diarization: SPEAKER_00 is
+  // the customer in one conversation and the representative in the next. A
+  // single organization-wide lookup therefore attributed quotes to whoever
+  // happened to be mapped last, which is the one failure the evidence path
+  // cannot survive — a customer's budget shown as something the salesperson
+  // said reads as fabrication, because it is.
+  const { data: conversationRows, error: conversationError } = await supabase
+    .from("conversations")
+    .select("id, active_speaker_mapping_version_id")
+    .eq("organization_id", organizationId)
+    .in("id", conversationIds);
+  if (conversationError) {
+    throw new Error(`Speaker mappings could not be read: ${conversationError.message}`);
+  }
+  const versionByConversation = new Map(
+    (conversationRows ?? []).flatMap((row) =>
+      row.active_speaker_mapping_version_id
+        ? [[row.id, row.active_speaker_mapping_version_id]]
+        : [],
+    ),
+  );
+
+  const versionIds = [...new Set(versionByConversation.values())];
+  const { data: mappings, error: mappingsError } = versionIds.length
+    ? await supabase
+        .from("speaker_mapping_entries")
+        .select("provider_speaker_identifier, participant_role, speaker_mapping_version_id")
+        .eq("organization_id", organizationId)
+        .in("speaker_mapping_version_id", versionIds)
+    : { data: [], error: null };
+  if (mappingsError) {
+    throw new Error(`Speaker mappings could not be read: ${mappingsError.message}`);
+  }
+  const roleByVersionSpeaker = new Map(
+    (mappings ?? []).map((entry) => [
+      `${entry.speaker_mapping_version_id}:${entry.provider_speaker_identifier}`,
+      entry.participant_role,
+    ]),
+  );
+  const roleFor = (conversationId: string, speaker: string | null): string => {
+    const version = versionByConversation.get(conversationId);
+    if (!version || !speaker) return "unknown";
+    return roleByVersionSpeaker.get(`${version}:${speaker}`) ?? "unknown";
+  };
+
+  // Which conversation each evidence group belongs to, so a line can be
+  // attributed with that conversation's own mapping.
+  const conversationByGroup = new Map(
+    (values ?? []).flatMap((row) =>
+      row.evidence_group_id ? [[row.evidence_group_id, row.conversation_id]] : [],
+    ),
   );
 
   const linesByGroup = new Map<string, EvidenceLine[]>();
@@ -92,10 +151,12 @@ export async function evidenceForField(
       provider_speaker_identifier: string | null;
     } | null;
     if (!segment) continue;
+    const conversationId = conversationByGroup.get(reference.evidence_group_id);
+    if (!conversationId) continue;
     const list = linesByGroup.get(reference.evidence_group_id) ?? [];
     list.push({
       startMilliseconds: reference.start_milliseconds ?? 0,
-      role: roleFor.get(segment.provider_speaker_identifier ?? "") ?? "unknown",
+      role: roleFor(conversationId, segment.provider_speaker_identifier),
       text: segment.original_text,
     });
     linesByGroup.set(reference.evidence_group_id, list);

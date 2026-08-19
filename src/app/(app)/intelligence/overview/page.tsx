@@ -20,11 +20,13 @@ import { resolveIntelligencePage } from "@/modules/intelligence/page-context";
 import { computeFrontline, frontlineActionCohorts } from "@/modules/intelligence/frontline";
 import { journeyLeakageCohorts } from "@/modules/intelligence/journey";
 import { loadPopulation } from "@/modules/intelligence/population";
+import { selectPrincipalSeries, TREND_METRICS, buildSeries } from "@/modules/intelligence/trend";
 
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 export default async function IntelligenceOverviewPage({ searchParams }: PageProps) {
-  const page = await resolveIntelligencePage(await searchParams);
+  const raw = await searchParams;
+  const page = await resolveIntelligencePage(raw);
   if ("redirect" in page) redirect(page.redirect);
 
   const { filters, current, previous, stores, representatives, categories, selectedStoreName } =
@@ -84,6 +86,26 @@ export default async function IntelligenceOverviewPage({ searchParams }: PagePro
       : null,
   ].flatMap((fact) => (fact ? [fact] : []));
 
+  // The tracked signal. A reader can switch it, but only among the signals that
+  // cleared their own guardrails — the picker never offers a line we would
+  // refuse to draw.
+  const picked = selectPrincipalSeries(current.rows, filters.days);
+  const requestedSignal = Array.isArray(raw.signal) ? raw.signal[0] : raw.signal;
+  const chosen =
+    picked && requestedSignal
+      ? (picked.available.find((metric) => metric.key === requestedSignal) ?? null)
+      : null;
+  const tracking = picked
+    ? {
+        series: chosen ? buildSeries(current.rows, chosen, filters.days) : picked.series,
+        available: picked.available,
+      }
+    : null;
+  const trackingHref = (key: string) => {
+    const query = filtersToQuery(filters);
+    return `/intelligence/overview${query}${query ? "&" : "?"}signal=${key}`;
+  };
+
   const pulse: PulseItem[] = [
     {
       key: "analysed",
@@ -139,6 +161,8 @@ export default async function IntelligenceOverviewPage({ searchParams }: PagePro
       <OverviewView
         changes={changes}
         currentPicture={currentPicture}
+        tracking={tracking}
+        trackingHref={trackingHref}
         gaps={gaps}
         pulse={pulse}
         analysed={current.rows.length}

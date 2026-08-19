@@ -146,7 +146,7 @@ async function readAllFieldValues(
 ): Promise<FieldValueRow[]> {
   const all: FieldValueRow[] = [];
   for (let offset = 0; ; offset += VALUE_PAGE_SIZE) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("interaction_field_values")
       .select(VALUE_COLUMNS)
       .eq("organization_id", organizationId)
@@ -155,6 +155,7 @@ async function readAllFieldValues(
       // an unordered paged read does not guarantee.
       .order("id", { ascending: true })
       .range(offset, offset + VALUE_PAGE_SIZE - 1);
+    if (error) throw new Error(`Interaction field values could not be read: ${error.message}`);
     const page = (data ?? []) as unknown as FieldValueRow[];
     all.push(...page);
     if (page.length < VALUE_PAGE_SIZE) return all;
@@ -188,7 +189,14 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
     );
   }
 
-  const { data: conversations } = await conversationQuery;
+  const { data: conversations, error: conversationsError } = await conversationQuery;
+  // A failed read and an empty period are indistinguishable once both become
+  // an empty array, and the second is a normal Tuesday. Left unchecked, an
+  // outage renders as "0 interactions analysed" — a confident, wrong answer
+  // that nobody would think to question.
+  if (conversationsError) {
+    throw new Error(`Conversations could not be read: ${conversationsError.message}`);
+  }
   const conversationIds = (conversations ?? []).map((row) => row.id);
   if (conversationIds.length === 0) {
     return {
@@ -216,13 +224,15 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
   );
 
   // The current record per conversation: most recently completed wins.
-  const { data: records } = await supabase
+  const { data: records, error: recordsError } = await supabase
     .from("interaction_records")
     .select("id, conversation_id, created_at")
     .eq("organization_id", filters.organizationId)
     .eq("status", "completed")
     .in("conversation_id", conversationIds)
     .order("created_at", { ascending: false });
+  if (recordsError)
+    throw new Error(`Interaction records could not be read: ${recordsError.message}`);
 
   const recordIds = currentRecordIds(
     (records ?? []).map((record) => ({
@@ -247,11 +257,13 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
   // so choosing a category inflated the "incomplete analysis" note. It also let
   // the category selector be built from an already-category-filtered result,
   // which collapsed it to the one category the reader had picked.
-  const { data: metrics } = await supabase
+  const { data: metrics, error: metricsError } = await supabase
     .from("interaction_metrics")
     .select(METRIC_COLUMNS)
     .eq("organization_id", filters.organizationId)
     .in("interaction_record_id", recordIds);
+  if (metricsError)
+    throw new Error(`Interaction metrics could not be read: ${metricsError.message}`);
   const analysedRows = metrics ?? [];
   const metricRows = filters.purchaseCategory
     ? analysedRows.filter((row) => row.purchase_category === filters.purchaseCategory)

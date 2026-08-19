@@ -4471,3 +4471,92 @@ a {
   font-size: 0.76rem;
   margin-left: auto;
 }
+
+/* Management tracking chart. A polyline, dots and a baseline — no library, so
+   the type scale and palette stay ANUMA's. Breaks in the line are the point:
+   a period that could not carry the metric must not be joined through. */
+.tc {
+  border: 1px solid var(--border);
+  padding: 1rem 1.1rem 0.9rem;
+}
+
+.tc-head {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.2rem;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.tc-metric {
+  color: var(--carbon);
+  font-family: ui-sans-serif, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.tc-move {
+  color: var(--signal-coral, #b3441d);
+  font-family: ui-sans-serif, sans-serif;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  margin: 0.15rem 0 0;
+}
+
+.tc-move--flat {
+  color: var(--muted);
+}
+
+.tc-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.tc-svg {
+  display: block;
+  height: auto;
+  width: 100%;
+}
+
+.tc-axis {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.tc-line {
+  fill: none;
+  stroke: var(--carbon);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.tc-dot {
+  fill: var(--carbon);
+}
+
+.tc-dot--last {
+  fill: var(--signal-coral, #b3441d);
+}
+
+.tc-thin {
+  fill: var(--muted);
+  opacity: 0.55;
+}
+
+.tc-endlabel {
+  fill: var(--signal-coral, #b3441d);
+  font-family: ui-sans-serif, sans-serif;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.tc-tick {
+  fill: var(--muted);
+  font-family: ui-sans-serif, sans-serif;
+  font-size: 11px;
+}
