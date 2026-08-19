@@ -146,6 +146,50 @@ function Composition({
   );
 }
 
+/**
+ * Two rates for one behaviour, on a shared scale.
+ *
+ * A dumbbell rather than four columns of numbers: the distance between the dots
+ * is the comparison, and reading a gap is faster and less error-prone than
+ * subtracting two percentages in your head. Both ends are labelled, so the
+ * chart is legible without colour.
+ *
+ * Only ever rendered on a sample that already cleared the guardrail — the
+ * suppressed case returns before this is reached, because a persuasive shape
+ * drawn on one sale and eight no-sales is worse than a table of the same
+ * numbers.
+ */
+function Dumbbell({ rows }: { rows: OutcomeAssociationResult["rows"] }) {
+  return (
+    <ul className="db-list">
+      {rows.map((row) => {
+        const sale = (row.saleRate ?? 0) * 100;
+        const noSale = (row.noSaleRate ?? 0) * 100;
+        const left = Math.min(sale, noSale);
+        const width = Math.abs(sale - noSale);
+        return (
+          <li key={row.behaviourKey} className="db-row">
+            <span className="db-label">{row.label}</span>
+            <span
+              className="db-track"
+              role="img"
+              aria-label={`${row.label}: ${Math.round(sale)}% in sales, ${Math.round(noSale)}% in non-sales`}
+            >
+              <span className="db-connector" style={{ left: `${left}%`, width: `${width}%` }} />
+              <span className="db-dot db-dot--nosale" style={{ left: `${noSale}%` }} />
+              <span className="db-dot db-dot--sale" style={{ left: `${sale}%` }} />
+            </span>
+            <span className="db-values">
+              <span className="db-v db-v--sale">{Math.round(sale)}%</span>
+              <span className="db-v db-v--nosale">{Math.round(noSale)}%</span>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export function FrontlineIntelligenceView({
   metrics,
   compositions,
@@ -313,30 +357,15 @@ export function FrontlineIntelligenceView({
             to neither group.
           </p>
         ) : (
-          <table className="fl-table">
-            <thead>
-              <tr>
-                <th scope="col">Behaviour</th>
-                <th scope="col">In sales</th>
-                <th scope="col">In non-sales</th>
-                <th scope="col">Difference</th>
-              </tr>
-            </thead>
-            <tbody>
-              {associations.rows.map((row) => (
-                <tr key={row.behaviourKey}>
-                  <th scope="row">{row.label}</th>
-                  <td>{percent(row.saleRate)}</td>
-                  <td>{percent(row.noSaleRate)}</td>
-                  <td>
-                    {row.differencePoints === null
-                      ? "—"
-                      : `${row.differencePoints > 0 ? "+" : ""}${Math.round(row.differencePoints)}pp`}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+            <p className="db-legend">
+              <span className="db-swatch db-dot--sale" aria-hidden="true" /> in sales (
+              {associations.saleN}) &nbsp;
+              <span className="db-swatch db-dot--nosale" aria-hidden="true" /> in non-sales (
+              {associations.noSaleN})
+            </p>
+            <Dumbbell rows={associations.rows} />
+          </>
         )}
         {associations.strength !== "suppressed" ? (
           <p className="fl-note">

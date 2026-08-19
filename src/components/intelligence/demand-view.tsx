@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import {
   CLARITY_LABELS,
   type BudgetPicture,
@@ -85,6 +87,16 @@ function readable(token: string): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
+/** The four "what customers need" lists, one shown at a time. */
+export const NEED_TABS = [
+  { key: "use_cases", label: "Use cases" },
+  { key: "requirements", label: "Requirements" },
+  { key: "drivers", label: "Decision drivers" },
+  { key: "brands", label: "Brand preferences" },
+] as const;
+
+export type NeedTabKey = (typeof NEED_TABS)[number]["key"];
+
 /** A ranked bar list. The only comparison shape on this page. */
 function Ranked({
   title,
@@ -93,6 +105,8 @@ function Ranked({
   eligible,
   unit,
   controlled,
+  limit,
+  expandHref,
 }: {
   title: string;
   note?: string;
@@ -101,6 +115,9 @@ function Ranked({
   unit: string;
   /** Whether the values come from a fixed vocabulary and may be relabelled. */
   controlled?: boolean;
+  /** Show only this many until the reader asks for the rest. */
+  limit?: number;
+  expandHref?: string | null;
 }) {
   if (entries.length === 0) {
     return (
@@ -111,11 +128,16 @@ function Ranked({
     );
   }
   const widest = entries[0]!.interactions || 1;
+  // Long free-text lists open at five. The rest are a link away rather than
+  // absent — the data must stay reachable, it just should not consume the page
+  // before the reader has decided they want it.
+  const hidden = limit && expandHref ? Math.max(0, entries.length - limit) : 0;
+  const shown = hidden > 0 ? entries.slice(0, limit) : entries;
   return (
     <div className="dm-panel">
       <h3>{title}</h3>
       <ul className="dm-bars">
-        {entries.map((entry) => (
+        {shown.map((entry) => (
           <li key={`${entry.label ?? ""}-${entry.value}`}>
             <span className="dm-bar-label" title={entry.value}>
               {entry.label ? <em>{readableLabel(entry.label)}</em> : null}
@@ -133,7 +155,15 @@ function Ranked({
           </li>
         ))}
       </ul>
-      <p className="fl-sample">{unit.startsWith("of ") ? unit : `of ${eligible} ${unit}`}</p>
+      <p className="fl-sample">
+        {unit.startsWith("of ") ? unit : `of ${eligible} ${unit}`}
+        {hidden > 0 && expandHref ? (
+          <>
+            {" · "}
+            <Link href={expandHref}>Show all {entries.length}</Link>
+          </>
+        ) : null}
+      </p>
       {note ? <p className="fl-note">{note}</p> : null}
     </div>
   );
@@ -201,6 +231,9 @@ export function DemandView({
   blockers,
   conditions,
   periodLabel,
+  need,
+  needHref,
+  expandHref,
 }: {
   metrics: DemandMetrics;
   previous: DemandMetrics | null;
@@ -221,6 +254,11 @@ export function DemandView({
   };
   conditions: { entries: RankedShare[]; eligible: number };
   periodLabel: string;
+  /** Which of the four need lists is showing. */
+  need: NeedTabKey;
+  needHref: (key: NeedTabKey) => string;
+  /** Link that reveals every entry, or null when already expanded. */
+  expandHref: string | null;
 }) {
   if (metrics.analysed === 0) {
     return (
@@ -274,40 +312,58 @@ export function DemandView({
             unit="interactions with a readable intent"
           />
         </div>
-        <div className="dm-grid">
+        <div className="dm-needs" role="group" aria-label="What customers need">
+          <span className="ifb-label">Showing</span>
+          {NEED_TABS.map((tab) => (
+            <Link
+              key={tab.key}
+              className={`ifb-chip${tab.key === need ? " ifb-chip--active" : ""}`}
+              href={needHref(tab.key)}
+              aria-current={tab.key === need ? "true" : undefined}
+            >
+              {tab.label}
+            </Link>
+          ))}
+        </div>
+        {need === "use_cases" ? (
           <Ranked
             title="What they wanted it for"
             entries={useCases.entries}
             eligible={useCases.eligible}
-            unit="interactions asked"
+            unit="interactions had at least one use case recorded"
+            limit={5}
+            expandHref={expandHref}
             note="One customer can want several things, so these add to more than 100%. Shown as spoken — near-identical wordings are not merged, because doing so would invent a taxonomy nobody agreed to."
           />
-          <Ranked
-            title="Brands they named a preference for"
-            entries={brands.entries}
-            eligible={brands.eligible}
-            unit="interactions asked"
-          />
-        </div>
-      </section>
-
-      <section className="fl-section" aria-labelledby="dm-matters">
-        <h2 id="dm-matters">What mattered in the decision</h2>
-        <div className="dm-grid">
+        ) : need === "requirements" ? (
           <Ranked
             title="Requirements"
             entries={requirements.entries}
             eligible={requirements.eligible}
-            unit="interactions asked"
+            unit="interactions had at least one requirement recorded"
+            limit={5}
+            expandHref={expandHref}
           />
+        ) : need === "drivers" ? (
           <Ranked
             title="Decision drivers"
             entries={drivers.entries}
             eligible={drivers.eligible}
-            unit="interactions asked"
+            unit="interactions had at least one driver recorded"
+            limit={5}
+            expandHref={expandHref}
             note="Free text, shown as spoken."
           />
-        </div>
+        ) : (
+          <Ranked
+            title="Brands they named a preference for"
+            entries={brands.entries}
+            eligible={brands.eligible}
+            unit="interactions had a brand preference recorded"
+            limit={5}
+            expandHref={expandHref}
+          />
+        )}
       </section>
 
       <section className="fl-section" aria-labelledby="dm-spend">

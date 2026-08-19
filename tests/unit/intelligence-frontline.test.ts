@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeFrontline,
   normalizeResponseState,
+  responseCompositions,
   frontlineActionCohorts,
   outcomeAssociations,
 } from "@/modules/intelligence/frontline";
@@ -245,6 +246,51 @@ describe("a close attempt after the customer signalled, not merely present", () 
     ]);
     expect(metrics.upsellRate.affected).toBe(1);
     expect(metrics.upsellRate.value).toBe(0.5);
+  });
+});
+
+describe("how friction was answered", () => {
+  it("counts objection responses per event, not per conversation", () => {
+    // A representative who fully answered two of five objections should not
+    // read the same as one who answered their only objection.
+    const { objection } = responseCompositions([
+      row({
+        values: [
+          value("objection_response", "full"),
+          value("objection_response", "partial"),
+          value("objection_response", "none"),
+        ],
+      }),
+      row({ values: [value("objection_response", "full")] }),
+    ]);
+    expect(objection.find((slice) => slice.key === "full")?.count).toBe(2);
+    expect(objection.find((slice) => slice.key === "partial")?.count).toBe(1);
+    expect(objection.find((slice) => slice.key === "none")?.count).toBe(1);
+  });
+
+  it("splits finance questions by whether a response was recorded", () => {
+    const { finance } = responseCompositions([
+      row({
+        values: [
+          value("customer_questions", "EMI hai kya?", "finance"),
+          value("question_response_status", "answered", "finance"),
+        ],
+      }),
+      row({ values: [value("customer_questions", "EMI hai kya?", "finance")] }),
+      row({ values: [value("customer_questions", "warranty kitni?", "warranty")] }),
+    ]);
+    expect(finance.find((slice) => slice.key === "recorded")?.count).toBe(1);
+    expect(finance.find((slice) => slice.key === "unrecorded")?.count).toBe(1);
+  });
+
+  it("calls a missing response status an absence, never an unanswered question", () => {
+    // The label matters: we know our record is empty, not that nobody replied.
+    const { finance } = responseCompositions([
+      row({ values: [value("customer_questions", "EMI hai kya?", "finance")] }),
+    ]);
+    const missing = finance.find((slice) => slice.key === "unrecorded")!;
+    expect(missing.label).toBe("No response status recorded");
+    expect(missing.label.toLowerCase()).not.toContain("unanswered");
   });
 });
 
