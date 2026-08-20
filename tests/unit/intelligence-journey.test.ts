@@ -6,6 +6,7 @@ import {
   journeyBreakdown,
   journeyLeakageCohorts,
   journeyStages,
+  outcomeDistributions,
   selectCohort,
 } from "@/modules/intelligence/journey";
 import { notStated, row, value } from "../support/population";
@@ -224,5 +225,39 @@ describe("where the journey breaks by store", () => {
         (key) => key,
       ),
     ).toHaveLength(0);
+  });
+});
+
+describe("the two outcome axes account for everyone", () => {
+  it("sums each distribution to the cohort, so nobody is quietly dropped", () => {
+    // A slice that does not add up is a slice somebody has been filed out of,
+    // and the reader has no way to notice.
+    const cohort = [
+      row({
+        values: [
+          value("confirmed_business_outcome", "sale"),
+          value("final_decision_state", "purchased"),
+        ],
+      }),
+      row({
+        values: [
+          value("confirmed_business_outcome", "no_sale"),
+          value("final_decision_state", "rejected"),
+        ],
+      }),
+      row({ values: [value("final_decision_state", "follow_up_scheduled")] }),
+      row({ values: [notStated("confirmed_business_outcome")] }),
+    ];
+    const { business, decision } = outcomeDistributions(cohort);
+    const total = (slices: { count: number }[]) =>
+      slices.reduce((sum, slice) => sum + slice.count, 0);
+    expect(total(business)).toBe(cohort.length);
+    expect(total(decision)).toBe(cohort.length);
+  });
+
+  it("never files an unestablished outcome under no sale", () => {
+    const { business } = outcomeDistributions([row({ values: [] })]);
+    expect(business.find((slice) => slice.key === "no_sale")!.count).toBe(0);
+    expect(business.find((slice) => slice.key === "unknown")!.count).toBe(1);
   });
 });
