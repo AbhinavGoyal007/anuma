@@ -470,20 +470,31 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
   let correctionsApplied = 0;
   for (const row of fieldValues) {
     const applied = correctionFor(row.id, allCorrections);
-    if (applied.kind === "rejected") {
-      correctionsApplied += 1;
-      continue;
-    }
-    if (applied.kind === "corrected") correctionsApplied += 1;
+    if (applied.kind !== "kept") correctionsApplied += 1;
     const list = valuesByRecord.get(row.interaction_record_id) ?? [];
+    // A rejected value leaves the metrics but not the record. Dropping the row
+    // outright made the field look as though it had never been extracted, and
+    // an unsupported field falls back to the conversation-level projection —
+    // so rejecting a wrong category brought the old category straight back,
+    // over the manager's correction. It stays as an abstention instead: the
+    // field was asked, and what it said is no longer trusted.
     list.push({
       fieldKey: row.field_key,
       label: row.label,
-      valueText: applied.kind === "corrected" ? applied.text : row.value_text,
-      valueNumber: row.value_number === null ? null : Number(row.value_number),
-      amountMinor: row.value_amount_minor === null ? null : Number(row.value_amount_minor),
+      valueText:
+        applied.kind === "corrected"
+          ? applied.text
+          : applied.kind === "rejected"
+            ? null
+            : row.value_text,
+      valueNumber:
+        applied.kind === "rejected" || row.value_number === null ? null : Number(row.value_number),
+      amountMinor:
+        applied.kind === "rejected" || row.value_amount_minor === null
+          ? null
+          : Number(row.value_amount_minor),
       currency: row.currency_code,
-      abstention: row.abstention,
+      abstention: applied.kind === "rejected" ? "rejected_by_reviewer" : row.abstention,
       hasEvidence: row.evidence_group_id !== null,
       earliestMs:
         row.evidence_group_id && CHRONOLOGICAL_FIELDS.has(row.field_key)
