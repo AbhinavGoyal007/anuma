@@ -7,8 +7,11 @@ import {
   contextPrices,
   distribution,
   nonConversionReasons,
+  partySizeBucket,
+  PARTY_SIZE_BUCKETS,
   rankedShare,
 } from "@/modules/intelligence/demand";
+import { resolveCohort } from "@/modules/intelligence/cohorts";
 import { notStated, row, value } from "../support/population";
 
 const budget = (minor: number) =>
@@ -350,5 +353,125 @@ describe("no-sale reasons, to the specified fixture", () => {
     expect(reasons.classified).toBe(16);
     expect(reasons.entries.find((entry) => entry.value === "price")!.share).toBe(0.5);
     expect(reasons.coverage.value).toBe(0.8);
+  });
+});
+
+describe("where a value came from", () => {
+  it("keeps the same text in two fields as two observations", () => {
+    // "Waterproof" written as a specification and "waterproof" mentioned as an
+    // additional requirement are two fields answering two questions. Adding
+    // them together asserts an equivalence no business taxonomy has defined —
+    // and leaves no field to open the evidence from.
+    const { entries } = rankedShare(
+      [
+        row({
+          values: [
+            value("specification_requirements", "waterproof"),
+            value("additional_requirements", "waterproof"),
+          ],
+        }),
+      ],
+      ["specification_requirements", "additional_requirements"],
+    );
+    expect(entries).toHaveLength(2);
+    expect(entries.map((entry) => entry.fieldKey).sort()).toEqual([
+      "additional_requirements",
+      "specification_requirements",
+    ]);
+    for (const entry of entries) expect(entry.value).toBe("waterproof");
+  });
+
+  it("carries the field through a controlled distribution too", () => {
+    const { entries } = distribution(
+      [row({ values: [value("purchase_category", "sofas")] })],
+      (item) => item.purchaseCategory,
+      "purchase_category",
+    );
+    expect(entries[0]!.fieldKey).toBe("purchase_category");
+  });
+});
+
+describe("party size", () => {
+  const party = (options: Parameters<typeof value>[2] & { text?: string | null }) =>
+    row({ values: [value("customer_party_size", options.text ?? null, options)] });
+
+  it("buckets 1, 2, 3 and 5 from the number the field actually holds", () => {
+    expect(partySizeBucket(party({ valueNumber: 1 }))).toBe("1");
+    expect(partySizeBucket(party({ valueNumber: 2 }))).toBe("2");
+    expect(partySizeBucket(party({ valueNumber: 3 }))).toBe("3+");
+    expect(partySizeBucket(party({ valueNumber: 5 }))).toBe("3+");
+  });
+
+  it("reads a legacy purely numeric text where no number was stored", () => {
+    expect(partySizeBucket(party({ text: "4" }))).toBe("3+");
+    expect(partySizeBucket(party({ text: "2" }))).toBe("2");
+  });
+
+  it("refuses to read family composition out of prose", () => {
+    // "Couple with child" is a sentence about who walked in. Turning it into 3
+    // is a guess a manager would later find had no basis in the recording.
+    expect(partySizeBucket(party({ text: "couple with child" }))).toBeNull();
+    expect(partySizeBucket(party({ text: "a few of them" }))).toBeNull();
+  });
+
+  it("opens the exact interactions a bucket counted, recomputing the same rule", () => {
+    const rows = [
+      party({ valueNumber: 1 }),
+      party({ valueNumber: 4 }),
+      party({ text: "3" }),
+      party({ text: "couple with child" }),
+    ];
+    const cohort = resolveCohort(rows, "party_size_bucket:3+");
+    expect(cohort).not.toBeNull();
+    // The party of four and the legacy "3", never the one who typed prose and
+    // never anyone matched on the literal text "3+".
+    expect(cohort!.conversationIds.sort()).toEqual(
+      [rows[1]!.conversationId, rows[2]!.conversationId].sort(),
+    );
+    expect(cohort!.evidenceFieldKeys).toEqual(["customer_party_size"]);
+  });
+
+  it("has no bucket outside the three a manager acts on", () => {
+    expect(PARTY_SIZE_BUCKETS).toEqual(["1", "2", "3+"]);
+    expect(resolveCohort([], "party_size_bucket:7")).toBeNull();
+  });
+});
+
+describe("the customer-stated competitor price", () => {
+  it("is money, never a ranked string", () => {
+    // Ranked as text, "₹45,000" and "45000" were two different competitors.
+    const rows = [
+      row({
+        values: [
+          value("competitor_price_claim", "45000", { amountMinor: 4_500_000, currency: "INR" }),
+        ],
+      }),
+      row({
+        values: [
+          value("competitor_price_claim", "₹45,000", { amountMinor: 4_500_000, currency: "INR" }),
+        ],
+      }),
+    ];
+    const prices = contextPrices(rows);
+    expect(prices.competitorClaim).toHaveLength(1);
+    expect(prices.competitorClaim[0]).toMatchObject({ currency: "INR", observed: 2 });
+    expect(prices.competitorClaim[0]!.median).toBe(4_500_000);
+  });
+
+  it("opens every interaction that carried a claim, whatever the figure was", () => {
+    const rows = [
+      row({
+        values: [
+          value("competitor_price_claim", "45000", { amountMinor: 4_500_000, currency: "INR" }),
+        ],
+      }),
+      row({ values: [notStated("competitor_price_claim")] }),
+    ];
+    const cohort = resolveCohort(rows, "observed:competitor_price_claim");
+    expect(cohort!.conversationIds).toEqual([rows[0]!.conversationId]);
+  });
+
+  it("refuses to open a field no page offers", () => {
+    expect(resolveCohort([], "observed:customer_name")).toBeNull();
   });
 });

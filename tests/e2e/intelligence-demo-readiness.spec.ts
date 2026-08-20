@@ -17,6 +17,11 @@ import { cohortPath, valueCohortKey } from "../../src/modules/intelligence/cohor
  * the one failure mode these tests exist to catch.
  */
 
+/** Escapes a literal for use inside an accessible-name regular expression. */
+function escapeRegExp(text: string): string {
+  return text.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 const INTELLIGENCE_PAGES = [
   "/intelligence/overview",
   "/intelligence/demand",
@@ -192,17 +197,37 @@ test.describe("Intelligence, signed in", () => {
     await expect(tabs.nth(0)).toHaveAttribute("aria-current", "true");
   });
 
-  test("the breakdown stays on Stores until the reader says otherwise", async ({ page }) => {
-    await page.goto("/intelligence/overview");
-    const tabs = page
-      .locator("#ov-breakdown")
-      .locator("xpath=ancestor::section")
-      .locator(".ip-tab");
-    await expect(tabs.nth(0)).toHaveText("Stores");
-    await expect(tabs.nth(0)).toHaveAttribute("aria-current", "true");
-    await tabs.nth(1).click();
-    await expect(tabs.nth(1)).toHaveAttribute("aria-current", "true");
-  });
+  // The tab must change the table, not only its own styling. A control that
+  // updated aria-current and left the same rows on screen looked like it worked
+  // and answered the same question twice.
+  for (const [where, anchor] of [
+    ["Overview", "#ov-breakdown"],
+    ["Journey", "#jr-breakdown"],
+  ] as const) {
+    test(`the ${where} breakdown tab changes the table, not just the tab`, async ({ page }) => {
+      await page.goto(where === "Overview" ? "/intelligence/overview" : "/intelligence/journey");
+      const section = page.locator(anchor).locator("xpath=ancestor::section");
+      const tabs = section.locator(".ip-tab");
+      await expect(tabs.nth(0)).toHaveText("Stores");
+      await expect(tabs.nth(0)).toHaveAttribute("aria-current", "true");
+
+      const stores = section.locator('[data-local-panel="stores"]');
+      const categories = section.locator('[data-local-panel="categories"]');
+      await expect(stores).toBeVisible();
+      await expect(categories).toBeHidden();
+      const storeRows = (await stores.locator("tbody th").allTextContents()).join("|");
+
+      await tabs.nth(1).click();
+      await expect(categories).toBeVisible({ timeout: 30_000 });
+      await expect(stores).toBeHidden();
+      await expect(tabs.nth(1)).toHaveAttribute("aria-current", "true");
+
+      const categoryRows = (await categories.locator("tbody th").allTextContents()).join("|");
+      // Different first-column labels, so the panel genuinely swapped rather
+      // than re-rendering the same grouping under a new heading.
+      expect(categoryRows).not.toBe(storeRows);
+    });
+  }
 
   test("Q1 shows its unavailable state and offers no dead tabs", async ({ page }) => {
     await page.goto("/intelligence/frontline");
@@ -221,13 +246,67 @@ test.describe("Intelligence, signed in", () => {
     await expect(page).toHaveURL(/need=brands/);
   });
 
-  test("a cohort key with a slash and a percent survives the route", async ({ page }) => {
-    // A slash splits the route and a colon arrives still escaped, so the key
-    // travels as one opaque segment.
-    const path = cohortPath(valueCohortKey("final_preferred_product", "iPhone 15/Pro 50%"));
-    const response = await page.goto(path);
-    expect(response?.status()).toBeLessThan(400);
-    await expect(page.getByRole("heading", { name: /iPhone 15\/Pro 50%/ })).toBeVisible();
+  // A slash splits the route, a colon arrives still escaped, a question mark
+  // starts a query and a hash truncates the request. The key travels as one
+  // opaque segment so every one of these is just a name again.
+  for (const awkward of [
+    "iPhone 15/Pro",
+    "50% off",
+    "A?B",
+    "x#y",
+    "सोफ़ा सेट",
+  ]) {
+    test(`a cohort key containing ${JSON.stringify(awkward)} survives the route`, async ({
+      page,
+    }) => {
+      const path = cohortPath(valueCohortKey("final_preferred_product", awkward));
+      const response = await page.goto(path);
+      expect(response?.status()).toBeLessThan(400);
+      await expect(page.getByRole("heading", { name: new RegExp(escapeRegExp(awkward)) })).toBeVisible();
+    });
+  }
+
+  test("paging through a cohort of more than one page keeps the same cohort", async ({ page }) => {
+    // Feeding the already-encoded route segment back into cohortPath() encoded
+    // it twice, so Next landed on a cohort key that had never existed. The page
+    // holds 25, so this needs a cohort with more than that in it.
+    const key = valueCohortKey("language_mix", "English");
+    const segment = cohortPath(key).split("/").pop()!;
+    await page.goto(`${cohortPath(key)}?days=90`);
+
+    const heading = page.getByRole("heading", { level: 1 }).first();
+    const title = await heading.textContent();
+    await expect(page.getByText(/Showing 1–25 of \d+/)).toBeVisible();
+
+    // Each of these pages costs a real round trip, so the waits are generous.
+    await page.getByRole("link", { name: /Next/ }).first().click();
+    await expect(page.getByText(/page 2 of/)).toBeVisible({ timeout: 30_000 });
+    await expect(heading).toHaveText(title ?? "");
+    // The same cohort, reached by the same opaque segment. Encoding the segment
+    // a second time sent Next to a key that had never existed.
+    await expect(page).toHaveURL(new RegExp(segment));
+
+    await page.getByRole("link", { name: /Previous/ }).first().click();
+    await expect(page.getByText(/Showing 1–25 of \d+/)).toBeVisible({ timeout: 30_000 });
+    await expect(heading).toHaveText(title ?? "");
+    await expect(page).toHaveURL(new RegExp(segment));
+  });
+
+  test("an unavailable store narrows to nothing rather than widening", async ({ page }) => {
+    // The failure this replaces: an unknown store id became "all stores", and
+    // somebody who asked for one shop was shown the estate.
+    await page.goto("/intelligence/overview?store=00000000-0000-0000-0000-000000000000");
+    await expect(page.getByText("Selected store is unavailable in your scope.")).toBeVisible();
+    await expect(page.getByText(/0 usable interactions/)).toBeVisible();
+    // And the scope still describes what was asked for: one store, not none.
+    await expect(page.getByText(/· 1 store ·/)).toBeVisible();
+  });
+
+  test("a salesperson with no interactions narrows to nothing rather than widening", async ({
+    page,
+  }) => {
+    await page.goto("/intelligence/frontline?rep=00000000-0000-0000-0000-000000000000");
+    await expect(page.getByText(/0 usable interactions/)).toBeVisible();
   });
 
   // One test per width rather than one test for twelve page loads: the
