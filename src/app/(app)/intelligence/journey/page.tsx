@@ -9,6 +9,7 @@ import {
   interventions,
   journeyBreakdown,
   journeyDiagnosis,
+  DIAGNOSIS_ROWS,
   journeyLeakageCohorts,
   journeyStages,
   outcomeDistributions,
@@ -19,6 +20,8 @@ import {
 } from "@/modules/intelligence/journey";
 
 import { resolveIntelligencePage } from "@/modules/intelligence/page-context";
+import { scopeHash, SCOPE_KEYS } from "@/modules/intelligence/pilot";
+import { readFindingReviews } from "@/modules/intelligence/pilot-store";
 
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -51,11 +54,10 @@ export default async function CustomerJourneyPage({ searchParams }: PageProps) {
   const leakage = journeyLeakageCohorts(cohort);
   const storeName = new Map(stores.map((item) => [item.id, item.name]));
 
-  // Compared by store where several are in scope, otherwise by category — a
-  // single-store operator gets the comparison actually available to them rather
-  // than a table with one row.
-  const distinctStores = new Set(cohort.flatMap((row) => (row.locationId ? [row.locationId] : [])));
-  const byStore = distinctStores.size > 1;
+  // The breakdown dimension is the reader's choice. Switching it because one
+  // had more rows moved the page under them between mornings.
+  const dimension = single(raw, "dimension") === "categories" ? "categories" : "stores";
+  const byStore = dimension === "stores";
 
   const sizes = Object.fromEntries(
     JOURNEY_COHORTS.map((key) => [key, selectCohort(current.rows, key).length]),
@@ -68,7 +70,13 @@ export default async function CustomerJourneyPage({ searchParams }: PageProps) {
     stages.find((stage) => stage.key === single(raw, "stage"))?.key ?? "entered";
 
   const openDrawer = single(raw, "drawer");
-  const carry = { cohort: cohortKey, stage: selectedStage };
+  const diagnosisKeys = new Set(DIAGNOSIS_ROWS.map((row) => row.cohortKey));
+  const scope = scopeHash(Object.fromEntries(SCOPE_KEYS.map((key) => [key, single(raw, key)])));
+  const reviews =
+    openDrawer && diagnosisKeys.has(openDrawer)
+      ? await readFindingReviews(organizationId, scope)
+      : new Map();
+  const carry: Record<string, string> = { cohort: cohortKey, stage: selectedStage, dimension };
 
   return (
     <>
@@ -83,6 +91,7 @@ export default async function CustomerJourneyPage({ searchParams }: PageProps) {
         languages={languages}
         interactions={current.rows.length}
         storeCount={storeCount}
+        coverage={current.coverage}
         directoryError={directoryError}
         carry={carry}
       />
@@ -94,14 +103,7 @@ export default async function CustomerJourneyPage({ searchParams }: PageProps) {
         stageHref={(stageKey) =>
           intelligenceHref(BASE, filters, { ...carry, stage: stageKey, drawer: null })
         }
-        diagnosis={journeyDiagnosis(
-          cohort,
-          stages,
-          selectedStage,
-          leakage,
-          (row) => (byStore ? row.locationId : row.purchaseCategory),
-          (key) => (byStore ? (storeName.get(key) ?? key) : key),
-        )}
+        diagnosis={journeyDiagnosis(leakage)}
         lanes={interventions(cohort)}
         gaps={leakage}
         breakdown={journeyBreakdown(
@@ -109,7 +111,8 @@ export default async function CustomerJourneyPage({ searchParams }: PageProps) {
           (row) => (byStore ? row.locationId : row.purchaseCategory),
           (key) => (byStore ? (storeName.get(key) ?? key) : key),
         )}
-        breakdownLabel={byStore ? "Store" : "Category"}
+        breakdownDimension={dimension}
+        breakdownHref={(next) => intelligenceHref(BASE, filters, { ...carry, dimension: next })}
         outcomes={outcomeDistributions(cohort)}
         products={productPath(cohort)}
         cohortHref={(key) =>
@@ -134,6 +137,17 @@ export default async function CustomerJourneyPage({ searchParams }: PageProps) {
           ]}
           closeHref={intelligenceHref(BASE, filters, { ...carry, drawer: null })}
           fullHref={intelligenceHref(cohortPath(openDrawer), filters, carry)}
+          review={
+            diagnosisKeys.has(openDrawer)
+              ? {
+                  findingKey: `journey_diagnosis:${openDrawer}`,
+                  scopeHash: scope,
+                  page: "journey",
+                  returnPath: BASE,
+                  existing: reviews.get(`journey_diagnosis:${openDrawer}:${openDrawer}`) ?? null,
+                }
+              : null
+          }
         />
       ) : null}
     </>

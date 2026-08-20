@@ -14,14 +14,16 @@ import { intelligenceHref, single, windowLabel } from "@/modules/intelligence/fi
 import {
   computeFrontline,
   expandDetail,
-  frontlineActionCohorts,
   nextActions,
   offerDetail,
   outcomeAssociations,
   questionResponseComposition,
   responseCompositions,
 } from "@/modules/intelligence/frontline";
+import { frontlinePriorityReviews } from "@/modules/intelligence/overview";
 import { resolveIntelligencePage } from "@/modules/intelligence/page-context";
+import { scopeHash, SCOPE_KEYS } from "@/modules/intelligence/pilot";
+import { readFindingReviews } from "@/modules/intelligence/pilot-store";
 
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -51,6 +53,14 @@ export default async function FrontlineIntelligencePage({ searchParams }: PagePr
   const stage: StageKey =
     STAGES.find((item) => item.key === single(raw, "stage"))?.key ?? "understand";
   const openDrawer = single(raw, "drawer");
+  const priorityKeys = new Set(
+    frontlinePriorityReviews(rows).flatMap((cohort) => (cohort ? [cohort.key] : [])),
+  );
+  const scope = scopeHash(Object.fromEntries(SCOPE_KEYS.map((key) => [key, single(raw, key)])));
+  const reviews =
+    openDrawer && priorityKeys.has(openDrawer)
+      ? await readFindingReviews(organizationId, scope)
+      : new Map();
   const carry = { stage };
 
   const compositions = responseCompositions(rows);
@@ -68,13 +78,14 @@ export default async function FrontlineIntelligencePage({ searchParams }: PagePr
         languages={languages}
         interactions={rows.length}
         storeCount={storeCount}
+        coverage={current.coverage}
         directoryError={directoryError}
         carry={carry}
       />
       <FrontlineIntelligenceView
         metrics={computeFrontline(rows)}
         previousMetrics={previous ? computeFrontline(previous.rows) : null}
-        actions={frontlineActionCohorts(rows).slice(0, 3)}
+        actions={frontlinePriorityReviews(rows)}
         actionHref={(cohortKey) => intelligenceHref(BASE, filters, { ...carry, drawer: cohortKey })}
         stage={stage}
         stageHref={(key) => intelligenceHref(BASE, filters, { ...carry, stage: key, drawer: null })}
@@ -112,6 +123,17 @@ export default async function FrontlineIntelligencePage({ searchParams }: PagePr
           ]}
           closeHref={intelligenceHref(BASE, filters, { ...carry, drawer: null })}
           fullHref={intelligenceHref(cohortPath(openDrawer), filters)}
+          review={
+            priorityKeys.has(openDrawer)
+              ? {
+                  findingKey: `frontline_priority:${openDrawer}`,
+                  scopeHash: scope,
+                  page: "frontline",
+                  returnPath: BASE,
+                  existing: reviews.get(`frontline_priority:${openDrawer}:${openDrawer}`) ?? null,
+                }
+              : null
+          }
         />
       ) : null}
     </>

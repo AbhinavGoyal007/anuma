@@ -12,8 +12,9 @@ import {
   closeAttemptIncidence,
   commercialOfferIncidence,
   demoApplicableRate,
+  outcomeEstablished,
+  preferenceFormed,
   recommendationIncidence,
-  saleAmongEstablished,
 } from "@/modules/intelligence/measures";
 import { DECISION_LABELS, DECISION_ORDER } from "@/modules/intelligence/outcome";
 import type { PopulationRow } from "@/modules/intelligence/population";
@@ -420,7 +421,8 @@ export type JourneyBreakdownRow = {
   requirementClear: Measure;
   preferenceFormed: Measure;
   commitment: Measure;
-  sale: Measure;
+  /** Whether we ended up knowing the result at all — not whether it was a sale. */
+  outcomeEstablished: Measure;
 };
 
 export function journeyBreakdown(
@@ -444,11 +446,14 @@ export function journeyBreakdown(
         label: labelFor(key),
         size: rows.length,
         requirementClear: stage("requirement_clear"),
-        preferenceFormed: stage("preference_formed"),
+        // The canonical helper, so this column and the Overview signal of the
+        // same name cannot drift apart.
+        preferenceFormed: preferenceFormed(rows),
         commitment: stage("commitment"),
-        // Read here rather than from the rail, which no longer carries a sale
-        // state. Measured against established outcomes only.
-        sale: saleAmongEstablished(rows),
+        // Whether the result became known, which is a question about our own
+        // record. Sale rate lives on the outcome panels, where the two axes are
+        // shown side by side and cannot be read as one.
+        outcomeEstablished: outcomeEstablished(rows),
       };
     })
     .sort((a, b) => b.size - a.size);
@@ -482,84 +487,47 @@ export function productPath(cohort: readonly PopulationRow[], limit = 5): Produc
 }
 
 /**
- * Everything the fixed diagnosis panel says about one selected state.
+ * The five fixed diagnosis rows.
  *
- * A rail of four numbers tells a manager where people got to. It does not tell
- * them what to do, and the honest reason is usually a denominator: a state can
- * look thin because few reached it, or because few records could answer the
- * question at all. Both are on this panel, next to each other, with the
- * interactions behind the gap one click away.
+ * Always these five, always in this order, whatever the counts are. Sorting
+ * them by size would put a different row at the top each morning and turn a
+ * reference table into a ranking — and the row a manager is looking for would
+ * move because something unrelated got worse.
+ *
+ * Each is a place the decision stopped being observed, not a place it failed:
+ * a state we did not record is a hole in our own evidence, and the wording
+ * everywhere says so.
  */
-export type StageDiagnosis = {
-  key: string;
+export const DIAGNOSIS_ROWS: readonly { cohortKey: string; label: string }[] = [
+  { cohortKey: "clarity_not_reached", label: "Requirement still unclear" },
+  { cohortKey: "no_preference_formed", label: "Clear requirement, no preferred product observed" },
+  { cohortKey: "no_commitment_signal", label: "Preferred product, no commitment signal observed" },
+  { cohortKey: "commitment_then_no_sale", label: "Commitment signal + confirmed no-sale" },
+  { cohortKey: "commitment_outcome_unknown", label: "Commitment signal + outcome unknown" },
+];
+
+export type DiagnosisRow = {
+  cohortKey: string;
   label: string;
-  meaning: string;
-  reached: number;
-  /** Interactions that could have carried this state. */
-  measurable: number;
-  /** Reached, over measurable. */
+  affected: number;
+  /** The population that could have answered, or null where none is honest. */
+  measurable: number | null;
   rate: number | null;
-  /** Measurable, over the whole cohort. */
-  coverage: number | null;
-  /** Of those who reached this state, how many were observed in the next one. */
-  nextObserved: number | null;
-  nextMissing: number | null;
-  /** Where the missing observations are concentrated, when that means anything. */
-  concentration: { label: string; count: number; of: number } | null;
-  /** The group a Review button opens, and how many interactions it holds. */
-  reviewCohortKey: string | null;
-  reviewCount: number;
 };
 
-/** Below this the "most affected store" is one conversation wearing a label. */
-const MINIMUM_FOR_CONCENTRATION = 4;
-
-export function journeyDiagnosis(
-  cohort: readonly PopulationRow[],
-  stages: readonly JourneyStage[],
-  stageKey: string,
-  leakage: readonly ActionCohort[],
-  groupOf: (row: PopulationRow) => string | null,
-  labelFor: (key: string) => string,
-): StageDiagnosis | null {
-  const index = stages.findIndex((stage) => stage.key === stageKey);
-  if (index < 0) return null;
-  const stage = stages[index]!;
-  const next = stages[index + 1];
-
-  // The gap a reader would act on is the one leaving this state, not the one
-  // that led into it.
-  const outgoing = next?.gap ?? null;
-  const group = outgoing ? leakage.find((item) => item.key === outgoing.cohortKey) : undefined;
-
-  const missing = new Set(group?.conversationIds ?? []);
-  const counts = new Map<string, number>();
-  for (const row of cohort) {
-    if (!missing.has(row.conversationId)) continue;
-    const key = groupOf(row);
-    if (!key) continue;
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-  // Named only when there is something to compare it against and enough behind
-  // it to be a pattern rather than a coincidence.
-  const concentration =
-    ranked.length >= 2 && missing.size >= MINIMUM_FOR_CONCENTRATION && ranked[0]
-      ? { label: labelFor(ranked[0][0]), count: ranked[0][1], of: missing.size }
-      : null;
-
-  return {
-    key: stage.key,
-    label: stage.label,
-    meaning: stage.meaning,
-    reached: stage.reached,
-    measurable: stage.reach.observed,
-    rate: stage.reach.value,
-    coverage: stage.reach.coverage,
-    nextObserved: outgoing?.observed ?? null,
-    nextMissing: outgoing?.missing ?? null,
-    concentration,
-    reviewCohortKey: group && group.conversationIds.length > 0 ? group.key : null,
-    reviewCount: group?.conversationIds.length ?? 0,
-  };
+export function journeyDiagnosis(leakage: readonly ActionCohort[]): DiagnosisRow[] {
+  const byKey = new Map(leakage.map((cohort) => [cohort.key, cohort]));
+  return DIAGNOSIS_ROWS.map((row) => {
+    const cohort = byKey.get(row.cohortKey);
+    const affected = cohort?.conversationIds.length ?? 0;
+    const measurable = cohort?.measurable ?? null;
+    return {
+      cohortKey: row.cohortKey,
+      label: row.label,
+      affected,
+      measurable,
+      // A rate over nothing is not a small rate; it is not a rate.
+      rate: measurable && measurable > 0 ? affected / measurable : null,
+    };
+  });
 }

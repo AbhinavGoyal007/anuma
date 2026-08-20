@@ -1,4 +1,7 @@
-import { budgetPicture, clarityMatrix, computeDemand } from "@/modules/intelligence/demand";
+import { budgetPicture } from "@/modules/intelligence/demand";
+import { frontlineActionCohorts, type ActionCohort } from "@/modules/intelligence/frontline";
+import { measure, type Measure } from "@/modules/intelligence/guardrails";
+import { journeyLeakageCohorts } from "@/modules/intelligence/journey";
 import {
   arrivedDecided,
   clarityImproved,
@@ -6,32 +9,27 @@ import {
   competitorMentionIncidence,
   financeDemand,
   nextActionCapture,
-  outcomeEstablished,
-  recommendationRationaleCoverage,
+  objectionIncidence,
+  preferenceFormed,
+  recommendationIncidence,
 } from "@/modules/intelligence/measures";
-import {
-  computeFrontline,
-  frontlineActionCohorts,
-  type ActionCohort,
-} from "@/modules/intelligence/frontline";
-import { DEFAULT_THRESHOLDS, type CandidateThresholds } from "@/modules/intelligence/candidates";
-import { measure, type Measure } from "@/modules/intelligence/guardrails";
-import { journeyLeakageCohorts } from "@/modules/intelligence/journey";
 import type { PopulationRow } from "@/modules/intelligence/population";
 
 /**
- * The four fixed signals, three actions, six pulse figures and the hotspot
- * table the Overview is contractually made of.
+ * The Overview's fixed furniture.
  *
- * Assembled here rather than in the page so the slots are defined once and the
- * page cannot quietly gain a fifth signal because a number happened to be
- * available. Every slot is produced whether or not it has data — a metric with
- * nothing behind it becomes an empty state inside its own tile, never a hole in
- * the grid.
+ * Everything here is a registry rather than a calculation that picks its own
+ * winner. The four signals are the same four every morning, in the same
+ * positions; the six pulse figures likewise; the trend offers the same six tabs
+ * whether or not any of them moved. A manager who opens this page every day
+ * learns where to look once.
+ *
+ * Only the priority actions reorder, and only inside a stated tier structure —
+ * the data decides which three appear, never what kind of thing may appear.
  */
 
 export type SignalKey =
-  "arrived_decided" | "finance_demand" | "clarity_improved" | "close_after_commitment";
+  "high_intent_arrivals" | "clarity_improved" | "preference_formed" | "close_after_commitment";
 
 export type OverviewSignal = {
   key: SignalKey;
@@ -40,38 +38,26 @@ export type OverviewSignal = {
   fieldKeys: string[];
   measure: Measure;
   previous: Measure | null;
-  /** True where this signal is the one a manager should look at first. */
-  attention: boolean;
-  /** The cohort a click opens, where one exists. */
-  cohortKey: string | null;
+  /** The numerator cohort a click opens. Never the inverse gap. */
+  cohortKey: string;
 };
 
+/** Fixed forever: exactly these four, in this order. Finance is not here. */
 export function overviewSignals(
   rows: readonly PopulationRow[],
   previousRows: readonly PopulationRow[] | null,
 ): OverviewSignal[] {
-  const before = <T>(read: (subject: readonly PopulationRow[]) => T): T | null =>
+  const before = (read: (subject: readonly PopulationRow[]) => Measure): Measure | null =>
     previousRows ? read(previousRows) : null;
-  const close = closeAfterCommitment(rows);
 
   return [
     {
-      key: "arrived_decided",
-      label: "Arrived decided",
+      key: "high_intent_arrivals",
+      label: "High-intent arrivals",
       fieldKeys: ["arrival_intent_state"],
       measure: arrivedDecided(rows),
       previous: before(arrivedDecided),
-      attention: false,
       cohortKey: "arrived_decided",
-    },
-    {
-      key: "finance_demand",
-      label: "Finance demand",
-      fieldKeys: ["finance_requested"],
-      measure: financeDemand(rows),
-      previous: before(financeDemand),
-      attention: false,
-      cohortKey: "finance_demand",
     },
     {
       key: "clarity_improved",
@@ -79,55 +65,121 @@ export function overviewSignals(
       fieldKeys: ["requirement_clarity_start", "requirement_clarity_end"],
       measure: clarityImproved(rows),
       previous: before(clarityImproved),
-      attention: false,
       cohortKey: "clarity_improved",
+    },
+    {
+      key: "preference_formed",
+      label: "Preference formed",
+      fieldKeys: ["final_preferred_product", "requirement_clarity_end"],
+      measure: preferenceFormed(rows),
+      previous: before(preferenceFormed),
+      cohortKey: "preference_formed",
     },
     {
       key: "close_after_commitment",
       label: "Close after commitment",
       fieldKeys: ["customer_commitment_signals", "close_attempts"],
-      measure: close,
+      measure: closeAfterCommitment(rows),
       previous: before(closeAfterCommitment),
-      // The one signal on the page that is unambiguously the store's own work
-      // and unambiguously bad when low. Marked so the eye lands on it, not
-      // scored — the rule is one line and a business can argue with it.
-      attention: close.value !== null && close.value < 0.5,
       cohortKey: "close_after_commitment",
     },
   ];
 }
 
 /**
- * The three cohorts worth a manager's morning, chosen by rule.
+ * Priority actions, chosen by a stated tier order rather than by size alone.
  *
- * A raised red flag outranks a rate, because somebody has already said this
- * interaction needs a person. After that it is simply how many interactions are
- * affected: the work of reviewing them is per conversation, so thirty beats
- * three regardless of which is the larger share.
+ * A confirmed red flag outranks a large execution gap because somebody has
+ * already said that interaction needs a person, and an interaction where a
+ * ready-to-buy customer left without a sale outranks a rate. Only inside a tier
+ * does volume decide, and ties fall back to the registry order below so the
+ * same data always produces the same three rows.
  */
-export function overviewActions(
-  rows: readonly PopulationRow[],
-  thresholds: CandidateThresholds = DEFAULT_THRESHOLDS,
-): ActionCohort[] {
-  const all = [...frontlineActionCohorts(rows), ...journeyLeakageCohorts(rows)].filter(
-    (cohort) => cohort.conversationIds.length >= thresholds.materialAffected,
-  );
-  const flagged = all.filter((cohort) => cohort.key === "red_flag_raised");
-  const rest = all
-    .filter((cohort) => cohort.key !== "red_flag_raised")
-    .sort(
-      (a, b) => b.conversationIds.length - a.conversationIds.length || a.key.localeCompare(b.key),
-    );
-  return [...flagged, ...rest].slice(0, 3);
+export const PRIORITY_TIERS: readonly (readonly string[])[] = [
+  // Tier 1 — confirmed or high-consequence.
+  ["red_flag_raised", "ready_to_buy_no_sale", "commitment_then_no_sale"],
+  // Tier 2 — high-intent uncertainty.
+  ["commitment_outcome_unknown", "ready_to_buy_without_close_attempt"],
+  // Tier 3 — execution review.
+  [
+    "commitment_without_close_attempt",
+    "objection_handling_gap",
+    "recommendation_without_rationale",
+    "finance_question_without_response",
+    "follow_up_without_next_action",
+  ],
+];
+
+/** Below this a cohort is not worth a manager's morning. */
+export const MINIMUM_PRIORITY_AFFECTED = 5;
+
+/** Exactly three rows; a slot with nothing to put in it stays empty. */
+export const PRIORITY_ROWS = 3;
+
+function selectPriority(
+  cohorts: readonly ActionCohort[],
+  tiers: readonly (readonly string[])[],
+): (ActionCohort | null)[] {
+  const byKey = new Map(cohorts.map((cohort) => [cohort.key, cohort]));
+  const chosen: ActionCohort[] = [];
+
+  for (const tier of tiers) {
+    const available = tier
+      .flatMap((key) => {
+        const cohort = byKey.get(key);
+        return cohort && cohort.conversationIds.length >= MINIMUM_PRIORITY_AFFECTED
+          ? [{ cohort, rank: tier.indexOf(key) }]
+          : [];
+      })
+      .sort(
+        (a, b) =>
+          b.cohort.conversationIds.length - a.cohort.conversationIds.length || a.rank - b.rank,
+      );
+    for (const { cohort } of available) {
+      if (chosen.length >= PRIORITY_ROWS) break;
+      chosen.push(cohort);
+    }
+    if (chosen.length >= PRIORITY_ROWS) break;
+  }
+
+  // The three slots always exist. An empty one says so rather than being filled
+  // with a different kind of metric to avoid the gap.
+  return Array.from({ length: PRIORITY_ROWS }, (_, index) => chosen[index] ?? null);
 }
 
-/** One of the six figures across the bottom of the first viewport. */
+export function overviewPriorityActions(rows: readonly PopulationRow[]): (ActionCohort | null)[] {
+  return selectPriority(
+    [...frontlineActionCohorts(rows), ...journeyLeakageCohorts(rows)],
+    PRIORITY_TIERS,
+  );
+}
+
+/** Frontline reviews draw from the frontline cohorts only. */
+export const FRONTLINE_PRIORITY_TIERS: readonly (readonly string[])[] = [
+  ["red_flag_raised"],
+  [
+    "ready_to_buy_without_close_attempt",
+    "commitment_without_close_attempt",
+    "objection_handling_gap",
+  ],
+  [
+    "recommendation_without_rationale",
+    "finance_question_without_response",
+    "follow_up_without_next_action",
+  ],
+];
+
+export function frontlinePriorityReviews(rows: readonly PopulationRow[]): (ActionCohort | null)[] {
+  return selectPriority(frontlineActionCohorts(rows), FRONTLINE_PRIORITY_TIERS);
+}
+
+/** One of the six figures across the Business Pulse. Fixed forever. */
 export type PulseItem = {
   key: string;
   label: string;
   /** `mixed_currency` refuses to print a median across two currencies. */
-  format: "count" | "percent" | "money" | "mixed_currency";
-  /** For counts, the number itself; for money, minor units; else null. */
+  format: "percent" | "money" | "mixed_currency";
+  /** Money in minor units; null for rates. */
   amount: number | null;
   currency: string | null;
   measure: Measure | null;
@@ -142,24 +194,13 @@ export function overviewPulse(
   previousRows: readonly PopulationRow[] | null,
 ): PulseItem[] {
   const budget = budgetPicture(rows);
-  const before = <T>(read: (subject: readonly PopulationRow[]) => T): T | null =>
+  const before = (read: (subject: readonly PopulationRow[]) => Measure): Measure | null =>
     previousRows ? read(previousRows) : null;
   // One currency or none: a median is a number. More than one and it is not,
   // so the tile says so rather than adding rupees to dirhams.
   const single = budget.byCurrency.length === 1 ? budget.byCurrency[0]! : null;
 
   return [
-    {
-      key: "analysed",
-      label: "Analysed interactions",
-      format: "count",
-      amount: rows.length,
-      currency: null,
-      measure: null,
-      previous: null,
-      fieldKeys: [],
-      cohortKey: null,
-    },
     {
       key: "median_budget",
       label: "Median target budget",
@@ -172,7 +213,18 @@ export function overviewPulse(
       cohortKey: null,
     },
     {
-      key: "competitor",
+      key: "finance_demand",
+      label: "Finance demand",
+      format: "percent",
+      amount: null,
+      currency: null,
+      measure: financeDemand(rows),
+      previous: before(financeDemand),
+      fieldKeys: ["finance_requested"],
+      cohortKey: "finance_demand",
+    },
+    {
+      key: "competitor_mentions",
       label: "Competitor mentions",
       format: "percent",
       amount: null,
@@ -183,29 +235,29 @@ export function overviewPulse(
       cohortKey: "competitor_mentioned",
     },
     {
-      key: "outcome",
-      label: "Outcome established",
+      key: "recommendation_incidence",
+      label: "Recommendation incidence",
       format: "percent",
       amount: null,
       currency: null,
-      measure: outcomeEstablished(rows),
-      previous: before(outcomeEstablished),
-      fieldKeys: ["confirmed_business_outcome"],
-      cohortKey: "outcome_established",
+      measure: recommendationIncidence(rows),
+      previous: before(recommendationIncidence),
+      fieldKeys: ["products_recommended"],
+      cohortKey: "recommendation_made",
     },
     {
-      key: "rationale",
-      label: "Recommendation rationale",
+      key: "objection_incidence",
+      label: "Objection incidence",
       format: "percent",
       amount: null,
       currency: null,
-      measure: recommendationRationaleCoverage(rows),
-      previous: before(recommendationRationaleCoverage),
-      fieldKeys: ["recommendation_reasons"],
-      cohortKey: null,
+      measure: objectionIncidence(rows),
+      previous: before(objectionIncidence),
+      fieldKeys: ["objections"],
+      cohortKey: "objection_raised",
     },
     {
-      key: "next_action",
+      key: "next_action_capture",
       label: "Next action capture",
       format: "percent",
       amount: null,
@@ -219,27 +271,29 @@ export function overviewPulse(
 }
 
 /**
- * Where in the estate the three management signals differ.
+ * The Overview breakdown: the same four management signals, by store or by
+ * category, with the dimension chosen by the reader rather than by the data.
  *
- * By store where more than one is in scope, otherwise by category — a
- * single-store operator gets the comparison actually available to them rather
- * than a table with one row in it.
+ * Auto-switching to whichever dimension "had more in it" moved the page under
+ * the reader and made two mornings incomparable.
  */
-export type HotspotRow = {
+export type BreakdownDimension = "stores" | "categories";
+
+export type BreakdownRow = {
   key: string;
   label: string;
   size: number;
-  financeDemand: Measure;
+  highIntent: Measure;
   clarityImproved: Measure;
+  preferenceFormed: Measure;
   closeAfterCommitment: Measure;
 };
 
-export function hotspots(
+export function overviewBreakdown(
   rows: readonly PopulationRow[],
   by: (row: PopulationRow) => string | null,
   labelFor: (key: string) => string,
-  limit = 6,
-): HotspotRow[] {
+): BreakdownRow[] {
   const groups = new Map<string, PopulationRow[]>();
   for (const row of rows) {
     const key = by(row);
@@ -247,18 +301,16 @@ export function hotspots(
     groups.set(key, [...(groups.get(key) ?? []), row]);
   }
   return [...groups.entries()]
-    .map(([key, group]) => {
-      return {
-        key,
-        label: labelFor(key),
-        size: group.length,
-        financeDemand: financeDemand(group),
-        clarityImproved: clarityImproved(group),
-        closeAfterCommitment: closeAfterCommitment(group),
-      };
-    })
-    .sort((a, b) => b.size - a.size || a.label.localeCompare(b.label))
-    .slice(0, limit);
+    .map(([key, group]) => ({
+      key,
+      label: labelFor(key),
+      size: group.length,
+      highIntent: arrivedDecided(group),
+      clarityImproved: clarityImproved(group),
+      preferenceFormed: preferenceFormed(group),
+      closeAfterCommitment: closeAfterCommitment(group),
+    }))
+    .sort((a, b) => b.size - a.size || a.label.localeCompare(b.label));
 }
 
 /** A count expressed as a measure, so a tile can carry one shape throughout. */

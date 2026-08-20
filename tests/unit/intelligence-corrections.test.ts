@@ -3,48 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   CORRECTION_LIMITS,
   correctionFor,
-  currentRecordIds,
   type Correction,
 } from "@/modules/intelligence/corrections";
-
-const record = (id: string, conversationId: string, createdAt: string) => ({
-  id,
-  conversationId,
-  createdAt,
-});
-
-describe("counting a conversation exactly once", () => {
-  it("keeps only the most recently completed record", () => {
-    // A reprocessed conversation leaves several records, each holding a full set
-    // of values. Counting them all would make every rate look busier the more
-    // the pipeline improved.
-    const ids = currentRecordIds([
-      record("old", "c1", "2026-08-01T10:00:00Z"),
-      record("new", "c1", "2026-08-17T10:00:00Z"),
-      record("only", "c2", "2026-08-05T10:00:00Z"),
-    ]);
-    expect(ids).toHaveLength(2);
-    expect(ids).toContain("new");
-    expect(ids).not.toContain("old");
-  });
-
-  it("does not depend on the order it was handed", () => {
-    const forwards = currentRecordIds([
-      record("a", "c1", "2026-08-01T10:00:00Z"),
-      record("b", "c1", "2026-08-02T10:00:00Z"),
-    ]);
-    const backwards = currentRecordIds([
-      record("b", "c1", "2026-08-02T10:00:00Z"),
-      record("a", "c1", "2026-08-01T10:00:00Z"),
-    ]);
-    expect(forwards).toEqual(["b"]);
-    expect(backwards).toEqual(["b"]);
-  });
-
-  it("returns nothing for nothing", () => {
-    expect(currentRecordIds([])).toEqual([]);
-  });
-});
 
 describe("what a human correction does to a value", () => {
   const at = (createdAt: string, extra: Partial<Correction> = {}): Correction => ({

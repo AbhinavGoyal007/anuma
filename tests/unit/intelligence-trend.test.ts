@@ -1,54 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import { readOutcome } from "@/modules/intelligence/outcome";
-import type { PopulationRow } from "@/modules/intelligence/population";
-import {
-  buildSeries,
-  DEFAULT_TREND,
-  qualifies,
-  selectPrincipalSeries,
-  TREND_METRICS,
-} from "@/modules/intelligence/trend";
+import { buildSeries, DEFAULT_TREND, qualifies, TREND_METRICS } from "@/modules/intelligence/trend";
+import { notStated, row as buildRow, value } from "../support/population";
 
 const NOW = new Date("2026-08-19T12:00:00.000Z");
 const metric = (key: string) => TREND_METRICS.find((item) => item.key === key)!;
 
-let seq = 0;
-function row(startedAt: string, overrides: Partial<PopulationRow> = {}): PopulationRow {
-  return {
-    conversationId: `c${(seq += 1)}`,
-    recordId: `r${seq}`,
-    startedAt,
-    locationId: null,
-    representativeMembershipId: null,
-    teamId: null,
-    purchaseCategory: "laptop",
-    arrivalIntent: "exploratory",
-    clarityStart: null,
-    clarityEnd: null,
-    targetBudgetMinor: null,
-    maxBudgetMinor: null,
-    budgetCurrency: "INR",
-    productsRecommendedCount: 0,
-    objectionCount: 0,
-    objectionCoverage: null,
-    competitorCount: 0,
-    financeRequested: false,
-    demoPerformed: null,
-    alternativeOffered: null,
-    crossSellCount: 0,
-    upsellCount: 0,
-    customerQuestionCount: 0,
-    values: [],
-    outcome: readOutcome([]),
-    ...overrides,
-  };
-}
-
 /** `count` interactions in one week, `matched` of them naming a competitor. */
 const week = (iso: string, count: number, matched = 0) =>
   Array.from({ length: count }, (_, index) =>
-    row(iso, { competitorCount: index < matched ? 1 : 0 }),
+    buildRow({
+      startedAt: iso,
+      values: [
+        index < matched ? value("competitor_named", "Croma") : notStated("competitor_named"),
+      ],
+    }),
   );
 
 describe("binning on conversation time", () => {
@@ -57,7 +23,7 @@ describe("binning on conversation time", () => {
     // facts. Joining across a quiet week would draw a slope out of an absence.
     const series = buildSeries(
       [...week("2026-08-10T10:00:00Z", 10, 5), ...week("2026-07-27T10:00:00Z", 10, 5)],
-      metric("competitor_pressure"),
+      metric("competitor_mentions"),
       30,
       NOW,
     );
@@ -70,7 +36,7 @@ describe("binning on conversation time", () => {
     // Three conversations give 0% or 100% and nothing between.
     const series = buildSeries(
       week("2026-08-10T10:00:00Z", 3, 3),
-      metric("competitor_pressure"),
+      metric("competitor_mentions"),
       30,
       NOW,
     );
@@ -82,7 +48,7 @@ describe("binning on conversation time", () => {
   it("plots a bin that clears the bar", () => {
     const series = buildSeries(
       week("2026-08-10T10:00:00Z", DEFAULT_TREND.minimumPerBin, 4),
-      metric("competitor_pressure"),
+      metric("competitor_mentions"),
       30,
       NOW,
     );
@@ -96,11 +62,19 @@ describe("binning on conversation time", () => {
     // undecided; it is a customer nobody could read.
     const rows = [
       ...Array.from({ length: 8 }, () =>
-        row("2026-08-10T10:00:00Z", { arrivalIntent: "ready_to_buy" }),
+        buildRow({
+          startedAt: "2026-08-10T10:00:00Z",
+          values: [value("arrival_intent_state", "ready_to_buy")],
+        }),
       ),
-      ...Array.from({ length: 8 }, () => row("2026-08-10T10:00:00Z", { arrivalIntent: null })),
+      ...Array.from({ length: 8 }, () =>
+        buildRow({
+          startedAt: "2026-08-10T10:00:00Z",
+          values: [notStated("arrival_intent_state")],
+        }),
+      ),
     ];
-    const series = buildSeries(rows, metric("high_intent_arrival"), 30, NOW);
+    const series = buildSeries(rows, metric("high_intent_arrivals"), 30, NOW);
     const bin = series.points.find((point) => point.eligible > 0);
     expect(bin?.eligible).toBe(8);
     expect(bin?.value).toBe(1);
@@ -111,7 +85,7 @@ describe("whether a line is worth drawing", () => {
   it("refuses a series with too few plotted bins", () => {
     const series = buildSeries(
       week("2026-08-10T10:00:00Z", 20, 10),
-      metric("competitor_pressure"),
+      metric("competitor_mentions"),
       90,
       NOW,
     );
@@ -123,42 +97,49 @@ describe("whether a line is worth drawing", () => {
     const rows = ["2026-08-10", "2026-08-03", "2026-07-27", "2026-07-20"].flatMap((day) =>
       week(`${day}T10:00:00Z`, 10, 5),
     );
-    expect(qualifies(buildSeries(rows, metric("competitor_pressure"), 90, NOW))).toBe(true);
+    expect(qualifies(buildSeries(rows, metric("competitor_mentions"), 90, NOW))).toBe(true);
   });
 
-  it("reports nothing at all rather than an empty chart", () => {
-    // Two thin weeks cannot carry any signal, so the page falls back instead of
-    // rendering an axis with nothing on it.
-    expect(selectPrincipalSeries(week("2026-08-10T10:00:00Z", 3, 1), 90, NOW)).toBeNull();
+  it("refuses to qualify a series built on thin weeks", () => {
+    // Three interactions in one week cannot carry a rate. The slot says so
+    // rather than drawing an axis with nothing on it — and rather than
+    // substituting a metric the reader did not ask about.
+    const thin = buildSeries(
+      week("2026-08-10T10:00:00Z", 3, 1),
+      metric("competitor_mentions"),
+      90,
+      NOW,
+    );
+    expect(qualifies(thin)).toBe(false);
   });
 });
 
-describe("choosing what to lead with", () => {
+describe("the tracked signal is chosen by the reader", () => {
   const dense = (matchedByWeek: readonly number[]) =>
     ["2026-08-10", "2026-08-03", "2026-07-27", "2026-07-20"].flatMap((day, index) =>
       week(`${day}T10:00:00Z`, 10, matchedByWeek[index] ?? 0),
     );
 
-  it("prefers a rate that actually moved", () => {
-    const picked = selectPrincipalSeries(dense([9, 1, 9, 1]), 90, NOW);
-    expect(picked?.series.metric.format).toBe("percent");
-    expect(picked?.series.movement).not.toBeNull();
-  });
-
-  it("is stable — the same rows always choose the same signal", () => {
-    const rows = dense([9, 1, 9, 1]);
-    expect(selectPrincipalSeries(rows, 90, NOW)?.series.metric.key).toBe(
-      selectPrincipalSeries([...rows].reverse(), 90, NOW)?.series.metric.key,
-    );
-  });
-
   it("only calls out a movement large enough to matter", () => {
-    const flat = buildSeries(dense([5, 5, 5, 5]), metric("competitor_pressure"), 90, NOW);
+    const flat = buildSeries(dense([5, 5, 5, 5]), metric("competitor_mentions"), 90, NOW);
     expect(flat.movement).toBeNull();
   });
 
-  it("offers the other qualifying signals as alternatives", () => {
-    const picked = selectPrincipalSeries(dense([9, 1, 9, 1]), 90, NOW);
-    expect(picked!.available.length).toBeGreaterThan(1);
+  it("reports the movement when one is real", () => {
+    const swung = buildSeries(dense([9, 1, 9, 1]), metric("competitor_mentions"), 90, NOW);
+    expect(swung.movement).not.toBeNull();
+  });
+
+  it("offers the same six signals whatever the data did", () => {
+    // No automatic promotion: the chart never picks its own subject, so two
+    // mornings are comparable.
+    expect(TREND_METRICS.map((item) => item.key)).toEqual([
+      "high_intent_arrivals",
+      "clarity_improved",
+      "preference_formed",
+      "close_after_commitment",
+      "competitor_mentions",
+      "finance_demand",
+    ]);
   });
 });

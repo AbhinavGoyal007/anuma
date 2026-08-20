@@ -223,6 +223,7 @@ export default async function CustomerDemandPage({ searchParams }: PageProps) {
         languages={languages}
         interactions={rows.length}
         storeCount={storeCount}
+        coverage={current.coverage}
         directoryError={directoryError}
         carry={carry}
       />

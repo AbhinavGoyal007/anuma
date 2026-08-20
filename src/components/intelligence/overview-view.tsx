@@ -1,6 +1,8 @@
 import Link from "next/link";
 
+import { CoverageRail } from "@/components/intelligence/coverage-rail";
 import { DataState, stateFor, type SlotState } from "@/components/intelligence/data-state";
+import { LocalSwitch } from "@/components/intelligence/local-switch";
 import {
   Delta,
   formatMoney,
@@ -10,28 +12,36 @@ import {
 } from "@/components/intelligence/metric-tile";
 import { SectionTabs } from "@/components/intelligence/section-tabs";
 import { TrackingChart } from "@/components/intelligence/tracking-chart";
+import type { IntelligenceCoverage } from "@/modules/intelligence/coverage";
 import { actionLabel, type ActionCohort } from "@/modules/intelligence/frontline";
 import { DEFAULT_GUARDRAILS, type Measure } from "@/modules/intelligence/guardrails";
-import type { HotspotRow, OverviewSignal, PulseItem } from "@/modules/intelligence/overview";
+import type {
+  BreakdownDimension,
+  BreakdownRow,
+  OverviewSignal,
+  PulseItem,
+} from "@/modules/intelligence/overview";
 import type { TrendMetric, TrendSeries } from "@/modules/intelligence/trend";
 
 /**
- * Overview — four signals, three actions, six figures, a line and a table.
+ * Overview — how much can ANUMA see, and what deserves attention.
  *
- * The slots are fixed. A signal with nothing behind it shows that inside its own
- * tile rather than vanishing, because a page whose shape changes with the data
- * teaches a reader to distrust what is missing — and what is missing is often
- * the finding.
- *
- * No prose. Everything a manager needs to judge a number travels with it: the
- * denominator on the tile, the rest in the tooltip.
+ * The sections are in a fixed order and so is everything inside them. The data
+ * changes the answer; it does not change where the answer is. A manager who
+ * opens this at eight every morning should be able to look at the same four
+ * places without reading the page first.
  */
+
+export const BREAKDOWN_TABS = [
+  { key: "stores", label: "Stores" },
+  { key: "categories", label: "Categories" },
+] as const;
 
 function Action({ cohort, href }: { cohort: ActionCohort | null; href: string | null }) {
   if (!cohort || !href) {
     return (
       <div className="ip-action ip-action--empty">
-        <DataState state="NO_OBSERVATIONS" compact />
+        <span className="ip-meta">No additional priority action in this scope</span>
       </div>
     );
   }
@@ -52,13 +62,11 @@ function Action({ cohort, href }: { cohort: ActionCohort | null; href: string | 
       <span className="ip-arrow" aria-hidden="true">
         →
       </span>
-      <span className="ip-visually-hidden">Review</span>
     </Link>
   );
 }
 
 function pulseDisplay(item: PulseItem): string {
-  if (item.format === "count") return String(item.amount ?? 0);
   // Two currencies do not average into one median. Saying so is the answer.
   if (item.format === "mixed_currency") return "Multiple currencies";
   if (item.format === "money") return formatMoney(item.amount, item.currency);
@@ -66,14 +74,12 @@ function pulseDisplay(item: PulseItem): string {
 }
 
 /**
- * One hotspot cell.
+ * One breakdown cell.
  *
- * Clickable only where an exact cohort exists for that scope and that metric —
- * the same numerator the tile above uses, narrowed to this row. A cell that
- * looked clickable and opened an approximation would be worse than a plain
- * number, so where no exact cohort exists the cell is not styled as a control.
+ * Below the comparison bar a percentage is 0 or 100 and reads as a difference
+ * between stores that it cannot support, so the raw counts are shown instead.
  */
-function HotspotCell({ measure: m, href }: { measure: Measure; href: string | null }) {
+function Cell({ measure: m, href }: { measure: Measure; href: string | null }) {
   if (m.value === null || m.observed === 0) {
     return (
       <td className="ip-cell-thin" title="Not measurable in this group">
@@ -81,8 +87,6 @@ function HotspotCell({ measure: m, href }: { measure: Measure; href: string | nu
       </td>
     );
   }
-  // Below the comparison bar a percentage is 0 or 100 and reads as a difference
-  // between stores that it cannot support, so the raw count is shown instead.
   if (m.observed < DEFAULT_GUARDRAILS.minimumForComparison) {
     return (
       <td className="ip-cell-thin" title={`Only ${m.observed} measurable — too few to compare`}>
@@ -113,7 +117,20 @@ function HotspotCell({ measure: m, href }: { measure: Measure; href: string | nu
   );
 }
 
+const BREAKDOWN_COLUMNS = [
+  { key: "highIntent", label: "High-intent arrivals", cohort: "arrived_decided" },
+  { key: "clarityImproved", label: "Clarity improved", cohort: "clarity_improved" },
+  { key: "preferenceFormed", label: "Preference formed", cohort: "preference_formed" },
+  {
+    key: "closeAfterCommitment",
+    label: "Close after commitment",
+    cohort: "close_after_commitment",
+  },
+] as const;
+
 export function OverviewView({
+  coverage,
+  coverageHref,
   signals,
   actions,
   actionHref,
@@ -121,42 +138,45 @@ export function OverviewView({
   pulse,
   trend,
   trendMetrics,
+  trendMetricKey,
   trendHref,
-  trendPointHref,
-  hotspots,
-  hotspotLabel,
-  hotspotHref,
-  hotspotCellHref,
-  analysed,
+  breakdown,
+  breakdownDimension,
+  breakdownHref,
+  breakdownRowHref,
+  breakdownCellHref,
+  usable,
 }: {
+  coverage: IntelligenceCoverage;
+  coverageHref: string;
   signals: OverviewSignal[];
-  actions: ActionCohort[];
+  actions: (ActionCohort | null)[];
   actionHref: (cohortKey: string) => string;
-  /** Opens the interactions a metric actually counted, never a failure cohort. */
   numeratorHref: (measureKey: string) => string;
   pulse: PulseItem[];
+  /** Null where the selected series cannot be trended. The slot stays. */
   trend: TrendSeries | null;
-  trendMetrics: TrendMetric[];
+  trendMetrics: readonly TrendMetric[];
+  trendMetricKey: string;
   trendHref: (key: string) => string;
-  /** Null where narrowing to a single bin is not something the page can do. */
-  trendPointHref: (point: TrendSeries["points"][number]) => string | null;
-  hotspots: HotspotRow[];
-  hotspotLabel: string;
-  hotspotHref: (key: string) => string | null;
-  /** Exact scope plus exact metric cohort, or null where none exists. */
-  hotspotCellHref: (key: string, measureKey: string) => string | null;
-  analysed: number;
+  breakdown: BreakdownRow[];
+  breakdownDimension: BreakdownDimension;
+  breakdownHref: (dimension: BreakdownDimension) => string;
+  breakdownRowHref: (key: string) => string;
+  breakdownCellHref: (key: string, measureKey: string) => string;
+  usable: number;
 }) {
-  const trendState: SlotState = trend === null ? "NOT_SUPPORTED" : "POPULATED";
-  const hotspotState: SlotState =
-    analysed === 0 ? "NO_OBSERVATIONS" : hotspots.length === 0 ? "NOT_SUPPORTED" : "POPULATED";
+  const breakdownState: SlotState =
+    usable === 0 ? "NO_OBSERVATIONS" : breakdown.length === 0 ? "NOT_SUPPORTED" : "POPULATED";
 
   return (
     <div className="ip-grid12">
+      <CoverageRail coverage={coverage} drawerHref={coverageHref} />
+
       <section className="ip-panel ip-col-8" aria-labelledby="ov-signals">
         <div className="ip-section-title">
-          <h2 id="ov-signals">Signals</h2>
-          <span className="ip-meta">{analysed} analysed</span>
+          <h2 id="ov-signals">Core signals</h2>
+          <span className="ip-meta">{usable} usable</span>
         </div>
         <div className="ip-signal-grid">
           {signals.map((signal) => {
@@ -168,11 +188,10 @@ export function OverviewView({
                 value={formatPercent(signal.measure.value)}
                 measure={signal.measure}
                 previous={signal.previous}
-                attention={signal.attention}
-                // The click opens the tile's own numerator. Pointing a
-                // descriptive metric at the failure cohort beside it showed one
-                // number and offered a different set of conversations.
-                href={signal.cohortKey ? numeratorHref(signal.cohortKey) : undefined}
+                // The click opens the tile's own numerator, never the inverse
+                // gap: a descriptive metric that offered the failures beside it
+                // showed one number and handed over a different set.
+                href={numeratorHref(signal.cohortKey)}
               />
             ) : (
               <div className="ip-signal" key={signal.key}>
@@ -186,24 +205,20 @@ export function OverviewView({
 
       <section className="ip-panel ip-col-4" aria-labelledby="ov-actions">
         <div className="ip-section-title">
-          <h2 id="ov-actions">Actions</h2>
-          <span className="ip-meta">Top 3</span>
+          <h2 id="ov-actions">Priority actions</h2>
         </div>
-        {[0, 1, 2].map((index) => (
+        {actions.map((cohort, index) => (
           <Action
-            key={index}
-            cohort={actions[index] ?? null}
-            href={actions[index] ? actionHref(actions[index]!.key) : null}
+            key={cohort?.key ?? `empty-${index}`}
+            cohort={cohort}
+            href={cohort ? actionHref(cohort.key) : null}
           />
         ))}
       </section>
 
-      <section className="ip-panel ip-pulse ip-col-12" aria-label="Pulse">
+      <section className="ip-panel ip-pulse ip-col-12" aria-label="Business pulse">
         {pulse.map((item) => {
-          const state =
-            item.format === "count" || item.format === "mixed_currency"
-              ? "POPULATED"
-              : stateFor(item.measure);
+          const state = item.format === "mixed_currency" ? "POPULATED" : stateFor(item.measure);
           const tip = tipText({
             label: item.label,
             value: pulseDisplay(item),
@@ -250,75 +265,79 @@ export function OverviewView({
       <section className="ip-panel ip-col-7" aria-labelledby="ov-trend">
         <div className="ip-section-title">
           <h2 id="ov-trend">Trend</h2>
-          {trendMetrics.length > 1 && trend ? (
-            <SectionTabs
-              tabs={trendMetrics.map((option) => ({ key: option.key, label: option.label }))}
-              active={trend.metric.key}
-              hrefFor={trendHref}
-              label="Tracked signal"
-            />
-          ) : null}
+          {/* All six tabs, every day. The chart never picks its own subject:
+              a page that promotes whichever metric moved most is a page that
+              answers a different question each morning. */}
+          <SectionTabs
+            tabs={trendMetrics.map((option) => ({ key: option.key, label: option.label }))}
+            active={trendMetricKey}
+            hrefFor={trendHref}
+            label="Tracked signal"
+          />
         </div>
-        {trendState === "POPULATED" && trend ? (
-          <TrackingChart series={trend} pointHref={trendPointHref} />
+        {trend ? (
+          <TrackingChart series={trend} pointHref={() => null} />
         ) : (
-          <DataState state={trendState} />
+          <div className="ip-state" role="status">
+            <strong>Not enough data to trend this metric</strong>
+            <span>
+              The selected metric needs more interactions per period before a line would mean
+              anything. Nothing else has been selected in its place.
+            </span>
+          </div>
         )}
       </section>
 
-      <section className="ip-panel ip-col-5" aria-labelledby="ov-hotspots">
-        <div className="ip-section-title">
-          <h2 id="ov-hotspots">Hotspots</h2>
-          <span className="ip-meta">By {hotspotLabel.toLowerCase()}</span>
-        </div>
-        {hotspotState === "POPULATED" ? (
-          <div className="ip-table-scroll">
-            <table className="ip-table">
-              <thead>
-                <tr>
-                  <th scope="col">Scope</th>
-                  <th scope="col">n</th>
-                  <th scope="col">Finance demand</th>
-                  <th scope="col">Clarity improved</th>
-                  <th scope="col">Close after commitment</th>
-                </tr>
-              </thead>
-              <tbody>
-                {hotspots.map((row) => {
-                  const href = hotspotHref(row.key);
-                  return (
+      <section className="ip-panel ip-col-5" aria-labelledby="ov-breakdown">
+        <LocalSwitch param="dimension" initial={breakdownDimension}>
+          <div className="ip-section-title">
+            <h2 id="ov-breakdown">Breakdown</h2>
+            <SectionTabs
+              tabs={BREAKDOWN_TABS}
+              active={breakdownDimension}
+              hrefFor={(key) => breakdownHref(key as BreakdownDimension)}
+              label="Breakdown dimension"
+            />
+          </div>
+          {breakdownState === "POPULATED" ? (
+            <div className="ip-table-scroll">
+              <table className="ip-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Scope</th>
+                    <th scope="col">n</th>
+                    {BREAKDOWN_COLUMNS.map((column) => (
+                      <th key={column.key} scope="col">
+                        {column.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {breakdown.map((row) => (
                     <tr key={row.key}>
                       <th scope="row">
-                        {href ? (
-                          <Link className="ip-link" href={href}>
-                            {row.label}
-                          </Link>
-                        ) : (
-                          row.label
-                        )}
+                        <Link className="ip-link" href={breakdownRowHref(row.key)}>
+                          {row.label}
+                        </Link>
                       </th>
                       <td>{row.size}</td>
-                      <HotspotCell
-                        measure={row.financeDemand}
-                        href={hotspotCellHref(row.key, "finance_demand")}
-                      />
-                      <HotspotCell
-                        measure={row.clarityImproved}
-                        href={hotspotCellHref(row.key, "clarity_improved")}
-                      />
-                      <HotspotCell
-                        measure={row.closeAfterCommitment}
-                        href={hotspotCellHref(row.key, "close_after_commitment")}
-                      />
+                      {BREAKDOWN_COLUMNS.map((column) => (
+                        <Cell
+                          key={column.key}
+                          measure={row[column.key]}
+                          href={breakdownCellHref(row.key, column.cohort)}
+                        />
+                      ))}
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <DataState state={hotspotState} />
-        )}
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <DataState state={breakdownState} />
+          )}
+        </LocalSwitch>
       </section>
     </div>
   );

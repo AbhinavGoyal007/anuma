@@ -1,47 +1,15 @@
 /**
- * The two rules that decide which rows an analysis is allowed to count.
+ * What a human correction does to a value.
  *
- * Both used to live inside the database read, where they could only be checked
- * by looking at a page and hoping. They are the rules most likely to be quietly
- * wrong — a conversation counted twice inflates every rate by however often it
- * was reprocessed, and a value a manager rejected still counting is the product
- * telling someone their correction did nothing.
- */
-
-/** Enough of an interaction record to choose between versions of it. */
-export type RecordChoice = { id: string; conversationId: string; createdAt: string };
-
-/**
- * One record per conversation: the most recently completed.
+ * This used to live inside the database read, where it could only be checked by
+ * looking at a page and hoping. It is the rule most likely to be quietly wrong,
+ * and a value a manager rejected still counting is the product telling someone
+ * their correction did nothing.
  *
- * A conversation that has been re-extracted leaves several records behind it,
- * and every one of them holds a full set of values. Counting them all would not
- * fail loudly; it would make every rate look busier the more the pipeline
- * improved.
+ * Which record a conversation is counted through is a separate question and
+ * belongs with Coverage — see `currentRecordCandidate`, which ties the choice to
+ * the conversation's active transcription run.
  */
-export function currentRecordIds(records: readonly RecordChoice[]): string[] {
-  const newest = new Map<string, RecordChoice>();
-  for (const record of records) {
-    const held = newest.get(record.conversationId);
-    if (!held || isNewer(record, held)) newest.set(record.conversationId, record);
-  }
-  return [...newest.values()].map((record) => record.id);
-}
-
-/**
- * Which of two records for the same conversation is the current one.
- *
- * Timestamp first, then id. The tie-break is not pedantry: two records written
- * in the same transaction can share a created_at to the microsecond, and without
- * a second key the winner depends on the order the database happened to return
- * rows. That makes a page quietly non-deterministic — the same filters produce a
- * different number on refresh — which is the hardest kind of bug to be believed
- * about.
- */
-function isNewer(candidate: RecordChoice, held: RecordChoice): boolean {
-  if (candidate.createdAt !== held.createdAt) return candidate.createdAt > held.createdAt;
-  return candidate.id > held.id;
-}
 
 export type Correction = {
   fieldValueId: string;

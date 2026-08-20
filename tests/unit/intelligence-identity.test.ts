@@ -158,16 +158,39 @@ describe("cohort keys survive the URL", () => {
 });
 
 describe("a trend label describes its own predicate", () => {
-  it("matches only interactions whose business outcome is unknown", () => {
-    // The label previously read "Left without an established outcome" while the
-    // predicate swept in customers who had explicitly declined — a line whose
-    // name was a claim the data did not make.
-    const metric = TREND_METRICS.find((entry) => entry.key === "outcome_not_established")!;
-    expect(metric.label).toBe("Outcome not established");
-    const declined = row({ values: [value("confirmed_business_outcome", "no_sale")] });
-    const unknown = row({ values: [notStated("confirmed_business_outcome")] });
-    expect(metric.matched(declined)).toBe(false);
-    expect(metric.matched(unknown)).toBe(true);
+  it("names every tracked metric after exactly what it matches", () => {
+    // An earlier line read "Left without an established outcome" while matching
+    // a much broader unresolved predicate that swept in customers who had
+    // explicitly declined — a label that was a claim the data did not make. The
+    // six now on the page each describe their own predicate.
+    expect(TREND_METRICS.map((metric) => [metric.key, metric.label])).toEqual([
+      ["high_intent_arrivals", "High-intent arrivals"],
+      ["clarity_improved", "Clarity improved"],
+      ["preference_formed", "Preference formed"],
+      ["close_after_commitment", "Close after commitment"],
+      ["competitor_mentions", "Competitor mentions"],
+      ["finance_demand", "Finance demand"],
+    ]);
+  });
+
+  it("counts a preference only where the requirement was clear enough to form one", () => {
+    const metric = TREND_METRICS.find((entry) => entry.key === "preference_formed")!;
+    const clearAndChosen = row({
+      values: [
+        value("requirement_clarity_end", "high"),
+        value("final_preferred_product", "Acer Swift"),
+      ],
+    });
+    const unclearButChosen = row({
+      values: [
+        value("requirement_clarity_end", "low"),
+        value("final_preferred_product", "Acer Swift"),
+      ],
+    });
+    expect(metric.eligible!(clearAndChosen)).toBe(true);
+    expect(metric.matched(clearAndChosen)).toBe(true);
+    // Excluded from the denominator rather than counted as a miss.
+    expect(metric.eligible!(unclearButChosen)).toBe(false);
   });
 
   it("keeps an unreadable finance field out of the finance line entirely", () => {

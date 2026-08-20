@@ -1,11 +1,15 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import { measure } from "@/modules/intelligence/guardrails";
+import { correctionFor, type Correction } from "@/modules/intelligence/corrections";
 import {
-  correctionFor,
-  currentRecordIds,
-  type Correction,
-} from "@/modules/intelligence/corrections";
+  computeCoverage,
+  currentRecordCandidate,
+  type CoverageFieldValue,
+  type CoverageRecord,
+  type IntelligenceCoverage,
+} from "@/modules/intelligence/coverage";
 import {
   readEffective,
   type Applicable,
@@ -106,6 +110,8 @@ export type PopulationFilters = {
  */
 export type PopulationSummary = {
   rows: PopulationRow[];
+  /** How much of the floor we can see, computed from the same reads. */
+  coverage: IntelligenceCoverage;
   conversationsInPeriod: number;
   /**
    * Analysed conversations that could not be included. Null where a category is
@@ -186,6 +192,23 @@ async function readAllFieldValues(
   }
 }
 
+const EMPTY_COVERAGE: IntelligenceCoverage = {
+  recordedInteractions: 0,
+  recordingFiles: 0,
+  recordingHours: 0,
+  recordingDurationUnavailableFiles: 0,
+  transcription: { completed: 0, inProgress: 0, failed: 0, cancelled: 0, notStarted: 0 },
+  transcribedInteractions: 0,
+  analysis: { completed: 0, inProgress: 0, failed: 0, cancelled: 0, notStarted: 0 },
+  analysedInteractions: 0,
+  usableInteractions: 0,
+  notUsableInteractions: 0,
+  outcomeKnown: measure(0, 0, 0),
+  evidenceReady: measure(0, 0, 0),
+  usableConversationIds: [],
+  currentRecordIdByConversation: new Map(),
+};
+
 export async function loadPopulation(filters: PopulationFilters): Promise<PopulationSummary> {
   const supabase = await createClient();
 
@@ -193,7 +216,9 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
   // there and applying them here keeps the record and metric reads small.
   let conversationQuery = supabase
     .from("conversations")
-    .select("id, started_at, location_id, representative_membership_id, team_id")
+    .select(
+      "id, started_at, location_id, representative_membership_id, team_id, active_transcription_run_id",
+    )
     .eq("organization_id", filters.organizationId)
     .gte("started_at", filters.from)
     .lt("started_at", filters.to);
@@ -225,6 +250,7 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
   if (conversationIds.length === 0) {
     return {
       rows: [],
+      coverage: EMPTY_COVERAGE,
       conversationsInPeriod: 0,
       withoutMetrics: 0,
       availableCategories: [],
@@ -247,29 +273,162 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
     ]),
   );
 
-  // The current record per conversation: most recently completed wins.
-  const { data: records, error: recordsError } = await supabase
-    .from("interaction_records")
-    .select("id, conversation_id, created_at")
-    .eq("organization_id", filters.organizationId)
-    .eq("status", "completed")
-    .in("conversation_id", conversationIds)
-    .order("created_at", { ascending: false });
-  if (recordsError)
+  // Everything Coverage needs, read once and shared with the population. The
+  // two must agree by construction: a page that says "26 usable" and then
+  // computes its rates over a different 31 is telling a manager two things.
+  const [
+    { data: recordings, error: recordingsError },
+    { data: runs, error: runsError },
+    { data: records, error: recordsError },
+    { data: definitions, error: definitionsError },
+  ] = await Promise.all([
+    supabase
+      .from("recordings")
+      .select("conversation_id, status, duration_milliseconds")
+      .eq("organization_id", filters.organizationId)
+      .in("conversation_id", conversationIds),
+    supabase
+      .from("transcription_runs")
+      .select("id, conversation_id, status")
+      .eq("organization_id", filters.organizationId)
+      .in("conversation_id", conversationIds),
+    supabase
+      .from("interaction_records")
+      .select("id, conversation_id, source_transcription_run_id, status, completed_at, created_at")
+      .eq("organization_id", filters.organizationId)
+      .in("conversation_id", conversationIds),
+    supabase
+      .from("interaction_field_definitions")
+      .select("key, is_system, is_enabled, requires_evidence")
+      .eq("organization_id", filters.organizationId),
+  ]);
+  if (recordingsError) throw new Error(`Recordings could not be read: ${recordingsError.message}`);
+  if (runsError) throw new Error(`Transcription runs could not be read: ${runsError.message}`);
+  if (recordsError) {
     throw new Error(`Interaction records could not be read: ${recordsError.message}`);
+  }
+  if (definitionsError) {
+    throw new Error(`Field definitions could not be read: ${definitionsError.message}`);
+  }
 
-  const recordIds = currentRecordIds(
-    (records ?? []).map((record) => ({
-      id: record.id,
-      conversationId: record.conversation_id,
-      createdAt: record.created_at,
-    })),
+  const coverageRecords: CoverageRecord[] = (records ?? []).map((record) => ({
+    id: record.id,
+    conversationId: record.conversation_id,
+    sourceTranscriptionRunId: record.source_transcription_run_id,
+    status: record.status,
+    completedAt: record.completed_at,
+    createdAt: record.created_at,
+  }));
+
+  // The candidate record per conversation, tied to the active transcription
+  // run. Re-transcribing retires every record built from the previous audio.
+  const candidateIds = (conversations ?? []).flatMap((conversation) => {
+    const candidate = currentRecordCandidate(
+      coverageRecords.filter((record) => record.conversationId === conversation.id),
+      conversation.active_transcription_run_id,
+    );
+    return candidate ? [candidate.id] : [];
+  });
+
+  const [candidateValues, { data: candidateCorrections, error: correctionsError }] =
+    candidateIds.length > 0
+      ? await Promise.all([
+          readAllFieldValues(supabase, filters.organizationId, candidateIds),
+          supabase
+            .from("interaction_field_value_corrections")
+            .select("field_value_id, corrected_text, is_rejected, created_at")
+            .eq("organization_id", filters.organizationId)
+            .in("interaction_record_id", candidateIds)
+            .order("created_at", { ascending: false }),
+        ])
+      : [[] as FieldValueRow[], { data: [], error: null }];
+  if (correctionsError) {
+    throw new Error(`Corrections could not be read: ${correctionsError.message}`);
+  }
+
+  const corrections: Correction[] = (candidateCorrections ?? []).map((row) => ({
+    fieldValueId: row.field_value_id,
+    correctedText: row.corrected_text,
+    isRejected: row.is_rejected,
+    createdAt: row.created_at,
+  }));
+
+  // Evidence groups on fields that are required to cite something, so Coverage
+  // can tell a fact that pointed at the current transcript from one that
+  // pointed at a transcript this record was not built from.
+  const evidenceGroupIds = [
+    ...new Set(
+      candidateValues.flatMap((row) => (row.evidence_group_id ? [row.evidence_group_id] : [])),
+    ),
+  ];
+  const evidencePages = await Promise.all(
+    Array.from({ length: Math.ceil(evidenceGroupIds.length / 200) }, (_, index) =>
+      supabase
+        .from("evidence_references")
+        .select("evidence_group_id, transcription_run_id, start_milliseconds")
+        .eq("organization_id", filters.organizationId)
+        .in("evidence_group_id", evidenceGroupIds.slice(index * 200, index * 200 + 200)),
+    ),
   );
+  const evidenceRows: {
+    evidence_group_id: string;
+    transcription_run_id: string;
+    start_milliseconds: number | null;
+  }[] = [];
+  for (const { data, error } of evidencePages) {
+    if (error) throw new Error(`Evidence references could not be read: ${error.message}`);
+    evidenceRows.push(...(data ?? []));
+  }
+
+  const coverageValues: CoverageFieldValue[] = candidateValues.map((row) => {
+    const applied = correctionFor(row.id, corrections);
+    return {
+      interactionRecordId: row.interaction_record_id,
+      fieldKey: row.field_key,
+      valueText: applied.kind === "corrected" ? applied.text : row.value_text,
+      abstention: row.abstention,
+      evidenceGroupId: row.evidence_group_id,
+      rejected: applied.kind === "rejected",
+    };
+  });
+
+  const coverage = computeCoverage({
+    conversations: (conversations ?? []).map((row) => ({
+      id: row.id,
+      activeTranscriptionRunId: row.active_transcription_run_id,
+    })),
+    recordings: (recordings ?? []).map((row) => ({
+      conversationId: row.conversation_id,
+      status: row.status,
+      durationMilliseconds: row.duration_milliseconds,
+    })),
+    runs: (runs ?? []).map((row) => ({
+      id: row.id,
+      conversationId: row.conversation_id,
+      status: row.status,
+    })),
+    records: coverageRecords,
+    fieldValues: coverageValues,
+    definitions: (definitions ?? []).map((row) => ({
+      key: row.key,
+      isSystem: row.is_system,
+      isEnabled: row.is_enabled,
+      requiresEvidence: row.requires_evidence,
+    })),
+    evidenceReferences: evidenceRows.map((row) => ({
+      evidenceGroupId: row.evidence_group_id,
+      transcriptionRunId: row.transcription_run_id,
+    })),
+  });
+
+  // The analytical population is exactly the usable interactions.
+  const recordIds = [...coverage.currentRecordIdByConversation.values()];
   if (recordIds.length === 0) {
     return {
       rows: [],
+      coverage,
       conversationsInPeriod: conversationIds.length,
-      withoutMetrics: conversationIds.length,
+      withoutMetrics: coverage.notUsableInteractions,
       availableCategories: [],
       correctionsApplied: 0,
     };
@@ -303,13 +462,16 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
   // is selected: we cannot know which category an unanalysed conversation would
   // have turned out to be, so claiming it as missing from this category would be
   // asserting something we have no basis for.
-  const withoutMetrics = filters.purchaseCategory
-    ? null
-    : conversationIds.length - analysedRows.length;
+  // Analysed but not usable: every value abstained or rejected, so there is
+  // nothing to count. Null where a category is selected, because an unusable
+  // interaction has no category and cannot honestly be counted as missing from
+  // one.
+  const withoutMetrics = filters.purchaseCategory ? null : coverage.notUsableInteractions;
 
   if (metricRows.length === 0) {
     return {
       rows: [],
+      coverage,
       conversationsInPeriod: conversationIds.length,
       withoutMetrics,
       availableCategories,
@@ -317,74 +479,26 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
     };
   }
 
-  const includedRecordIds = metricRows.map((row) => row.interaction_record_id);
-
-  const [fieldValues, { data: corrections }] = await Promise.all([
-    // Paged deliberately. The API caps a select at a thousand rows, and a
-    // period of sixty interactions carries roughly three thousand field values,
-    // so a single request silently returns a third of the data — with no error,
-    // and with every rate on the page quietly computed against whichever
-    // records happened to fall inside the first page.
-    readAllFieldValues(supabase, filters.organizationId, includedRecordIds),
-    // The original model value is immutable; a correction sits beside it. Only
-    // the newest correction per value counts, and a rejection removes the value
-    // from every metric rather than merely flagging it.
-    supabase
-      .from("interaction_field_value_corrections")
-      .select("field_value_id, corrected_text, is_rejected, created_at")
-      .eq("organization_id", filters.organizationId)
-      .in("interaction_record_id", includedRecordIds)
-      .order("created_at", { ascending: false }),
-  ]);
+  const includedRecordIds = new Set(metricRows.map((row) => row.interaction_record_id));
+  // Already read once, for Coverage. Reading the same values a second time to
+  // build the same rows would double the cost of every page for nothing.
+  const fieldValues = candidateValues.filter((row) =>
+    includedRecordIds.has(row.interaction_record_id),
+  );
+  const allCorrections = corrections;
 
   // Earliest citation per evidence group, so a value can be placed in the
   // conversation rather than only counted.
   //
-  // Only for the fields whose metric depends on order. Fetching a timestamp for
-  // every value of every field meant roughly fifty groups per interaction —
-  // thousands of rows, read in sequential pages, to answer one question about
-  // two of them. Everything else is counted, never placed.
-  const groupIds = [
-    ...new Set(
-      (fieldValues ?? []).flatMap((row) =>
-        row.evidence_group_id && CHRONOLOGICAL_FIELDS.has(row.field_key)
-          ? [row.evidence_group_id]
-          : [],
-      ),
-    ),
-  ];
+  // Only for the fields whose metric depends on order. Everything else is
+  // counted, never placed, and fetching a timestamp for all of them was the
+  // single most expensive thing this loader did.
   const earliest = new Map<string, number>();
-  // Pages issued together rather than one after another: they do not depend on
-  // each other, and the page waits for all of them either way.
-  const referencePages = await Promise.all(
-    Array.from({ length: Math.ceil(groupIds.length / 200) }, (_, index) =>
-      supabase
-        .from("evidence_references")
-        .select("evidence_group_id, start_milliseconds")
-        .eq("organization_id", filters.organizationId)
-        .in("evidence_group_id", groupIds.slice(index * 200, index * 200 + 200)),
-    ),
-  );
-  for (const { data, error } of referencePages) {
-    // Chronology decides close-after-commitment. A swallowed failure here does
-    // not blank the metric — it silently moves every interaction out of the
-    // denominator and reports a confident rate about whatever survived.
-    if (error) {
-      throw new Error(`Evidence references could not be read: ${error.message}`);
-    }
-    for (const reference of data ?? []) {
-      const at = reference.start_milliseconds ?? 0;
-      const seen = earliest.get(reference.evidence_group_id);
-      if (seen === undefined || at < seen) earliest.set(reference.evidence_group_id, at);
-    }
+  for (const reference of evidenceRows) {
+    const at = reference.start_milliseconds ?? 0;
+    const seen = earliest.get(reference.evidence_group_id);
+    if (seen === undefined || at < seen) earliest.set(reference.evidence_group_id, at);
   }
-
-  const allCorrections: Correction[] = (corrections ?? []).map((row) => ({
-    fieldValueId: row.field_value_id,
-    correctedText: row.corrected_text,
-    isRejected: row.is_rejected,
-    createdAt: row.created_at,
-  }));
 
   const valuesByRecord = new Map<string, PopulationValue[]>();
   let correctionsApplied = 0;
@@ -447,6 +561,7 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
 
   return {
     rows,
+    coverage,
     conversationsInPeriod: conversationIds.length,
     withoutMetrics,
     availableCategories,

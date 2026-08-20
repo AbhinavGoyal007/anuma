@@ -3,6 +3,7 @@ import Link from "next/link";
 import { DataState, type SlotState } from "@/components/intelligence/data-state";
 import { RankedBars } from "@/components/intelligence/interactive-ranked-bar";
 import { formatPercent } from "@/components/intelligence/metric-tile";
+import { LocalSwitch } from "@/components/intelligence/local-switch";
 import { SectionTabs } from "@/components/intelligence/section-tabs";
 import { SegmentedBar, type Segment } from "@/components/intelligence/segmented-bar";
 import { actionLabel, type ActionCohort } from "@/modules/intelligence/frontline";
@@ -16,7 +17,7 @@ import {
   type JourneyStage,
   type OutcomeSlice,
   type ProductPath,
-  type StageDiagnosis,
+  type DiagnosisRow,
 } from "@/modules/intelligence/journey";
 
 /**
@@ -31,6 +32,11 @@ import {
  * observe is a hole in our record, and naming it a failure would be an
  * accusation drawn from our own missing data.
  */
+
+export const BREAKDOWN_TABS = [
+  { key: "stores", label: "Stores" },
+  { key: "categories", label: "Categories" },
+] as const;
 
 const BUSINESS_TONE: Readonly<Record<string, Segment["tone"]>> = {
   sale: "teal",
@@ -124,7 +130,8 @@ export function JourneyView({
   lanes,
   gaps,
   breakdown,
-  breakdownLabel,
+  breakdownDimension,
+  breakdownHref,
   outcomes,
   products,
   cohortHref,
@@ -137,11 +144,13 @@ export function JourneyView({
   /** The node whose diagnosis is showing. Page-local; never carried elsewhere. */
   selectedStage: string;
   stageHref: (stageKey: string) => string;
-  diagnosis: StageDiagnosis | null;
+  diagnosis: DiagnosisRow[];
   lanes: InterventionRate[];
   gaps: ActionCohort[];
   breakdown: JourneyBreakdownRow[];
-  breakdownLabel: string;
+  /** Chosen by the reader; the page never switches dimension on its own. */
+  breakdownDimension: string;
+  breakdownHref: (dimension: string) => string;
   outcomes: { business: OutcomeSlice[]; decision: OutcomeSlice[] };
   products: ProductPath;
   cohortHref: (key: JourneyCohortKey) => string;
@@ -237,70 +246,6 @@ export function JourneyView({
       {/* One fixed panel, whichever node is selected. Four expandable nodes
           would move the answer down the page every time somebody looked at a
           different one. */}
-      <section className="ip-panel ip-panel--grouped ip-col-12" aria-labelledby="jr-diagnosis">
-        {diagnosis === null ? (
-          <>
-            <div className="ip-section-title">
-              <h2 id="jr-diagnosis">Diagnosis</h2>
-            </div>
-            <DataState state="NO_OBSERVATIONS" />
-          </>
-        ) : (
-          <>
-            {/* Compact on purpose: the outcome panels below are part of the
-                first viewport, and a diagnosis that pushes them under the fold
-                has moved the page's answer to make room for its explanation. */}
-            <div className="ip-section-title">
-              <h2 id="jr-diagnosis">
-                Diagnosis <span className="ip-meta">· {diagnosis.label}</span>
-              </h2>
-              {diagnosis.reviewCohortKey ? (
-                <Link className="ip-link" href={gapHref(diagnosis.reviewCohortKey)}>
-                  Review {diagnosis.reviewCount} interaction
-                  {diagnosis.reviewCount === 1 ? "" : "s"} →
-                </Link>
-              ) : (
-                <span className="ip-meta">No group to review from this state</span>
-              )}
-            </div>
-            <div className="ip-figure-row">
-              <div className="ip-pitem">
-                <span className="ip-label">Reached</span>
-                <strong>{diagnosis.reached}</strong>
-                <span className="ip-meta">of {diagnosis.measurable} measurable</span>
-              </div>
-              <div className="ip-pitem">
-                <span className="ip-label">Rate among measurable</span>
-                <strong>{formatPercent(diagnosis.rate)}</strong>
-                <span className="ip-meta">coverage {formatPercent(diagnosis.coverage)}</span>
-              </div>
-              <div className="ip-pitem">
-                <span className="ip-label">Next state observed</span>
-                <strong>{diagnosis.nextObserved ?? "—"}</strong>
-                <span className="ip-meta">
-                  {diagnosis.nextMissing === null
-                    ? "no later state on this rail"
-                    : `${diagnosis.nextMissing} missing`}
-                </span>
-              </div>
-              <div className="ip-pitem">
-                <span className="ip-label">Concentration</span>
-                <strong>{diagnosis.concentration?.count ?? "—"}</strong>
-                <span className="ip-meta">
-                  {diagnosis.concentration
-                    ? `${diagnosis.concentration.label}, of ${diagnosis.concentration.of}`
-                    : "no group stands out"}
-                </span>
-              </div>
-              <div className="ip-pitem">
-                <span className="ip-label">Means</span>
-                <span className="ip-meta ip-meaning">{diagnosis.meaning}</span>
-              </div>
-            </div>
-          </>
-        )}
-      </section>
-
       <section className="ip-panel ip-col-6" aria-labelledby="jr-business">
         <div className="ip-section-title">
           <h2 id="jr-business">Business result</h2>
@@ -327,6 +272,50 @@ export function JourneyView({
         <p className="ip-note">
           Where the customer landed — a separate axis from the business result.
         </p>
+      </section>
+
+      <section className="ip-panel ip-panel--grouped ip-col-12" aria-labelledby="jr-diagnosis">
+        <div className="ip-section-title">
+          <h2 id="jr-diagnosis">Diagnosis</h2>
+          <span className="ip-meta">Where the next state was not observed</span>
+        </div>
+        {/* Five rows, always these five, always this order. Sorting by count
+            would put a different row at the top each morning and turn a
+            reference table into a ranking. */}
+        <div className="ip-table-scroll">
+          <table className="ip-table">
+            <thead>
+              <tr>
+                <th scope="col">Diagnosis</th>
+                <th scope="col">Affected</th>
+                <th scope="col">Measurable</th>
+                <th scope="col">Rate</th>
+                <th scope="col">
+                  <span className="ip-visually-hidden">Review</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {diagnosis.map((row) => (
+                <tr key={row.cohortKey}>
+                  <th scope="row">{row.label}</th>
+                  <td>{row.affected}</td>
+                  <td>{row.measurable ?? "—"}</td>
+                  <td>{row.rate === null ? "—" : formatPercent(row.rate)}</td>
+                  <td>
+                    {row.affected > 0 ? (
+                      <Link className="ip-link" href={gapHref(row.cohortKey)}>
+                        Review →
+                      </Link>
+                    ) : (
+                      <span className="ip-meta">None</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <section className="ip-panel ip-col-12" aria-labelledby="jr-products">
@@ -386,74 +375,52 @@ export function JourneyView({
         ))}
       </section>
 
-      <section className="ip-panel ip-col-7" aria-labelledby="jr-gaps">
-        <div className="ip-section-title">
-          <h2 id="jr-gaps">Gaps</h2>
-          <span className="ip-meta">Top 4</span>
-        </div>
-        {materialGaps.length === 0 ? (
-          <DataState state="NO_OBSERVATIONS" />
-        ) : (
-          materialGaps.map((gap) => (
-            <Link
-              className="ip-action ip-tip"
-              key={gap.key}
-              href={gapHref(gap.key)}
-              data-tip={`${actionLabel(gap.key)} · ${gap.conversationIds.length}${gap.measurable ? ` of ${gap.measurable}` : ""} · ${gap.reason}`}
-            >
-              <span className="ip-action-n">{gap.conversationIds.length}</span>
-              <span className="ip-action-label">
-                {actionLabel(gap.key)}
-                {gap.measurable && gap.measurable > 0 ? (
-                  <em className="ip-meta"> of {gap.measurable}</em>
-                ) : null}
-              </span>
-              <span className="ip-arrow" aria-hidden="true">
-                →
-              </span>
-            </Link>
-          ))
-        )}
-      </section>
-
-      <section className="ip-panel ip-col-5" aria-labelledby="jr-breakdown">
-        <div className="ip-section-title">
-          <h2 id="jr-breakdown">{breakdownLabel}</h2>
-        </div>
-        {breakdown.length < 2 ? (
-          <DataState state="NOT_SUPPORTED" />
-        ) : (
-          <div className="ip-table-scroll">
-            <table className="ip-table">
-              <thead>
-                <tr>
-                  <th scope="col">{breakdownLabel}</th>
-                  <th scope="col">n</th>
-                  <th scope="col">Requirement clear</th>
-                  <th scope="col">Preference formed</th>
-                  <th scope="col">Commitment signal</th>
-                  <th scope="col">Sale</th>
-                </tr>
-              </thead>
-              <tbody>
-                {breakdown.map((row) => (
-                  <tr key={row.key}>
-                    <th scope="row">{row.label}</th>
-                    <td>{row.size}</td>
-                    <Cell measure={row.requirementClear} />
-                    <Cell measure={row.preferenceFormed} />
-                    <Cell measure={row.commitment} />
-                    <Cell measure={row.sale} />
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <section className="ip-panel ip-col-12" aria-labelledby="jr-breakdown">
+        <LocalSwitch param="dimension" initial={breakdownDimension}>
+          <div className="ip-section-title">
+            <h2 id="jr-breakdown">Breakdown</h2>
+            <SectionTabs
+              tabs={BREAKDOWN_TABS}
+              active={breakdownDimension}
+              hrefFor={breakdownHref}
+              label="Breakdown dimension"
+            />
           </div>
-        )}
-        <p className="ip-note">
-          Each cell is judged on its own denominator. Below{" "}
-          {DEFAULT_GUARDRAILS.minimumForComparison} measurable it shows a count, not a percentage.
-        </p>
+          {breakdown.length === 0 ? (
+            <DataState state="NO_OBSERVATIONS" />
+          ) : (
+            <div className="ip-table-scroll">
+              <table className="ip-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Scope</th>
+                    <th scope="col">n</th>
+                    <th scope="col">Requirement clear</th>
+                    <th scope="col">Preference formed</th>
+                    <th scope="col">Commitment</th>
+                    <th scope="col">Outcome established</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {breakdown.map((row) => (
+                    <tr key={row.key}>
+                      <th scope="row">{row.label}</th>
+                      <td>{row.size}</td>
+                      <Cell measure={row.requirementClear} />
+                      <Cell measure={row.preferenceFormed} />
+                      <Cell measure={row.commitment} />
+                      <Cell measure={row.outcomeEstablished} />
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <p className="ip-note">
+            Each cell is judged on its own denominator. Below{" "}
+            {DEFAULT_GUARDRAILS.minimumForComparison} measurable it shows a count, not a percentage.
+          </p>
+        </LocalSwitch>
       </section>
     </div>
   );

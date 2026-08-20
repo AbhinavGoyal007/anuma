@@ -1,18 +1,22 @@
 import { redirect } from "next/navigation";
 
-import { IntelligenceDrawer } from "@/components/intelligence/intelligence-drawer";
+import { CoverageDrawer } from "@/components/intelligence/coverage-drawer";
 import { IntelligenceFilterBar, IntelligenceHead } from "@/components/intelligence/filter-bar";
+import { IntelligenceDrawer } from "@/components/intelligence/intelligence-drawer";
 import { OverviewView } from "@/components/intelligence/overview-view";
 import { cohortPath, numeratorCohortKey } from "@/modules/intelligence/cohorts";
 import { intelligenceHref, single, windowLabel } from "@/modules/intelligence/filters";
 import {
-  hotspots,
-  overviewActions,
+  overviewBreakdown,
+  overviewPriorityActions,
   overviewPulse,
   overviewSignals,
+  type BreakdownDimension,
 } from "@/modules/intelligence/overview";
 import { resolveIntelligencePage } from "@/modules/intelligence/page-context";
-import { buildSeries, selectPrincipalSeries } from "@/modules/intelligence/trend";
+import { scopeHash, SCOPE_KEYS } from "@/modules/intelligence/pilot";
+import { readFindingReviews } from "@/modules/intelligence/pilot-store";
+import { buildSeries, qualifies, TREND_METRICS } from "@/modules/intelligence/trend";
 
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -34,30 +38,38 @@ export default async function IntelligenceOverviewPage({ searchParams }: PagePro
     intents,
     languages,
     storeCount,
-    directoryError,
     selectedStoreName,
+    directoryError,
   } = page;
   const rows = current.rows;
 
-  // The tracked signal. A reader can switch it, but only among the signals that
-  // cleared their own guardrails — the picker never offers a line we would
-  // refuse to draw.
-  const picked = selectPrincipalSeries(rows, filters.days);
-  const requestedSignal = single(raw, "signal");
-  const chosen =
-    picked && requestedSignal
-      ? (picked.available.find((metric) => metric.key === requestedSignal) ?? null)
-      : null;
-  const trend = picked ? (chosen ? buildSeries(rows, chosen, filters.days) : picked.series) : null;
+  // The tracked signal is chosen by the reader, never by the data. The six tabs
+  // are the same six every day; if the selected one cannot carry a line, that
+  // slot says so rather than promoting whichever metric happened to move.
+  const trendMetric =
+    TREND_METRICS.find((metric) => metric.key === single(raw, "signal")) ?? TREND_METRICS[0]!;
+  const series = buildSeries(rows, trendMetric, filters.days);
+  const trend = qualifies(series) ? series : null;
 
-  // Compared by store where several are in scope, otherwise by category — a
-  // single-store operator gets the comparison actually available to them.
+  // The breakdown dimension is a reader's choice too. Auto-switching to
+  // whichever had more rows moved the page under them between mornings.
+  const dimension: BreakdownDimension =
+    single(raw, "dimension") === "categories" ? "categories" : "stores";
   const storeName = new Map(stores.map((item) => [item.id, item.name]));
-  const distinctStores = new Set(rows.flatMap((row) => (row.locationId ? [row.locationId] : [])));
-  const byStore = distinctStores.size > 1;
 
   const openDrawer = single(raw, "drawer");
-  const carry: Record<string, string> = requestedSignal ? { signal: requestedSignal } : {};
+  const carry: Record<string, string> = { signal: trendMetric.key, dimension };
+
+  // Review Outcome appears only on a priority action — a thing the product is
+  // asking somebody to do — never under a descriptive tile.
+  const priorityKeys = new Set(
+    overviewPriorityActions(rows).flatMap((cohort) => (cohort ? [cohort.key] : [])),
+  );
+  const scope = scopeHash(Object.fromEntries(SCOPE_KEYS.map((key) => [key, single(raw, key)])));
+  const reviews =
+    openDrawer && priorityKeys.has(openDrawer)
+      ? await readFindingReviews(organizationId, scope)
+      : new Map();
 
   return (
     <>
@@ -72,49 +84,53 @@ export default async function IntelligenceOverviewPage({ searchParams }: PagePro
         languages={languages}
         interactions={rows.length}
         storeCount={storeCount}
-        directoryError={directoryError}
+        coverage={current.coverage}
         carry={carry}
+        directoryError={directoryError}
       />
       <OverviewView
+        coverage={current.coverage}
+        coverageHref={intelligenceHref(BASE, filters, { ...carry, drawer: "coverage" })}
         signals={overviewSignals(rows, previous ? previous.rows : null)}
-        actions={overviewActions(rows)}
+        actions={overviewPriorityActions(rows)}
         actionHref={(cohortKey) => intelligenceHref(BASE, filters, { ...carry, drawer: cohortKey })}
         numeratorHref={(measureKey) =>
           intelligenceHref(BASE, filters, { ...carry, drawer: numeratorCohortKey(measureKey) })
         }
         pulse={overviewPulse(rows, previous ? previous.rows : null)}
         trend={trend}
-        trendMetrics={picked ? [...picked.available] : []}
+        trendMetrics={TREND_METRICS}
+        trendMetricKey={trendMetric.key}
         trendHref={(key) => intelligenceHref(BASE, filters, { ...carry, signal: key })}
-        // No safe action exists yet. The period filter offers rolling windows
-        // relative to today, not an arbitrary past week, so a point cannot
-        // narrow the page to the period it stands for. Rather than a link that
-        // silently lands somewhere else, the point stays a described,
-        // focusable, non-interactive mark — which is what the reader can trust.
-        trendPointHref={() => null}
-        hotspots={hotspots(
+        breakdown={overviewBreakdown(
           rows,
-          (row) => (byStore ? row.locationId : row.purchaseCategory),
-          (key) => (byStore ? (storeName.get(key) ?? key) : key),
+          (row) => (dimension === "stores" ? row.locationId : row.purchaseCategory),
+          (key) => (dimension === "stores" ? (storeName.get(key) ?? key) : key),
         )}
-        hotspotLabel={byStore ? "Store" : "Category"}
-        hotspotHref={(key) =>
+        breakdownDimension={dimension}
+        breakdownHref={(next) => intelligenceHref(BASE, filters, { ...carry, dimension: next })}
+        breakdownRowHref={(key) =>
           intelligenceHref(
             BASE,
-            byStore ? { ...filters, storeId: key } : { ...filters, category: key },
+            dimension === "stores" ? { ...filters, storeId: key } : { ...filters, category: key },
             carry,
           )
         }
-        hotspotCellHref={(key, measureKey) =>
+        breakdownCellHref={(key, measureKey) =>
           intelligenceHref(
             BASE,
-            byStore ? { ...filters, storeId: key } : { ...filters, category: key },
+            dimension === "stores" ? { ...filters, storeId: key } : { ...filters, category: key },
             { ...carry, drawer: numeratorCohortKey(measureKey) },
           )
         }
-        analysed={rows.length}
+        usable={rows.length}
       />
-      {openDrawer ? (
+      {openDrawer === "coverage" ? (
+        <CoverageDrawer
+          coverage={current.coverage}
+          closeHref={intelligenceHref(BASE, filters, { ...carry, drawer: null })}
+        />
+      ) : openDrawer ? (
         <IntelligenceDrawer
           organizationId={organizationId}
           rows={rows}
@@ -127,6 +143,17 @@ export default async function IntelligenceOverviewPage({ searchParams }: PagePro
           ]}
           closeHref={intelligenceHref(BASE, filters, { ...carry, drawer: null })}
           fullHref={intelligenceHref(cohortPath(openDrawer), filters)}
+          review={
+            priorityKeys.has(openDrawer)
+              ? {
+                  findingKey: `overview_priority:${openDrawer}`,
+                  scopeHash: scope,
+                  page: "overview",
+                  returnPath: BASE,
+                  existing: reviews.get(`overview_priority:${openDrawer}:${openDrawer}`) ?? null,
+                }
+              : null
+          }
         />
       ) : null}
     </>

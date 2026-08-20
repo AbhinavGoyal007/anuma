@@ -3,11 +3,13 @@ import "server-only";
 import Link from "next/link";
 
 import { DrawerShell } from "@/components/intelligence/drawer-shell";
+import { ReviewOutcome } from "@/components/intelligence/review-outcome";
 
 import { createClient } from "@/lib/supabase/server";
 import { resolveCohort } from "@/modules/intelligence/cohorts";
 import { evidenceForField, timestamp, type EvidenceLine } from "@/modules/intelligence/evidence";
 import type { JourneyCohortKey } from "@/modules/intelligence/journey";
+import type { FindingReview } from "@/modules/intelligence/pilot";
 import type { PopulationRow } from "@/modules/intelligence/population";
 
 /**
@@ -52,6 +54,8 @@ export async function IntelligenceDrawer({
   scopeChips,
   closeHref,
   fullHref,
+  /** Present only for findings the product is asking somebody to act on. */
+  review = null,
 }: {
   organizationId: string;
   rows: readonly PopulationRow[];
@@ -62,6 +66,13 @@ export async function IntelligenceDrawer({
   closeHref: string;
   /** The full, unpaginated list of the same interactions. */
   fullHref: string;
+  review?: {
+    findingKey: string;
+    scopeHash: string;
+    page: string;
+    returnPath: string;
+    existing: FindingReview | null;
+  } | null;
 }) {
   const cohort = resolveCohort(rows, cohortKey, journeyCohort);
 
@@ -198,6 +209,17 @@ export async function IntelligenceDrawer({
             Review all {matchedRows.length} interactions →
           </Link>
         </p>
+      ) : null}
+
+      {review ? (
+        <ReviewOutcome
+          findingKey={review.findingKey}
+          cohortKey={cohortKey}
+          scopeHash={review.scopeHash}
+          page={review.page}
+          returnPath={review.returnPath}
+          existing={review.existing}
+        />
       ) : null}
     </DrawerShell>
   );

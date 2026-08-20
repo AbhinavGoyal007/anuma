@@ -115,12 +115,62 @@ export const financeDemand = (rows: readonly PopulationRow[]): Measure =>
 export const financeDemandRows = (rows: readonly PopulationRow[]): PopulationRow[] =>
   presenceNumerator(rows, (row) => row.financeRequested);
 
-export function competitorMentionIncidence(rows: readonly PopulationRow[]): Measure {
-  return measure(rows.filter((row) => row.competitorCount > 0).length, rows.length, rows.length);
-}
+/**
+ * How often a customer named a competitor.
+ *
+ * Support-aware, like everything else: a record that never carried the field
+ * has not told us a competitor went unmentioned. Commercial context, never a
+ * performance judgement — a customer shopping around is information about the
+ * market, not about the representative.
+ */
+export const competitorMentionIncidence = (rows: readonly PopulationRow[]): Measure =>
+  fieldMeasure(rows, "competitor_named");
 
 export const competitorMentionRows = (rows: readonly PopulationRow[]): PopulationRow[] =>
-  rows.filter((row) => row.competitorCount > 0);
+  rows.filter((row) => statedText(row.values, "competitor_named").length > 0);
+
+/**
+ * Whether the customer left having settled on a specific product.
+ *
+ * Eligible only where the requirement was actually clear by the close: asking
+ * whether somebody chose a product when they never worked out what they needed
+ * measures the wrong thing, and it makes the rate look worse in exactly the
+ * conversations where the earlier stage was the problem.
+ */
+export function preferenceFormed(rows: readonly PopulationRow[]): Measure {
+  const eligible = rows.filter(
+    (row) =>
+      row.clarityEnd !== null &&
+      row.clarityEnd >= 2 &&
+      isSupported(row.values, "final_preferred_product"),
+  );
+  return measure(
+    eligible.filter((row) => statedText(row.values, "final_preferred_product").length > 0).length,
+    eligible.length,
+    eligible.length,
+  );
+}
+
+export const preferenceFormedRows = (rows: readonly PopulationRow[]): PopulationRow[] =>
+  rows.filter(
+    (row) =>
+      row.clarityEnd !== null &&
+      row.clarityEnd >= 2 &&
+      statedText(row.values, "final_preferred_product").length > 0,
+  );
+
+/**
+ * How often a customer raised an objection.
+ *
+ * Customer friction context. A high rate is not a bad store — it can be a
+ * category where people ask hard questions — so this is never coloured as a
+ * failure. What was done about them is Resolve's business, not this one's.
+ */
+export const objectionIncidence = (rows: readonly PopulationRow[]): Measure =>
+  fieldMeasure(rows, "objections");
+
+export const objectionRows = (rows: readonly PopulationRow[]): PopulationRow[] =>
+  rows.filter((row) => statedText(row.values, "objections").length > 0);
 
 /**
  * Whether the conversation left the customer clearer than it found them.
@@ -177,16 +227,9 @@ export function confirmedNoSaleReasonCoverage(rows: readonly PopulationRow[]): M
 
 // ---- Frontline execution ---------------------------------------------------
 
-export function recommendationIncidence(rows: readonly PopulationRow[]): Measure {
-  const eligible = rows.filter(
-    (row) => isSupported(row.values, "products_recommended") || row.recommendedCount > 0,
-  );
-  return measure(
-    eligible.filter((row) => row.recommendedCount > 0).length,
-    eligible.length,
-    eligible.length,
-  );
-}
+/** Eligible is the records that carry the field, and only those. */
+export const recommendationIncidence = (rows: readonly PopulationRow[]): Measure =>
+  fieldMeasure(rows, "products_recommended", (row) => row.recommendedCount > 0);
 
 export const recommendationRows = (rows: readonly PopulationRow[]): PopulationRow[] =>
   rows.filter((row) => row.recommendedCount > 0);
@@ -424,6 +467,27 @@ export const NUMERATOR_COHORTS: Readonly<
     fieldKeys: ["customer_commitment_signals", "close_attempts"],
     rows: closeAfterCommitmentRows,
     measure: closeAfterCommitment,
+  },
+  preference_formed: {
+    label: "left having settled on a product",
+    reason: "The requirement was clear at the close and a preferred product was recorded",
+    fieldKeys: ["final_preferred_product", "requirement_clarity_end"],
+    rows: preferenceFormedRows,
+    measure: preferenceFormed,
+  },
+  objection_raised: {
+    label: "raised an objection",
+    reason: "At least one objection was recorded against the interaction",
+    fieldKeys: ["objections"],
+    rows: objectionRows,
+    measure: objectionIncidence,
+  },
+  recommendation_made: {
+    label: "were recommended a product",
+    reason: "At least one product was recommended",
+    fieldKeys: ["products_recommended"],
+    rows: recommendationRows,
+    measure: recommendationIncidence,
   },
   competitor_mentioned: {
     label: "named a competitor",

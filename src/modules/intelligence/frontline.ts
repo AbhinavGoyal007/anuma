@@ -356,7 +356,13 @@ export type OutcomeAssociationResult = {
   noSaleTotal: number;
 };
 
-/** A behaviour, and the population that could have exhibited it. */
+/**
+ * A behaviour, and the population that could have exhibited it.
+ *
+ * Fixed order, never sorted by effect size. A table that reorders itself puts a
+ * different row at the top each morning, and the row a manager is looking for
+ * moves because something unrelated changed.
+ */
 const BEHAVIOURS: readonly {
   key: string;
   label: string;
@@ -364,41 +370,82 @@ const BEHAVIOURS: readonly {
   matched: (row: PopulationRow) => boolean;
 }[] = [
   {
+    key: "recommendation",
+    label: "Recommendation incidence",
+    eligible: (row) => isSupported(row.values, "products_recommended"),
+    matched: (row) => row.recommendedCount > 0,
+  },
+  {
     key: "rationale",
-    label: "Gave a reason for the recommendation",
+    label: "Recommendation rationale",
     eligible: (row) =>
       row.recommendedCount > 0 && isSupported(row.values, "recommendation_reasons"),
     matched: (row) => has(row, "recommendation_reasons"),
   },
   {
     key: "demo",
-    label: "Demonstrated the product",
+    label: "Demo where applicable",
     eligible: (row) => row.demo === "yes" || row.demo === "no",
     matched: (row) => row.demo === "yes",
   },
   {
     key: "alternative",
-    label: "Offered an alternative",
+    label: "Alternative where applicable",
     eligible: (row) => row.alternative === "yes" || row.alternative === "no",
     matched: (row) => row.alternative === "yes",
   },
   {
+    key: "objection_response",
+    label: "Full objection response",
+    eligible: (row) =>
+      statedRows(row.values, "objection_response").some((value) =>
+        ["full", "partial", "none"].includes((value.valueText ?? "").trim()),
+      ),
+    matched: (row) =>
+      statedRows(row.values, "objection_response").every(
+        (value) =>
+          (value.valueText ?? "").trim() !== "partial" && (value.valueText ?? "").trim() !== "none",
+      ),
+  },
+  {
+    key: "finance_response",
+    label: "Finance response coverage",
+    eligible: (row) =>
+      statedRows(row.values, "customer_questions").some((value) => isFinanceLabel(value.label)),
+    matched: (row) =>
+      statedRows(row.values, "question_response_status").some(
+        (value) => isFinanceLabel(value.label) && normalizeResponseState(value.valueText) !== null,
+      ),
+  },
+  {
+    key: "commercial_offer",
+    label: "Commercial offer",
+    eligible: (row) => isSupported(row.values, "commercial_offer_made"),
+    matched: (row) => has(row, "commercial_offer_made"),
+  },
+  {
     key: "cross_sell",
-    label: "Pitched something alongside",
+    label: "Cross-sell",
     eligible: (row) => row.crossSell === "yes" || row.crossSell === "no",
     matched: (row) => row.crossSell === "yes",
   },
   {
     key: "upsell",
-    label: "Moved the customer up a tier",
+    label: "Upsell",
     eligible: (row) => row.upsell === "yes" || row.upsell === "no",
     matched: (row) => row.upsell === "yes",
   },
   {
     key: "close",
-    label: "Asked for the sale",
-    eligible: (row) => isSupported(row.values, "close_attempts"),
-    matched: (row) => has(row, "close_attempts"),
+    label: "Close after commitment",
+    eligible: (row) => firstAt(row.values, "customer_commitment_signals") !== null,
+    matched: closedAfterCommitment,
+  },
+  {
+    key: "next_action",
+    label: "Next action capture",
+    eligible: (row) => isSupported(row.values, "next_action"),
+    matched: (row) => has(row, "next_action"),
   },
 ];
 
@@ -445,8 +492,9 @@ export function outcomeAssociations(
           : (saleRate - noSaleRate) * 100,
       strength,
     };
-  }).sort((a, b) => Math.abs(b.differencePoints ?? 0) - Math.abs(a.differencePoints ?? 0));
-
+  });
+  // Registry order, never sorted by effect. The comparison is a reference
+  // table; a ranking would move rows for reasons unrelated to the row itself.
   return { rows: associations, saleTotal: sales.length, noSaleTotal: noSales.length };
 }
 

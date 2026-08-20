@@ -1,4 +1,6 @@
+import { firstAt } from "@/modules/intelligence/effective";
 import { DEFAULT_GUARDRAILS, type Guardrails } from "@/modules/intelligence/guardrails";
+import { closedAfterCommitment } from "@/modules/intelligence/measures";
 import type { PopulationRow } from "@/modules/intelligence/population";
 
 /**
@@ -48,54 +50,77 @@ export type TrendMetric = {
   format: "percent" | "count";
 };
 
+/**
+ * The six tracked signals, fixed forever and in this order.
+ *
+ * The chart never picks its own subject. An earlier version promoted whichever
+ * metric had moved most, which meant the page answered a different question
+ * every morning and two days could not be compared — the one thing a trend is
+ * for. The reader chooses; if their choice cannot carry a line, the slot says
+ * so rather than substituting a metric they did not ask about.
+ */
 export const TREND_METRICS: readonly TrendMetric[] = [
   {
-    key: "high_intent_arrival",
-    label: "Arrived already decided",
+    key: "high_intent_arrivals",
+    label: "High-intent arrivals",
     eligible: (row) => row.arrivalIntent !== null,
     matched: (row) =>
       row.arrivalIntent === "ready_to_buy" || row.arrivalIntent === "specific_product",
     format: "percent",
   },
   {
-    key: "finance_demand",
-    label: "Finance was raised",
-    // Only interactions we can read either way. An unreadable one is not a no.
-    eligible: (row) => row.financeRequested === "yes" || row.financeRequested === "no",
-    matched: (row) => row.financeRequested === "yes",
-    format: "percent",
-  },
-  {
-    key: "competitor_pressure",
-    label: "A competitor was named",
-    eligible: () => true,
-    matched: (row) => row.competitorCount > 0,
-    format: "percent",
-  },
-  {
     key: "clarity_improved",
-    label: "Requirements became clearer",
+    label: "Clarity improved",
     eligible: (row) => row.clarityStart !== null && row.clarityEnd !== null,
     matched: (row) => row.clarityEnd! > row.clarityStart!,
     format: "percent",
   },
   {
-    // The label has to describe the predicate exactly. This one previously read
-    // "Left without an established outcome" while matching a much broader
-    // unresolved predicate that included customers who had explicitly declined
-    // — a line whose name was a claim the data did not make.
-    key: "outcome_not_established",
-    label: "Outcome not established",
-    eligible: () => true,
-    matched: (row) => row.outcome.business === "unknown",
+    key: "preference_formed",
+    label: "Preference formed",
+    // The same eligibility as the canonical measure: asking whether somebody
+    // chose a product when they never worked out what they needed measures the
+    // wrong thing.
+    eligible: (row) =>
+      row.clarityEnd !== null &&
+      row.clarityEnd >= 2 &&
+      row.values.some((value) => value.fieldKey === "final_preferred_product"),
+    matched: (row) =>
+      row.values.some(
+        (value) =>
+          value.fieldKey === "final_preferred_product" &&
+          !value.abstention &&
+          (value.valueText ?? "").trim().length > 0,
+      ),
     format: "percent",
   },
   {
-    key: "analysed_volume",
-    label: "Interactions analysed",
-    eligible: null,
-    matched: () => true,
-    format: "count",
+    key: "close_after_commitment",
+    label: "Close after commitment",
+    eligible: (row) => firstAt(row.values, "customer_commitment_signals") !== null,
+    matched: closedAfterCommitment,
+    format: "percent",
+  },
+  {
+    key: "competitor_mentions",
+    label: "Competitor mentions",
+    eligible: (row) => row.values.some((value) => value.fieldKey === "competitor_named"),
+    matched: (row) =>
+      row.values.some(
+        (value) =>
+          value.fieldKey === "competitor_named" &&
+          !value.abstention &&
+          (value.valueText ?? "").trim().length > 0,
+      ),
+    format: "percent",
+  },
+  {
+    key: "finance_demand",
+    label: "Finance demand",
+    // Only interactions we can read either way. An unreadable one is not a no.
+    eligible: (row) => row.financeRequested === "yes" || row.financeRequested === "no",
+    matched: (row) => row.financeRequested === "yes",
+    format: "percent",
   },
 ];
 
@@ -220,35 +245,4 @@ export function buildSeries(
 /** Whether a series has enough plotted bins to be drawn at all. */
 export function qualifies(series: TrendSeries, trend: TrendGuardrails = DEFAULT_TREND): boolean {
   return series.plotted >= trend.minimumBins;
-}
-
-/**
- * The signal the Overview leads with, chosen the same way every time.
- *
- * Rates first, because a movement in behaviour is what a manager can act on;
- * volume only if no rate survives its own guardrails, since a count is really a
- * statement about our coverage rather than about the floor. Within rates, the
- * one that actually moved wins, and registry order breaks ties so the same data
- * never produces a different default on refresh.
- */
-export function selectPrincipalSeries(
-  rows: readonly PopulationRow[],
-  days: number,
-  now: Date = new Date(),
-  trend: TrendGuardrails = DEFAULT_TREND,
-  guardrails: Guardrails = DEFAULT_GUARDRAILS,
-): { series: TrendSeries; available: TrendMetric[] } | null {
-  void guardrails;
-  const built = TREND_METRICS.map((metric) => buildSeries(rows, metric, days, now, trend)).filter(
-    (series) => qualifies(series, trend),
-  );
-  if (built.length === 0) return null;
-
-  const rates = built.filter((series) => series.metric.format === "percent");
-  const pool = rates.length > 0 ? rates : built;
-  const principal = [...pool].sort(
-    (a, b) => Math.abs(b.movement?.points ?? 0) - Math.abs(a.movement?.points ?? 0),
-  )[0]!;
-
-  return { series: principal, available: built.map((series) => series.metric) };
 }

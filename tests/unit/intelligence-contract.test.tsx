@@ -56,11 +56,18 @@ import {
   productPath,
   selectCohort,
 } from "@/modules/intelligence/journey";
+import { measure } from "@/modules/intelligence/guardrails";
 import { readOutcome } from "@/modules/intelligence/outcome";
-import { overviewActions, overviewPulse, overviewSignals } from "@/modules/intelligence/overview";
+import {
+  overviewBreakdown,
+  overviewPriorityActions,
+  overviewPulse,
+  overviewSignals,
+} from "@/modules/intelligence/overview";
 import type { PopulationRow } from "@/modules/intelligence/population";
 import { notStated, row, value } from "../support/population";
 import { quadrantSource } from "@/modules/intelligence/quadrant";
+import { TREND_METRICS } from "@/modules/intelligence/trend";
 
 /**
  * The shipping contract for the four Intelligence pages.
@@ -74,21 +81,47 @@ import { quadrantSource } from "@/modules/intelligence/quadrant";
 
 const FILTERS: IntelligenceFilters = parseFilters({});
 
+const EMPTY_COVERAGE = {
+  recordedInteractions: 0,
+  recordingFiles: 0,
+  recordingHours: 0,
+  recordingDurationUnavailableFiles: 0,
+  transcription: { completed: 0, inProgress: 0, failed: 0, cancelled: 0, notStarted: 0 },
+  transcribedInteractions: 0,
+  analysis: { completed: 0, inProgress: 0, failed: 0, cancelled: 0, notStarted: 0 },
+  analysedInteractions: 0,
+  usableInteractions: 0,
+  notUsableInteractions: 0,
+  outcomeKnown: measure(0, 0, 0),
+  evidenceReady: measure(0, 0, 0),
+  usableConversationIds: [],
+  currentRecordIdByConversation: new Map<string, string>(),
+};
+
 function renderOverview(rows: PopulationRow[]) {
   return render(
     <OverviewView
+      coverage={EMPTY_COVERAGE}
+      coverageHref="/intelligence/overview?drawer=coverage"
       signals={overviewSignals(rows, null)}
-      actions={overviewActions(rows)}
+      actions={overviewPriorityActions(rows)}
       actionHref={(key) => `/intelligence/overview?drawer=${key}`}
+      numeratorHref={(key) => `/intelligence/overview?drawer=numerator:${key}`}
       pulse={overviewPulse(rows, null)}
       trend={null}
-      trendMetrics={[]}
+      trendMetrics={TREND_METRICS}
+      trendMetricKey={TREND_METRICS[0]!.key}
       trendHref={(key) => `/intelligence/overview?signal=${key}`}
-      hotspots={[]}
-      hotspotLabel="Store"
-      hotspotHref={() => null}
-      hotspotCellHref={() => null}
-      analysed={rows.length}
+      breakdown={overviewBreakdown(
+        rows,
+        (item) => item.locationId,
+        (key) => key,
+      )}
+      breakdownDimension="stores"
+      breakdownHref={(dimension) => `/intelligence/overview?dimension=${dimension}`}
+      breakdownRowHref={(key) => `/intelligence/overview?store=${key}`}
+      breakdownCellHref={(key, metric) => `/intelligence/overview?store=${key}&drawer=${metric}`}
+      usable={rows.length}
     />,
   );
 }
@@ -155,14 +188,7 @@ function renderJourney(rows: PopulationRow[]) {
       stages={stages}
       selectedStage="entered"
       stageHref={(key) => `/intelligence/journey?stage=${key}`}
-      diagnosis={journeyDiagnosis(
-        cohort,
-        stages,
-        "entered",
-        leakage,
-        (item) => item.locationId,
-        (key) => key,
-      )}
+      diagnosis={journeyDiagnosis(leakage)}
       lanes={interventions(cohort)}
       gaps={leakage}
       breakdown={journeyBreakdown(
@@ -170,7 +196,8 @@ function renderJourney(rows: PopulationRow[]) {
         (item) => item.locationId,
         (key) => key,
       )}
-      breakdownLabel="Store"
+      breakdownDimension="stores"
+      breakdownHref={(next) => `/intelligence/journey?dimension=${next}`}
       outcomes={outcomeDistributions(cohort)}
       products={productPath(cohort)}
       cohortHref={(key) => `/intelligence/journey?cohort=${key}`}
@@ -219,13 +246,24 @@ function renderFrontline(
 describe("fixed slots survive empty data", () => {
   it("keeps every Overview slot when nothing was analysed", () => {
     renderOverview([]);
-    for (const heading of ["Signals", "Actions", "Trend", "Hotspots"]) {
+    for (const heading of ["Coverage", "Core signals", "Priority actions", "Trend", "Breakdown"]) {
       expect(screen.getByRole("heading", { name: heading })).toBeInTheDocument();
     }
-    // All four signals, all six pulse figures, all three action slots.
-    expect(screen.getByText("Arrived decided")).toBeInTheDocument();
-    expect(screen.getByText("Close after commitment")).toBeInTheDocument();
-    expect(screen.getByText("Next action capture")).toBeInTheDocument();
+    // All four signals and all six pulse figures, whatever the data holds.
+    for (const label of [
+      "High-intent arrivals",
+      "Clarity improved",
+      "Preference formed",
+      "Close after commitment",
+      "Median target budget",
+      "Finance demand",
+      "Competitor mentions",
+      "Recommendation incidence",
+      "Objection incidence",
+      "Next action capture",
+    ]) {
+      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
+    }
   });
 
   it("keeps every Demand section when nothing was analysed", () => {
@@ -408,6 +446,7 @@ describe("more than eight options stops being chips", () => {
         categories={[]}
         interactions={40}
         storeCount={12}
+        coverage={EMPTY_COVERAGE}
       />,
     );
     expect(screen.getByLabelText("Store").tagName).toBe("SELECT");
@@ -425,6 +464,7 @@ describe("more than eight options stops being chips", () => {
         categories={[]}
         interactions={40}
         storeCount={2}
+        coverage={EMPTY_COVERAGE}
       />,
     );
     expect(screen.queryByLabelText("Store")).toBeNull();
@@ -440,9 +480,12 @@ describe("more than eight options stops being chips", () => {
         categories={[]}
         interactions={41}
         storeCount={3}
+        coverage={EMPTY_COVERAGE}
       />,
     );
-    expect(screen.getByText(/41 interactions · 3 stores · Last 30 days/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/41 usable interactions · 3 stores · Last 30 days/),
+    ).toBeInTheDocument();
   });
 });
 
@@ -481,12 +524,20 @@ describe("the journey rail", () => {
   });
 
   it("shows counts rather than a confident rate on a tiny comparison", () => {
+    const clarity = [
+      value("requirement_clarity_start", "low"),
+      value("requirement_clarity_end", "high"),
+    ];
     const thin = [
-      row({ locationId: "store-1", values: [] }),
-      row({ locationId: "store-2", values: [] }),
+      row({ locationId: "store-1", values: clarity }),
+      row({ locationId: "store-2", values: clarity }),
     ];
     const { container } = renderJourney(thin);
-    const table = container.querySelector(".ip-table");
+    // The breakdown, not the diagnosis table above it.
+    const table = container
+      .querySelector("#jr-breakdown")
+      ?.closest("section")
+      ?.querySelector(".ip-table");
     expect(table).not.toBeNull();
     // A cell drawn from one or two interactions prints its raw counts, because
     // 0% and 100% read as a difference between stores that they cannot support.

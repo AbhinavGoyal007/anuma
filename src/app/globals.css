@@ -5579,3 +5579,111 @@ a.ip-action-card:focus-visible {
   gap: 1px;
   margin-bottom: 0;
 }
+
+/* ---- Coverage ------------------------------------------------------------ */
+
+/* Structural, never a performance reading. Coverage below 100% is a fact about
+   the pipeline; painting it coral would spend the one colour reserved for work
+   that needs doing. */
+.ip-coverage-rail {
+  background: var(--intel-navy-soft);
+  border-radius: 10px;
+  color: inherit;
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 12px;
+  overflow: hidden;
+  position: relative;
+  text-decoration: none;
+}
+
+.ip-coverage-rail::before {
+  background: color-mix(in srgb, var(--intel-navy) 22%, transparent);
+  content: "";
+  height: 2px;
+  left: 12%;
+  position: absolute;
+  right: 12%;
+  top: 22px;
+}
+
+.ip-coverage-stage {
+  background: var(--intel-surface);
+  display: block;
+  padding: 12px 14px;
+  position: relative;
+  z-index: 1;
+}
+
+.ip-coverage-stage strong {
+  color: var(--intel-navy);
+  display: block;
+  font-size: 24px;
+  font-weight: 700;
+  margin: 2px 0;
+}
+
+.ip-coverage-rail:hover,
+.ip-coverage-rail:focus-visible {
+  box-shadow: 0 4px 16px rgb(16 24 40 / 6%);
+}
+
+.ip-scope--trust {
+  margin-top: 2px;
+}
+
+.ip-cov-row {
+  border-top: 1px solid var(--intel-border);
+  display: flex;
+  font-size: 12px;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 8px 0;
+}
+
+.ip-cov-value strong {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* ---- Review outcome ------------------------------------------------------ */
+
+/* Only on findings the product is asking somebody to act on. Under every
+   descriptive tile this would turn a dashboard into a survey. */
+.ip-review-outcome {
+  border-top: 1px solid var(--intel-border);
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 14px;
+}
+
+.ip-review-field {
+  border: 0;
+  display: grid;
+  font-size: 12px;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+}
+
+.ip-review-field legend,
+.ip-review-field > span {
+  color: var(--intel-muted);
+  font-size: 12px;
+  padding: 0;
+}
+
+.ip-review-choice {
+  align-items: center;
+  display: inline-flex;
+  font-size: 12px;
+  gap: 5px;
+  margin-right: 12px;
+}
+
+.ip-review-note {
+  max-width: 100%;
+  width: 100%;
+}

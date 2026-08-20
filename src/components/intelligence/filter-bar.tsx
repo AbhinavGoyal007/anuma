@@ -1,5 +1,8 @@
 import Link from "next/link";
 
+import { formatPercent } from "@/components/intelligence/metric-tile";
+import type { IntelligenceCoverage } from "@/modules/intelligence/coverage";
+
 import {
   ARRIVAL_INTENTS,
   BUSINESS_OUTCOMES,
@@ -176,6 +179,7 @@ export function IntelligenceFilterBar({
   languages = [],
   interactions,
   storeCount,
+  coverage,
   carry = {},
   directoryError = null,
 }: {
@@ -186,9 +190,11 @@ export function IntelligenceFilterBar({
   representatives?: FilterOption[];
   intents?: string[];
   languages?: string[];
-  /** Interactions in the fully narrowed population, for the scope line. */
+  /** Usable interactions in the fully narrowed population, for the scope line. */
   interactions: number;
   storeCount: number;
+  /** Trust context, shown on every page under the scope. */
+  coverage: IntelligenceCoverage;
   /** Page-local state (open tab, selected stage) preserved by every filter link. */
   carry?: Record<string, string>;
   /** Set where the salesperson directory could not be read. */
@@ -363,8 +369,15 @@ export function IntelligenceFilterBar({
         </p>
       ) : null}
       <p className="ip-scope">
-        Scope: {interactions} interaction{interactions === 1 ? "" : "s"} · {storeCount} store
+        Scope: {interactions} usable interaction{interactions === 1 ? "" : "s"} · {storeCount} store
         {storeCount === 1 ? "" : "s"} · {windowLabel(filters.days)}
+      </p>
+      {/* Trust context travels with the scope on every page: a rate means one
+          thing when the outcome is known for most of the population and
+          something else when it is known for a third of it. */}
+      <p className="ip-scope ip-scope--trust">
+        Outcome known {formatPercent(coverage.outcomeKnown.value)} · Evidence ready{" "}
+        {formatPercent(coverage.evidenceReady.value)}
       </p>
     </div>
   );

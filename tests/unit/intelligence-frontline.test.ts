@@ -425,16 +425,18 @@ describe("behaviour against outcome", () => {
   });
 
   it("gives every behaviour its own denominator on each side", () => {
-    // Demo applied to everyone; a close attempt was only ever recorded on the
-    // sales. A single shared "sales N" would count the non-sales as closes
-    // nobody attempted rather than as interactions nobody asked.
+    // Demo applied to everyone; only the sales carry a commitment signal, so
+    // only they can be asked whether a close followed one. A single shared
+    // "sales N" would count the non-sales as closes nobody attempted rather
+    // than as interactions where the question never arose.
     const result = outcomeAssociations([
       ...Array.from({ length: 12 }, () =>
         row({
           values: [
             value("confirmed_business_outcome", "sale"),
             value("product_demo_performed", "yes"),
-            value("close_attempts", "shall I bill it"),
+            value("customer_commitment_signals", "I'll take it", { earliestMs: 10_000 }),
+            value("close_attempts", "shall I bill it", { earliestMs: 20_000 }),
           ],
         }),
       ),

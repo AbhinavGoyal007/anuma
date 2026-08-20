@@ -431,7 +431,7 @@ export function FrontlineIntelligenceView({
 }: {
   metrics: FrontlineMetrics;
   previousMetrics: FrontlineMetrics | null;
-  actions: ActionCohort[];
+  actions: (ActionCohort | null)[];
   actionHref: (cohortKey: string) => string;
   stage: StageKey;
   stageHref: (key: StageKey) => string;
@@ -446,13 +446,12 @@ export function FrontlineIntelligenceView({
 
   return (
     <div className="ip-grid12">
-      <section className="ip-front-actions ip-col-12" aria-label="Actions">
-        {[0, 1, 2].map((index) => {
-          const cohort = actions[index];
+      <section className="ip-front-actions ip-col-12" aria-label="Priority reviews">
+        {actions.map((cohort, index) => {
           if (!cohort) {
             return (
-              <div className="ip-action-card ip-action-card--empty" key={index}>
-                <DataState state="NO_OBSERVATIONS" compact />
+              <div className="ip-action-card ip-action-card--empty" key={`empty-${index}`}>
+                <span className="ip-meta">No additional priority review in this scope</span>
               </div>
             );
           }
