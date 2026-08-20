@@ -27,7 +27,8 @@ export function RankedBars({
   entries,
   /** The true number of distinct values, before any calculation cap. */
   distinct,
-  eligible,
+  observed,
+  coverage = null,
   unit,
   /** Values come from a fixed vocabulary and may be relabelled for reading. */
   controlled = false,
@@ -41,7 +42,10 @@ export function RankedBars({
 }: {
   entries: RankedShare[];
   distinct?: number;
-  eligible: number;
+  /** The interactions that answered the question either way — the denominator. */
+  observed: number;
+  /** How much of the question was readable, where the panel knows. */
+  coverage?: number | null;
   unit: string;
   controlled?: boolean;
   hrefFor?: (value: string, fieldKey: string) => string;
@@ -76,7 +80,7 @@ export function RankedBars({
           const text = controlled
             ? readable(entry.value)
             : displayValue(entry.label, entry.value).text;
-          const tip = `${text} · ${entry.interactions} of ${eligible} · ${Math.round(entry.share * 100)}%`;
+          const tip = `${text} · ${entry.interactions} of ${observed} · ${Math.round(entry.share * 100)}%`;
           const inner = (
             <>
               <span className="ip-bar-name" title={entry.value}>
@@ -151,6 +155,7 @@ export function RankedBars({
       </ul>
       <p className="ip-note">
         {unit}
+        {coverage !== null && coverage < 1 ? ` · ${Math.round(coverage * 100)}% readable` : ""}
         {hidden > 0 ? (
           <>
             {" · "}

@@ -1,6 +1,7 @@
 import {
   isSupported,
   moneyPresenceOf,
+  presenceOf,
   statedRows,
   statedText,
   type Money,
@@ -59,19 +60,46 @@ export type RankedShare = {
 
 export type RankedResult = {
   entries: RankedShare[];
+  /** The interactions the field was asked of: yes + no + unusable. */
   eligible: number;
+  /**
+   * The interactions that answered it either way: yes + no.
+   *
+   * The denominator every share here is taken over. Dividing by `eligible`
+   * counted interactions whose recording we could not read as customers who
+   * wanted none of these things, so the more uncertain the extraction, the
+   * smaller every requirement looked.
+   */
+  observed: number;
+  /** observed / eligible — how much of the question we could actually read. */
+  coverage: number | null;
   /** Distinct values before any limit — what "Show all" must promise. */
   distinct: number;
 };
+
+/**
+ * One field's answer across several keys, collapsed to one status.
+ *
+ * A panel that reads three requirement fields is asking one question. A stated
+ * value anywhere answers it yes; only a definitive not_stated everywhere
+ * answers it no.
+ */
+function presenceAcross(row: PopulationRow, fieldKeys: readonly string[]): Presence {
+  const statuses = fieldKeys.map((key) => presenceOf(row.values, key));
+  if (statuses.includes("yes")) return "yes";
+  if (statuses.includes("unusable")) return "unusable";
+  if (statuses.includes("no")) return "no";
+  return "unsupported";
+}
 
 export function rankedShare(
   rows: readonly PopulationRow[],
   fieldKeys: readonly string[],
   limit = 10,
 ): RankedResult {
-  const eligible = rows.filter((row) =>
-    fieldKeys.some((key) => isSupported(row.values, key)),
-  ).length;
+  const statuses = rows.map((row) => presenceAcross(row, fieldKeys));
+  const eligible = statuses.filter((status) => status !== "unsupported").length;
+  const observed = statuses.filter((status) => status === "yes" || status === "no").length;
   // Identity is the field, the dimension and the text — not the text alone.
   // "Waterproof" recorded as a specification and "waterproof" mentioned as an
   // additional requirement are two observations of two different fields; adding
@@ -107,7 +135,7 @@ export function rankedShare(
     .map((entry) => ({
       value: entry.value,
       interactions: entry.interactions.size,
-      share: eligible > 0 ? entry.interactions.size / eligible : 0,
+      share: observed > 0 ? entry.interactions.size / observed : 0,
       label: entry.label,
       fieldKey: entry.fieldKey,
     }))
@@ -116,7 +144,13 @@ export function rankedShare(
   // The distinct count travels with the list. "Show all 40" was a promise the
   // page could not keep when the underlying calculation had already been capped
   // at forty and the real answer was seventy-three.
-  return { entries: all.slice(0, limit), eligible, distinct: all.length };
+  return {
+    entries: all.slice(0, limit),
+    eligible,
+    observed,
+    coverage: eligible > 0 ? observed / eligible : null,
+    distinct: all.length,
+  };
 }
 
 /** A distribution over a fixed, mutually exclusive vocabulary. */

@@ -43,7 +43,10 @@ jobs:
         run: npm run lint
 
       - name: Build
-        run: npm run build
+        # NEXT_PUBLIC_SITE_URL is inlined at build time and the auth redirects
+        # follow it, so the build the browser suite runs against has to name the
+        # origin that suite serves from.
+        run: npm run build:e2e
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium

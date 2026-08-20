@@ -475,3 +475,61 @@ describe("the customer-stated competitor price", () => {
     expect(resolveCohort([], "observed:customer_name")).toBeNull();
   });
 });
+
+describe("a ranked share is taken over what could answer", () => {
+  const wanted = (text: string | null, abstention?: string) =>
+    row({
+      values: [
+        abstention
+          ? value("purchase_use_cases", null, { abstention })
+          : text === null
+            ? notStated("purchase_use_cases")
+            : value("purchase_use_cases", text),
+      ],
+    });
+
+  it("divides by the interactions that answered, not by every one that carried the field", () => {
+    // Four eligible: two said gaming, one definitively said nothing, one could
+    // not be read. Dividing by four made an unreadable recording look like a
+    // customer who wanted none of these things — so the noisier the store, the
+    // smaller every requirement appeared.
+    const result = rankedShare(
+      [
+        wanted("gaming"),
+        wanted("gaming"),
+        wanted(null),
+        wanted(null, "insufficient_evidence"),
+        row(),
+      ],
+      ["purchase_use_cases"],
+    );
+    expect(result.eligible).toBe(4);
+    expect(result.observed).toBe(3);
+    expect(result.coverage).toBeCloseTo(3 / 4);
+    expect(result.entries[0]).toMatchObject({ value: "gaming", interactions: 2 });
+    expect(result.entries[0]!.share).toBeCloseTo(2 / 3);
+  });
+
+  it("reports no coverage rather than zero where the field does not exist", () => {
+    const result = rankedShare([row(), row()], ["purchase_use_cases"]);
+    expect(result.eligible).toBe(0);
+    expect(result.observed).toBe(0);
+    expect(result.coverage).toBeNull();
+  });
+
+  it("counts one yes across several fields as one answered question", () => {
+    const result = rankedShare(
+      [
+        row({
+          values: [
+            value("specification_requirements", "waterproof"),
+            notStated("additional_requirements"),
+          ],
+        }),
+      ],
+      ["specification_requirements", "additional_requirements"],
+    );
+    expect(result.observed).toBe(1);
+    expect(result.entries[0]!.share).toBe(1);
+  });
+});

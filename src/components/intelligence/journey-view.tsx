@@ -367,7 +367,7 @@ export function JourneyView({
             <h3>Recommendation response</h3>
             <RankedBars
               entries={products.response.entries}
-              eligible={products.response.classified}
+              observed={products.response.classified}
               controlled
               unit={`of ${products.response.classified} interactions with a recorded response`}
             />

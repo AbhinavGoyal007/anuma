@@ -1,4 +1,3 @@
-
 import { formatPercent } from "@/components/intelligence/metric-tile";
 import { TelemetryForm, TelemetryLink } from "@/components/intelligence/telemetry";
 import type { IntelligenceCoverage } from "@/modules/intelligence/coverage";
@@ -93,6 +92,7 @@ function Dimension({
   name,
   field,
   allLabel,
+  summaryLabel,
   options,
   selected,
   hrefFor,
@@ -105,6 +105,8 @@ function Dimension({
   name: string;
   field: keyof IntelligenceFilters;
   allLabel: string;
+  /** What the closed control says when the selection cannot be named. */
+  summaryLabel?: string;
   options: FilterOption[];
   selected: string | null;
   /** Overrides how a choice becomes a link, for dimensions that are not strings. */
@@ -112,7 +114,10 @@ function Dimension({
   /** Overrides when the control reads as narrowed. */
   active?: boolean;
 }) {
-  if (options.length === 0) return null;
+  // A dimension with no options still has to say what is selected. Returning
+  // null hid the control entirely, and with it the fact that the page was
+  // narrowed at all.
+  if (options.length === 0 && !active) return null;
   const current = options.find((option) => option.id === selected);
   const scalable = options.length > CHIP_LIMIT;
   const link = (id: string | null) =>
@@ -120,14 +125,15 @@ function Dimension({
       ? hrefFor(id)
       : intelligenceHref(basePath, withFilter(filters, field, id as never), carry);
   const narrowed = active ?? current !== undefined;
+  const summary = current?.name ?? summaryLabel ?? allLabel;
 
   return (
     <details className="ip-dim">
       <summary
         className={`ip-filter${narrowed ? " ip-filter--active" : ""}`}
-        aria-label={`${label}: ${current?.name ?? allLabel}`}
+        aria-label={`${label}: ${summary}`}
       >
-        {current?.name ?? allLabel}
+        {summary}
       </summary>
       <div className="ip-dim-panel">
         <p className="ip-filter-label">{label}</p>
@@ -290,9 +296,15 @@ export function IntelligenceFilterBar({
           label="Salesperson"
           name="rep"
           field="representativeMembershipId"
+          // A selected salesperson whose name cannot safely be read still
+          // narrows the page. The control said "All salespeople", which
+          // described the opposite of what the reader was looking at — and a
+          // filter that lies about itself is worse than one that widens.
           allLabel="All salespeople"
+          summaryLabel={representativeUnnamed ? "Selected salesperson" : undefined}
           options={representatives.length > 1 ? representatives : []}
           selected={filters.representativeMembershipId}
+          active={representativeUnnamed || filters.representativeMembershipId !== null}
         />
 
         <TelemetryLink

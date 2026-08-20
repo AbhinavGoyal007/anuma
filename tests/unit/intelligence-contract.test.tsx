@@ -721,3 +721,68 @@ describe("the copy contract", () => {
     }
   });
 });
+
+describe("a filter that cannot be honoured is never widened", () => {
+  const FILTER_BAR = {
+    basePath: "/intelligence/overview",
+    stores: [{ id: "store-1", name: "Koramangala" }],
+    categories: ["laptop", "sofas"],
+    representatives: [],
+    intents: [],
+    languages: [],
+    interactions: 0,
+    storeCount: 1,
+    coverage: EMPTY_COVERAGE,
+  };
+
+  it("says a stale, deleted or unauthorized store is unavailable and shows nothing", () => {
+    render(
+      <IntelligenceFilterBar
+        {...FILTER_BAR}
+        filters={{ ...FILTERS, storeId: "00000000-0000-0000-0000-000000000000" }}
+        storeUnavailable
+      />,
+    );
+    expect(screen.getByText("Selected store is unavailable in your scope.")).toBeInTheDocument();
+    // Narrowed to nothing, and saying so — never "all stores".
+    expect(screen.getByText(/0 usable interactions/)).toBeInTheDocument();
+    expect(screen.getByText(/· 1 store ·/)).toBeInTheDocument();
+    // The store id is not echoed back: printing it would be the disclosure the
+    // filter was there to prevent.
+    expect(screen.queryByText(/00000000/)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Reset" })).toBeInTheDocument();
+  });
+
+  it("keeps a salesperson it cannot name, and says the filter is applied", () => {
+    // Zero usable interactions is a valid answer about a real person, not an
+    // invalid selection to be cleared.
+    render(
+      <IntelligenceFilterBar
+        {...FILTER_BAR}
+        filters={{ ...FILTERS, representativeMembershipId: "m-unknown" }}
+        representativeUnnamed
+      />,
+    );
+    expect(screen.getByText(/salesperson whose name is unavailable/)).toBeInTheDocument();
+    // The closed control describes what the page is actually showing. It used
+    // to read "All salespeople" while the page showed one person's work.
+    const control = document.querySelector("summary.ip-filter--active");
+    expect(control).not.toBeNull();
+    expect(control!.textContent).toBe("Selected salesperson");
+    // Clearing the filter is still offered inside, and still labelled honestly.
+    expect(screen.getByRole("link", { name: "All salespeople" })).toBeInTheDocument();
+  });
+
+  it("names a directory failure rather than showing an organization of one", () => {
+    render(
+      <IntelligenceFilterBar
+        {...FILTER_BAR}
+        filters={{ ...FILTERS, representativeMembershipId: "m-unknown" }}
+        representativeUnnamed
+        directoryError="permission denied"
+      />,
+    );
+    expect(screen.getByText(/directory could not be read/)).toBeInTheDocument();
+    expect(screen.getByText(/Any selected salesperson is still applied/)).toBeInTheDocument();
+  });
+});

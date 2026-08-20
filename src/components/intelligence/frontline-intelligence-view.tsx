@@ -42,7 +42,12 @@ export const STAGES = [
 
 export type StageKey = (typeof STAGES)[number]["key"];
 
-export type RankedList = { entries: RankedShare[]; eligible: number };
+export type RankedList = {
+  entries: RankedShare[];
+  eligible: number;
+  observed: number;
+  coverage: number | null;
+};
 export type Distribution = { entries: RankedShare[]; classified: number };
 
 export type FrontlineDetail = {
@@ -135,14 +140,19 @@ function ListSlot({
   unit: string;
   controlled?: boolean;
 }) {
+  // Eligible decides whether the field exists at all; observed is what the
+  // shares are taken over. Conflating them made an unreadable recording look
+  // like a customer who wanted none of these things.
   const eligible = "eligible" in list ? list.eligible : list.classified;
+  const observed = "observed" in list ? list.observed : list.classified;
   const state: SlotState =
     eligible === 0 ? "NOT_SUPPORTED" : list.entries.length === 0 ? "NO_OBSERVATIONS" : "POPULATED";
   return state === "POPULATED" ? (
     <RankedBars
       entries={list.entries}
       distinct={"distinct" in list ? (list.distinct as number) : undefined}
-      eligible={eligible}
+      observed={observed}
+      coverage={"coverage" in list ? list.coverage : null}
       unit={unit}
       controlled={controlled}
       limit={6}

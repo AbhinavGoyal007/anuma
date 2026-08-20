@@ -20,7 +20,8 @@
     "test": "vitest run",
     "test:security": "node tests/security/rls.integration.mjs",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "build:e2e": "NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3000 next build"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",

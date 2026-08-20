@@ -50,7 +50,12 @@ export const VOICE_TABS: readonly Tab[] = [
   { key: "conditions", label: "Conditions" },
 ];
 
-export type RankedList = { entries: RankedShare[]; eligible: number };
+export type RankedList = {
+  entries: RankedShare[];
+  eligible: number;
+  observed: number;
+  coverage: number | null;
+};
 export type Distribution = { entries: RankedShare[]; classified: number };
 
 /** One list inside the Context & voice section; several share a tab. */
@@ -133,7 +138,11 @@ function ListPanel({
   /** A separate small affordance, so one click never does two jobs. */
   evidenceHrefFor?: (value: string, fieldKey: string) => string;
 }) {
+  // Eligible decides whether the field exists at all; observed is what the
+  // shares are taken over. Conflating them made an unreadable recording look
+  // like a customer who wanted none of these things.
   const eligible = "eligible" in list ? list.eligible : list.classified;
+  const observed = "observed" in list ? list.observed : list.classified;
   const state: SlotState =
     eligible === 0 ? "NOT_SUPPORTED" : list.entries.length === 0 ? "NO_OBSERVATIONS" : "POPULATED";
   if (state !== "POPULATED") return <DataState state={state} />;
@@ -141,7 +150,8 @@ function ListPanel({
     <RankedBars
       entries={list.entries}
       distinct={"distinct" in list ? (list.distinct as number) : undefined}
-      eligible={eligible}
+      observed={observed}
+      coverage={"coverage" in list ? list.coverage : null}
       unit={unit}
       controlled={controlled}
       limit={limit}
@@ -227,7 +237,9 @@ export function DemandView({
   budget: BudgetPicture;
   prices: ContextPrices;
   clarity: ClarityMatrix;
-  origins: RankedList;
+  /** A controlled three-way strip, not a ranked list: it divides by its own
+   *  classified observations and is left alone by the ranked-share model. */
+  origins: { entries: RankedShare[]; eligible: number };
   categories: Distribution;
   intents: Distribution;
   /** Every Needs panel, so switching tabs never waits on the server. */
@@ -532,7 +544,7 @@ export function DemandView({
           <RankedBars
             entries={blockers.entries}
             distinct={blockers.distinct}
-            eligible={blockers.classified}
+            observed={blockers.classified}
             controlled
             unit={`of ${blockers.classified} confirmed no-sales carrying an observed reason`}
             evidenceHrefFor={(item: string, fieldKey: string) =>
