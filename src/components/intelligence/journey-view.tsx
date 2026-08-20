@@ -5,6 +5,7 @@ import { RankedBars } from "@/components/intelligence/interactive-ranked-bar";
 import { formatPercent } from "@/components/intelligence/metric-tile";
 import { LocalSwitch } from "@/components/intelligence/local-switch";
 import { SectionTabs } from "@/components/intelligence/section-tabs";
+import { TelemetryLink } from "@/components/intelligence/telemetry";
 import { SegmentedBar, type Segment } from "@/components/intelligence/segmented-bar";
 import { actionLabel, type ActionCohort } from "@/modules/intelligence/frontline";
 import { DEFAULT_GUARDRAILS, type Measure } from "@/modules/intelligence/guardrails";
@@ -179,6 +180,8 @@ export function JourneyView({
             label: `${COHORT_LABELS[key]} (${cohortSizes[key]})`,
           }))}
           active={cohortKey}
+          event="journey_cohort_selected"
+          objectType="cohort"
           hrefFor={(key) => cohortHref(key as JourneyCohortKey)}
           label="Cohort"
         />
@@ -300,9 +303,18 @@ export function JourneyView({
                   <td>{row.rate === null ? "—" : formatPercent(row.rate)}</td>
                   <td>
                     {row.affected > 0 ? (
-                      <Link className="ip-link" href={gapHref(row.cohortKey)}>
+                      <TelemetryLink
+                        className="ip-link"
+                        href={gapHref(row.cohortKey)}
+                        telemetry={{
+                          event: "journey_diagnosis_opened",
+                          objectType: "diagnosis",
+                          objectKey: row.cohortKey,
+                          cohortKey: row.cohortKey,
+                        }}
+                      >
                         Review →
-                      </Link>
+                      </TelemetryLink>
                     ) : (
                       <span className="ip-meta">None</span>
                     )}
@@ -380,6 +392,8 @@ export function JourneyView({
               active={breakdownDimension}
               hrefFor={breakdownHref}
               label="Breakdown dimension"
+              event="breakdown_dimension_selected"
+              objectType="dimension"
             />
           </div>
           {/* Both tables rendered; the tab only changes which is visible. A tab

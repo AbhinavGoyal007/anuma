@@ -1,5 +1,8 @@
 import Link from "next/link";
 
+import { TelemetryLink } from "@/components/intelligence/telemetry";
+import type { UsageEventName } from "@/modules/intelligence/pilot";
+
 import type { RankedShare } from "@/modules/intelligence/demand";
 import { displayValue, readableLabel } from "@/modules/intelligence/display";
 
@@ -34,6 +37,7 @@ export function RankedBars({
   expandHref,
   /** Opens the evidence behind a value. */
   evidenceHrefFor,
+  evidenceEvent,
 }: {
   entries: RankedShare[];
   distinct?: number;
@@ -45,6 +49,8 @@ export function RankedBars({
   expandHref?: string | null;
   /** Opens the evidence behind this value, separately from any filter. */
   evidenceHrefFor?: (value: string) => string;
+  /** What opening that evidence means to the pilot, where it has a name. */
+  evidenceEvent?: UsageEventName;
 }) {
   const widest = entries[0]?.interactions || 1;
   // Truncation is about the panel's shape, not about whether an expansion link
@@ -90,6 +96,19 @@ export function RankedBars({
                 <Link className="ip-bar ip-bar--action ip-tip" data-tip={tip} href={filterHref}>
                   {inner}
                 </Link>
+              ) : reviewHref && evidenceEvent ? (
+                <TelemetryLink
+                  className="ip-bar ip-bar--action ip-tip"
+                  data-tip={tip}
+                  href={reviewHref}
+                  telemetry={{
+                    event: evidenceEvent,
+                    objectType: entry.label ?? "value",
+                    objectKey: entry.value,
+                  }}
+                >
+                  {inner}
+                </TelemetryLink>
               ) : reviewHref ? (
                 <Link className="ip-bar ip-bar--action ip-tip" data-tip={tip} href={reviewHref}>
                   {inner}
@@ -102,7 +121,20 @@ export function RankedBars({
               {/* A second, smaller affordance. One click must not both narrow
                   the page and open evidence — a reader cannot predict which
                   they are about to get. */}
-              {filterHref && reviewHref ? (
+              {filterHref && reviewHref && evidenceEvent ? (
+                <TelemetryLink
+                  className="ip-review"
+                  href={reviewHref}
+                  aria-label={`Review ${entry.value}`}
+                  telemetry={{
+                    event: evidenceEvent,
+                    objectType: entry.label ?? "value",
+                    objectKey: entry.value,
+                  }}
+                >
+                  Review
+                </TelemetryLink>
+              ) : filterHref && reviewHref ? (
                 <Link className="ip-review" href={reviewHref} aria-label={`Review ${entry.value}`}>
                   Review
                 </Link>

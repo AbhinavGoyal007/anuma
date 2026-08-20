@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { DataState, stateFor, type SlotState } from "@/components/intelligence/data-state";
 import { LocalSwitch } from "@/components/intelligence/local-switch";
+import { TelemetryLink } from "@/components/intelligence/telemetry";
 import { RankedBars } from "@/components/intelligence/interactive-ranked-bar";
 import { Delta, formatPercent, tipText } from "@/components/intelligence/metric-tile";
 import { QuadrantBenchmark } from "@/components/intelligence/quadrant-benchmark";
@@ -457,11 +458,17 @@ export function FrontlineIntelligenceView({
           }
           const affected = cohort.conversationIds.length;
           return (
-            <Link
+            <TelemetryLink
               className="ip-action-card ip-tip"
               key={cohort.key}
               href={actionHref(cohort.key)}
               data-tip={`${actionLabel(cohort.key)} · ${affected}${cohort.measurable ? ` of ${cohort.measurable}` : ""} · ${cohort.reason}`}
+              telemetry={{
+                event: "priority_action_opened",
+                objectType: "action",
+                objectKey: cohort.key,
+                cohortKey: cohort.key,
+              }}
             >
               <strong>{affected}</strong>
               <span>{actionLabel(cohort.key)}</span>
@@ -470,7 +477,7 @@ export function FrontlineIntelligenceView({
                   ? `of ${cohort.measurable} measurable`
                   : "interactions"}
               </span>
-            </Link>
+            </TelemetryLink>
           );
         })}
       </section>
@@ -481,12 +488,17 @@ export function FrontlineIntelligenceView({
       <LocalSwitch param="stage" initial={stage}>
         <section className="ip-execution ip-col-12" aria-label="Execution">
           {STAGES.map((item) => (
-            <Link
+            <TelemetryLink
               className={`ip-stage${item.key === stage ? " ip-stage--active" : ""}`}
               key={item.key}
               href={stageHref(item.key)}
               aria-current={item.key === stage ? "true" : undefined}
               data-local-key={item.key}
+              telemetry={{
+                event: "frontline_stage_selected",
+                objectType: "stage",
+                objectKey: item.key,
+              }}
             >
               <h3>{item.label}</h3>
               <dl>
@@ -507,7 +519,7 @@ export function FrontlineIntelligenceView({
                   );
                 })}
               </dl>
-            </Link>
+            </TelemetryLink>
           ))}
         </section>
 

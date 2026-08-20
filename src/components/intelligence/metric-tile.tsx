@@ -1,5 +1,10 @@
 import Link from "next/link";
 
+import {
+  TelemetryLink,
+  type ControlEvent,
+} from "@/components/intelligence/telemetry";
+
 import { change, DEFAULT_GUARDRAILS, type Measure } from "@/modules/intelligence/guardrails";
 
 /**
@@ -85,6 +90,7 @@ export function MetricTile({
   previous = null,
   attention = false,
   href = null,
+  telemetry,
   meta,
 }: {
   label: string;
@@ -93,6 +99,8 @@ export function MetricTile({
   previous?: Measure | null;
   attention?: boolean;
   href?: string | null;
+  /** What the pilot records when this tile is activated, where it is a control. */
+  telemetry?: ControlEvent;
   /** Overrides the default denominator line. */
   meta?: string;
 }) {
@@ -109,7 +117,16 @@ export function MetricTile({
   );
   const tip = tipText({ label, value, measure: m, previous });
   const className = `ip-signal${attention ? " ip-signal--attention" : ""}`;
-  return href ? (
+  return href && telemetry ? (
+    <TelemetryLink
+      className={`${className} ip-tip`}
+      data-tip={tip}
+      href={href}
+      telemetry={telemetry}
+    >
+      {body}
+    </TelemetryLink>
+  ) : href ? (
     <Link className={`${className} ip-tip`} data-tip={tip} href={href}>
       {body}
     </Link>

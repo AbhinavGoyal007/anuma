@@ -140,6 +140,7 @@ function ListPanel({
       expandHref={expandHref}
       hrefFor={hrefFor}
       evidenceHrefFor={evidenceHrefFor}
+      evidenceEvent="demand_value_reviewed"
     />
   );
 }
@@ -499,6 +500,7 @@ export function DemandView({
             controlled
             unit={`of ${blockers.classified} confirmed no-sales carrying an observed reason`}
             evidenceHrefFor={(item: string) => evidenceHref("primary_non_conversion_reason", item)}
+            evidenceEvent="demand_value_reviewed"
           />
         ) : (
           <DataState state={blockerState} />

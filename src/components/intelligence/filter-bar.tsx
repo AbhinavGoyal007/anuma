@@ -1,6 +1,6 @@
-import Link from "next/link";
 
 import { formatPercent } from "@/components/intelligence/metric-tile";
+import { TelemetryForm, TelemetryLink } from "@/components/intelligence/telemetry";
 import type { IntelligenceCoverage } from "@/modules/intelligence/coverage";
 
 import {
@@ -55,20 +55,26 @@ function readable(token: string): string {
 function Chip({
   href,
   active,
+  dimension,
+  value,
   children,
 }: {
   href: string;
   active: boolean;
+  /** Which population dimension this chip narrows, for the pilot record. */
+  dimension: string;
+  value: string;
   children: React.ReactNode;
 }) {
   return (
-    <Link
+    <TelemetryLink
       className={`ip-option${active ? " ip-option--active" : ""}`}
       href={href}
       aria-current={active ? "true" : undefined}
+      telemetry={{ event: "filter_changed", objectType: dimension, objectKey: value }}
     >
       {children}
-    </Link>
+    </TelemetryLink>
   );
 }
 
@@ -126,7 +132,12 @@ function Dimension({
       <div className="ip-dim-panel">
         <p className="ip-filter-label">{label}</p>
         {scalable ? (
-          <form className="ip-filter-form" method="get" action={basePath}>
+          <TelemetryForm
+            className="ip-filter-form"
+            method="get"
+            action={basePath}
+            telemetry={{ event: "filter_changed", objectType: name }}
+          >
             {carryFields(filters, name, carry).map(([key, value]) => (
               <input key={key} type="hidden" name={key} value={value} />
             ))}
@@ -149,16 +160,22 @@ function Dimension({
             <button className="ip-apply" type="submit">
               Apply
             </button>
-          </form>
+          </TelemetryForm>
         ) : (
           <div className="ip-options">
             {hrefFor ? null : (
-              <Chip href={link(null)} active={selected === null}>
+              <Chip href={link(null)} active={selected === null} dimension={name} value="all">
                 {allLabel}
               </Chip>
             )}
             {options.map((option) => (
-              <Chip key={option.id} href={link(option.id)} active={selected === option.id}>
+              <Chip
+                key={option.id}
+                href={link(option.id)}
+                active={selected === option.id}
+                dimension={name}
+                value={option.id}
+              >
                 {option.name}
               </Chip>
             ))}
@@ -278,13 +295,18 @@ export function IntelligenceFilterBar({
           selected={filters.representativeMembershipId}
         />
 
-        <Link
+        <TelemetryLink
           className={`ip-filter${filters.compare ? " ip-filter--active" : ""}`}
           href={intelligenceHref(basePath, withFilter(filters, "compare", !filters.compare), carry)}
           aria-pressed={filters.compare}
+          telemetry={{
+            event: "filter_changed",
+            objectType: "compare",
+            objectKey: filters.compare ? "off" : "on",
+          }}
         >
           Compare previous
-        </Link>
+        </TelemetryLink>
 
         <details className="ip-dim ip-more">
           <summary className={`ip-filter${secondaryCount > 0 ? " ip-filter--active" : ""}`}>
@@ -344,8 +366,9 @@ export function IntelligenceFilterBar({
         </details>
 
         {narrowed ? (
-          <Link
+          <TelemetryLink
             className="ip-reset"
+            telemetry={{ event: "filter_changed", objectType: "reset", objectKey: "all" }}
             href={intelligenceHref(
               basePath,
               {
@@ -362,7 +385,7 @@ export function IntelligenceFilterBar({
             )}
           >
             Reset
-          </Link>
+          </TelemetryLink>
         ) : null}
       </div>
       {storeUnavailable ? (

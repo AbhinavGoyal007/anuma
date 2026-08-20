@@ -33,7 +33,7 @@ import {
   reviewableCohortKeys,
   reviewFindingKey,
 } from "@/modules/intelligence/reviewable";
-import { IntelligencePageTracker } from "@/components/intelligence/telemetry";
+import { TelemetryScope } from "@/components/intelligence/telemetry";
 
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -68,6 +68,14 @@ export default async function FrontlineIntelligencePage({ searchParams }: PagePr
   // The same registry the save path uses, so a manager cannot answer a
   // finding the page never offered.
   const reviewableKeys = new Set(reviewableCohortKeys("frontline", rows));
+  // What the reader actually narrowed to, carried with every pilot event so a
+  // finding can be traced back to the population it was read from.
+  const activeFilters = Object.fromEntries(
+    FILTER_PARAM_KEYS.flatMap((key) => {
+      const chosen = single(raw, key);
+      return chosen ? [[key, chosen] as const] : [];
+    }),
+  );
   const scope = scopeFingerprint({
     from: page.periods.current.from,
     to: page.periods.current.to,
@@ -82,18 +90,12 @@ export default async function FrontlineIntelligencePage({ searchParams }: PagePr
   const compositions = responseCompositions(rows);
 
   return (
-    <>
-      <IntelligencePageTracker
-        page="frontline"
-        scopeFingerprint={scope}
-        filters={Object.fromEntries(
-          FILTER_PARAM_KEYS.flatMap((key) => {
-            const chosen = single(raw, key);
-            return chosen ? [[key, chosen] as const] : [];
-          }),
-        )}
-        drawerKey={openDrawer}
-      />
+    <TelemetryScope
+      page="frontline"
+      scopeFingerprint={scope}
+      filters={activeFilters}
+      drawerKey={openDrawer}
+    >
       <IntelligenceHead title="Frontline" />
       <IntelligenceFilterBar
         basePath={BASE}
@@ -156,12 +158,7 @@ export default async function FrontlineIntelligencePage({ searchParams }: PagePr
             reviewableKeys.has(openDrawer)
               ? {
                   page: "frontline",
-                  filters: Object.fromEntries(
-                    FILTER_PARAM_KEYS.flatMap((key) => {
-                      const chosen = single(raw, key);
-                      return chosen ? [[key, chosen] as const] : [];
-                    }),
-                  ),
+                  filters: activeFilters,
                   returnPath: BASE,
                   existing:
                     reviews.get(reviewFindingKey("frontline", openDrawer)) ?? null,
@@ -170,6 +167,6 @@ export default async function FrontlineIntelligencePage({ searchParams }: PagePr
           }
         />
       ) : null}
-    </>
+    </TelemetryScope>
   );
 }

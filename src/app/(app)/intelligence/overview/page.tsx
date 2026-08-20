@@ -25,7 +25,7 @@ import {
   reviewableCohortKeys,
   reviewFindingKey,
 } from "@/modules/intelligence/reviewable";
-import { IntelligencePageTracker } from "@/components/intelligence/telemetry";
+import { TelemetryScope } from "@/components/intelligence/telemetry";
 import { buildSeries, qualifies, TREND_METRICS } from "@/modules/intelligence/trend";
 
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
@@ -78,6 +78,14 @@ export default async function IntelligenceOverviewPage({ searchParams }: PagePro
   // The same registry the save path uses, so a manager cannot answer a
   // finding the page never offered.
   const reviewableKeys = new Set(reviewableCohortKeys("overview", rows));
+  // What the reader actually narrowed to, carried with every pilot event so a
+  // finding can be traced back to the population it was read from.
+  const activeFilters = Object.fromEntries(
+    FILTER_PARAM_KEYS.flatMap((key) => {
+      const chosen = single(raw, key);
+      return chosen ? [[key, chosen] as const] : [];
+    }),
+  );
   const scope = scopeFingerprint({
     from: page.periods.current.from,
     to: page.periods.current.to,
@@ -89,18 +97,12 @@ export default async function IntelligenceOverviewPage({ searchParams }: PagePro
       : new Map();
 
   return (
-    <>
-      <IntelligencePageTracker
-        page="overview"
-        scopeFingerprint={scope}
-        filters={Object.fromEntries(
-          FILTER_PARAM_KEYS.flatMap((key) => {
-            const chosen = single(raw, key);
-            return chosen ? [[key, chosen] as const] : [];
-          }),
-        )}
-        drawerKey={openDrawer}
-      />
+    <TelemetryScope
+      page="overview"
+      scopeFingerprint={scope}
+      filters={activeFilters}
+      drawerKey={openDrawer}
+    >
       <IntelligenceHead title="Overview" />
       <IntelligenceFilterBar
         basePath={BASE}
@@ -187,12 +189,7 @@ export default async function IntelligenceOverviewPage({ searchParams }: PagePro
             reviewableKeys.has(openDrawer)
               ? {
                   page: "overview",
-                  filters: Object.fromEntries(
-                    FILTER_PARAM_KEYS.flatMap((key) => {
-                      const chosen = single(raw, key);
-                      return chosen ? [[key, chosen] as const] : [];
-                    }),
-                  ),
+                  filters: activeFilters,
                   returnPath: BASE,
                   existing:
                     reviews.get(reviewFindingKey("overview", openDrawer)) ?? null,
@@ -201,6 +198,6 @@ export default async function IntelligenceOverviewPage({ searchParams }: PagePro
           }
         />
       ) : null}
-    </>
+    </TelemetryScope>
   );
 }

@@ -11,6 +11,7 @@ import {
   tipText,
 } from "@/components/intelligence/metric-tile";
 import { SectionTabs } from "@/components/intelligence/section-tabs";
+import { TelemetryLink } from "@/components/intelligence/telemetry";
 import { TrackingChart } from "@/components/intelligence/tracking-chart";
 import type { IntelligenceCoverage } from "@/modules/intelligence/coverage";
 import { actionLabel, type ActionCohort } from "@/modules/intelligence/frontline";
@@ -47,9 +48,15 @@ function Action({ cohort, href }: { cohort: ActionCohort | null; href: string | 
   }
   const affected = cohort.conversationIds.length;
   return (
-    <Link
+    <TelemetryLink
       className="ip-action ip-tip"
       href={href}
+      telemetry={{
+        event: "priority_action_opened",
+        objectType: "action",
+        objectKey: cohort.key,
+        cohortKey: cohort.key,
+      }}
       data-tip={`${actionLabel(cohort.key)} · ${affected}${cohort.measurable ? ` of ${cohort.measurable} measurable` : ""} · ${cohort.reason}`}
     >
       <span className="ip-action-n">{affected}</span>
@@ -62,7 +69,7 @@ function Action({ cohort, href }: { cohort: ActionCohort | null; href: string | 
       <span className="ip-arrow" aria-hidden="true">
         →
       </span>
-    </Link>
+    </TelemetryLink>
   );
 }
 
@@ -196,6 +203,12 @@ export function OverviewView({
                 // gap: a descriptive metric that offered the failures beside it
                 // showed one number and handed over a different set.
                 href={numeratorHref(signal.cohortKey)}
+                telemetry={{
+                  event: "core_signal_opened",
+                  objectType: "signal",
+                  objectKey: signal.key,
+                  cohortKey: signal.cohortKey,
+                }}
               />
             ) : (
               <div className="ip-signal" key={signal.key}>
@@ -277,6 +290,8 @@ export function OverviewView({
             active={trendMetricKey}
             hrefFor={trendHref}
             label="Tracked signal"
+            event="trend_metric_selected"
+            objectType="signal"
           />
         </div>
         {trend ? (
@@ -301,6 +316,8 @@ export function OverviewView({
               active={breakdownDimension}
               hrefFor={(key) => breakdownHref(key as BreakdownDimension)}
               label="Breakdown dimension"
+              event="breakdown_dimension_selected"
+              objectType="dimension"
             />
           </div>
           {/* Both tables are rendered. LocalSwitch only changes which is

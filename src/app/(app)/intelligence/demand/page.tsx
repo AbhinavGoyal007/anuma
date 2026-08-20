@@ -27,7 +27,7 @@ import { cohortPath } from "@/modules/intelligence/cohorts";
 import { windowLabel } from "@/modules/intelligence/filters";
 import { scopeFingerprint } from "@/modules/intelligence/canonical";
 import { resolveIntelligencePage } from "@/modules/intelligence/page-context";
-import { IntelligencePageTracker } from "@/components/intelligence/telemetry";
+import { TelemetryScope } from "@/components/intelligence/telemetry";
 import type { PopulationRow } from "@/modules/intelligence/population";
 
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
@@ -207,6 +207,14 @@ export default async function CustomerDemandPage({ searchParams }: PageProps) {
   // does not keep when the underlying list is longer than ten.
   const listLimit = expanded ? Number.MAX_SAFE_INTEGER : 40;
   const openDrawer = single(raw, "drawer");
+  // What the reader actually narrowed to, carried with every pilot event so a
+  // finding can be traced back to the population it was read from.
+  const activeFilters = Object.fromEntries(
+    FILTER_PARAM_KEYS.flatMap((key) => {
+      const chosen = single(raw, key);
+      return chosen ? [[key, chosen] as const] : [];
+    }),
+  );
   const scope = scopeFingerprint({
     from: page.periods.current.from,
     to: page.periods.current.to,
@@ -220,18 +228,12 @@ export default async function CustomerDemandPage({ searchParams }: PageProps) {
   };
 
   return (
-    <>
-      <IntelligencePageTracker
-        page="demand"
-        scopeFingerprint={scope}
-        filters={Object.fromEntries(
-          FILTER_PARAM_KEYS.flatMap((key) => {
-            const chosen = single(raw, key);
-            return chosen ? [[key, chosen] as const] : [];
-          }),
-        )}
-        drawerKey={openDrawer}
-      />
+    <TelemetryScope
+      page="demand"
+      scopeFingerprint={scope}
+      filters={activeFilters}
+      drawerKey={openDrawer}
+    >
       <IntelligenceHead title="Demand" />
       <IntelligenceFilterBar
         basePath={BASE}
@@ -297,6 +299,6 @@ export default async function CustomerDemandPage({ searchParams }: PageProps) {
           fullHref={intelligenceHref(cohortPath(openDrawer), filters)}
         />
       ) : null}
-    </>
+    </TelemetryScope>
   );
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { DrawerShell } from "@/components/intelligence/drawer-shell";
 import { ReviewOutcome } from "@/components/intelligence/review-outcome";
+import { TelemetryLink } from "@/components/intelligence/telemetry";
 
 import { createClient } from "@/lib/supabase/server";
 import { resolveCohort } from "@/modules/intelligence/cohorts";
@@ -168,9 +169,19 @@ export async function IntelligenceDrawer({
         const lines = dedupeLines(evidence.get(row.conversationId) ?? []);
         return (
           <div key={row.conversationId} className="ip-evrow">
-            <Link className="ip-ev-title" href={`/conversations/${row.conversationId}`}>
+            <TelemetryLink
+              className="ip-ev-title"
+              href={`/conversations/${row.conversationId}`}
+              telemetry={{
+                event: "conversation_opened",
+                objectType: "conversation",
+                objectKey: row.conversationId,
+                cohortKey,
+                conversationId: row.conversationId,
+              }}
+            >
               {conversation?.title ?? "Untitled interaction"}
-            </Link>
+            </TelemetryLink>
             <p className="ip-meta">
               {conversation?.started_at
                 ? new Date(conversation.started_at).toLocaleDateString()
@@ -195,9 +206,19 @@ export async function IntelligenceDrawer({
                 No transcript line — this interaction matched on something that was not said.
               </p>
             )}
-            <Link className="ip-link" href={`/conversations/${row.conversationId}`}>
+            <TelemetryLink
+              className="ip-link"
+              href={`/conversations/${row.conversationId}`}
+              telemetry={{
+                event: "conversation_opened",
+                objectType: "conversation",
+                objectKey: row.conversationId,
+                cohortKey,
+                conversationId: row.conversationId,
+              }}
+            >
               Open full conversation →
-            </Link>
+            </TelemetryLink>
           </div>
         );
       })}
