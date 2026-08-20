@@ -23,12 +23,40 @@ const INTELLIGENCE_PAGES = [
   "/intelligence/frontline",
 ] as const;
 
-/** No horizontal scrollbar, at any width, on any page. */
+/**
+ * No horizontal scrollbar, at any width, on any page.
+ *
+ * Names the widest element when it fails: "the page scrolls sideways" sends
+ * somebody hunting through a stylesheet, and the answer is almost always one
+ * specific box.
+ */
 async function expectNoHorizontalOverflow(page: Page, where: string) {
-  const overflowing = await page.evaluate(
-    () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
-  );
-  expect(overflowing, `${where} scrolls sideways`).toBe(false);
+  const report = await page.evaluate(() => {
+    const limit = document.documentElement.clientWidth;
+    const widest = [...document.querySelectorAll<HTMLElement>("body *")]
+      .map((node) => ({
+        selector: `${node.tagName.toLowerCase()}.${String(node.className).split(" ")[0] ?? ""}`,
+        right: Math.round(node.getBoundingClientRect().right),
+      }))
+      .filter((entry) => entry.right > limit + 1)
+      .sort((a, b) => b.right - a.right)
+      .slice(0, 3);
+    const scrollWidth = document.documentElement.scrollWidth;
+    const nav = document.querySelector(".mobile-navigation");
+    return {
+      overflowing: scrollWidth > limit + 1,
+      limit,
+      scrollWidth,
+      navOverflow: nav ? getComputedStyle(nav).overflowX : "none",
+      widest,
+    };
+  });
+  expect(
+    report.overflowing,
+    `${where} scrolls sideways (viewport ${report.limit}px, document ${report.scrollWidth}px, nav overflow ${report.navOverflow}; widest: ${report.widest
+      .map((entry) => `${entry.selector} → ${entry.right}px`)
+      .join(", ")})`,
+  ).toBe(false);
 }
 
 async function requireSession(page: Page) {
@@ -45,9 +73,21 @@ test.describe("Intelligence, signed in", () => {
 
   test("every page renders its fixed sections", async ({ page }) => {
     const expected: Record<string, string[]> = {
-      "/intelligence/overview": ["Signals", "Actions", "Trend", "Hotspots"],
+      "/intelligence/overview": [
+        "Coverage",
+        "Core signals",
+        "Priority actions",
+        "Trend",
+        "Breakdown",
+      ],
       "/intelligence/demand": ["Demand mix", "Needs", "Budget", "Clarity", "No-sale blockers"],
-      "/intelligence/journey": ["Decision path", "Diagnosis", "Business result", "Customer state"],
+      "/intelligence/journey": [
+        "Decision path",
+        "Business result",
+        "Customer state",
+        "Diagnosis",
+        "Breakdown",
+      ],
       "/intelligence/frontline": ["Detail", "Learn from Q1"],
     };
     for (const [path, headings] of Object.entries(expected)) {
@@ -91,7 +131,21 @@ test.describe("Intelligence, signed in", () => {
     // milliseconds, and the wait is honest about that rather than flaky.
     await expect(drawer).toBeVisible({ timeout: 30_000 });
     await expect(drawer).toHaveAttribute("aria-modal", "true");
-    await expect(drawer.locator(":focus")).toHaveCount(1);
+    // The sheet is server-rendered and readable immediately; the dialog
+    // behaviour arrives with hydration, which on these pages takes seconds.
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const dialog = document.querySelector(".ip-drawer");
+            const active = document.activeElement;
+            return dialog && active && dialog.contains(active)
+              ? "inside"
+              : `${active?.tagName ?? "none"}.${String(active?.className ?? "")}`.slice(0, 40);
+          }),
+        { timeout: 30_000, message: "focus never moved into the sheet" },
+      )
+      .toBe("inside");
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
   });
@@ -107,14 +161,56 @@ test.describe("Intelligence, signed in", () => {
     }
   });
 
-  test("the journey rail has four nodes, no bought node, and drives one diagnosis", async ({
-    page,
-  }) => {
+  test("the journey rail has four nodes and five fixed diagnosis rows", async ({ page }) => {
     await page.goto("/intelligence/journey?cohort=all");
     await expect(page.locator(".ip-node")).toHaveCount(4);
     await expect(page.locator(".ip-nodes")).not.toContainText(/bought/i);
-    await page.locator(".ip-node").nth(1).click();
-    await expect(page.locator("#jr-diagnosis")).toContainText("Requirement clear");
+    // Always these five, always this order, at zero and at non-zero counts.
+    const rows = page
+      .locator("#jr-diagnosis")
+      .locator("xpath=ancestor::section")
+      .locator("tbody tr");
+    await expect(rows).toHaveCount(5);
+    await expect(rows.nth(0)).toContainText("Requirement still unclear");
+    await expect(rows.nth(4)).toContainText("Commitment signal + outcome unknown");
+  });
+
+  test("coverage opens a drawer whose counts match the rail", async ({ page }) => {
+    await page.goto("/intelligence/overview");
+    const usable = await page.locator(".ip-coverage-stage").nth(3).locator("strong").innerText();
+    await page.locator(".ip-coverage-rail").click();
+    const drawer = page.getByRole("dialog");
+    await expect(drawer).toBeVisible({ timeout: 30_000 });
+    await expect(drawer).toContainText("Recording");
+    await expect(drawer).toContainText("Transcription");
+    await expect(drawer).toContainText("Analysis");
+    await expect(drawer).toContainText("Intelligence");
+    await expect(drawer).toContainText("Trust");
+    // The five transcription rows and the five analysis rows always render.
+    await expect(drawer.getByText("Cancelled", { exact: true })).toHaveCount(2);
+    await expect(
+      drawer.locator(".ip-cov-row", { hasText: "Usable" }).first().locator("strong"),
+    ).toHaveText(usable);
+  });
+
+  test("the trend keeps its six tabs and its default, whatever the data did", async ({ page }) => {
+    await page.goto("/intelligence/overview");
+    const tabs = page.locator("#ov-trend").locator("xpath=ancestor::section").locator(".ip-tab");
+    await expect(tabs).toHaveCount(6);
+    await expect(tabs.nth(0)).toHaveText("High-intent arrivals");
+    await expect(tabs.nth(0)).toHaveAttribute("aria-current", "true");
+  });
+
+  test("the breakdown stays on Stores until the reader says otherwise", async ({ page }) => {
+    await page.goto("/intelligence/overview");
+    const tabs = page
+      .locator("#ov-breakdown")
+      .locator("xpath=ancestor::section")
+      .locator(".ip-tab");
+    await expect(tabs.nth(0)).toHaveText("Stores");
+    await expect(tabs.nth(0)).toHaveAttribute("aria-current", "true");
+    await tabs.nth(1).click();
+    await expect(tabs.nth(1)).toHaveAttribute("aria-current", "true");
   });
 
   test("Q1 shows its unavailable state and offers no dead tabs", async ({ page }) => {
@@ -127,7 +223,9 @@ test.describe("Intelligence, signed in", () => {
   test("switching a Needs tab changes the panel without leaving the page", async ({ page }) => {
     await page.goto("/intelligence/demand?need=use_cases");
     await page.locator('[data-local-key="brands"]').click();
-    await expect(page.locator('[data-local-panel="brands"]')).toBeVisible();
+    // Instant once hydrated; a full navigation before that, which lands on the
+    // same view. Either way the panel ends up showing and the URL says so.
+    await expect(page.locator('[data-local-panel="brands"]')).toBeVisible({ timeout: 30_000 });
     await expect(page.locator('[data-local-panel="use_cases"]')).toBeHidden();
     await expect(page).toHaveURL(/need=brands/);
   });
@@ -157,8 +255,10 @@ test.describe("Intelligence, signed in", () => {
 
   test("the first viewport carries each page's answer at 1440x900", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
+    // Coverage leads the Overview by contract, so the first viewport carries
+    // Coverage and the Core Signals rather than reaching the Pulse.
     const budget: Record<string, string> = {
-      "/intelligence/overview": ".ip-pulse",
+      "/intelligence/overview": "#ov-signals",
       "/intelligence/demand": "#dm-mix",
       "/intelligence/journey": "#jr-diagnosis",
       "/intelligence/frontline": ".ip-execution",

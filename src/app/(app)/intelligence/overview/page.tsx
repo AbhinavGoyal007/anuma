@@ -15,7 +15,7 @@ import {
 } from "@/modules/intelligence/overview";
 import { resolveIntelligencePage } from "@/modules/intelligence/page-context";
 import { scopeHash, SCOPE_KEYS } from "@/modules/intelligence/pilot";
-import { readFindingReviews } from "@/modules/intelligence/pilot-store";
+import { readFindingReviews, recordIntelligenceView } from "@/modules/intelligence/pilot-store";
 import { buildSeries, qualifies, TREND_METRICS } from "@/modules/intelligence/trend";
 
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
@@ -70,6 +70,23 @@ export default async function IntelligenceOverviewPage({ searchParams }: PagePro
     openDrawer && priorityKeys.has(openDrawer)
       ? await readFindingReviews(organizationId, scope)
       : new Map();
+
+  // Recorded from the URL, which is the record of what the manager asked for.
+  await recordIntelligenceView({
+    organizationId,
+    membershipId: page.membershipId,
+    page: "overview",
+    sessionId: scope,
+    filters: Object.fromEntries(
+      SCOPE_KEYS.flatMap((key) => {
+        const chosen = single(raw, key);
+        return chosen ? [[key, chosen] as const] : [];
+      }),
+    ),
+    drawer: openDrawer,
+    drawerIsPriority: openDrawer ? priorityKeys.has(openDrawer) : false,
+    drawerIsNumerator: openDrawer?.startsWith("numerator:") ?? false,
+  });
 
   return (
     <>

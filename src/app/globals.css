@@ -4054,6 +4054,14 @@ a {
   font-weight: 700;
 }
 
+/* Explicitly removed from layout when closed. Chromium hides closed `details`
+   content with `content-visibility: hidden` rather than `display: none`, and a
+   200px popover then still contributed scrollable width — which is how a phone
+   ended up able to scroll sideways past a filter nobody had opened. */
+details:not([open]) > .ip-dim-panel {
+  display: none;
+}
+
 .ip-dim-panel {
   background: var(--intel-surface);
   border: 1px solid var(--intel-border);
@@ -4189,6 +4197,12 @@ a {
   border: 1px solid var(--intel-border);
   border-radius: 10px;
   min-width: 0;
+  /* A panel never leaks horizontally. Anything wider than it — a five-column
+     table on a phone — has to scroll inside `.ip-table-scroll`, and this makes
+     that a rule rather than a hope. `clip` leaves the vertical axis alone, so
+     no scroll container is created and the evidence drawer, which is fixed and
+     never a panel, is unaffected. */
+  overflow-x: clip;
   padding: 16px;
 }
 
@@ -4679,9 +4693,14 @@ a.ip-seg:focus-visible {
 /* ---- Tables ------------------------------------------------------------- */
 
 .ip-table-scroll {
-  /* The table scrolls inside its own panel; the page never scrolls sideways. */
+  /* The table scrolls inside its own panel; the page never scrolls sideways.
+     `min-width: 0` is load-bearing: without it the scroll container's automatic
+     minimum size resolves to the table's min-content width, and a five-column
+     table pushes the whole document wider than a phone instead of scrolling. */
   max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
+  width: 100%;
 }
 
 .ip-table {
@@ -4716,7 +4735,12 @@ a.ip-seg:focus-visible {
 .ip-table th:first-child,
 .ip-table tbody th {
   font-weight: 650;
+  /* Row labels wrap; the data cells stay on one line so a rate and its
+     denominator never split. A five-word diagnosis label held on one line made
+     the table wider than a phone. */
+  min-width: 9rem;
   text-align: left;
+  white-space: normal;
 }
 
 .ip-table tbody tr:hover {
@@ -5394,6 +5418,26 @@ a.ip-action-card:focus-visible {
   .ip-bar,
   .ip-drow {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 54px;
+  }
+
+  /* On a phone a table fits rather than scrolls. A five-column table in a
+     horizontal scroller is technically contained and practically unreadable —
+     and its intrinsic width was still pushing the document sideways. */
+  .ip-table {
+    table-layout: fixed;
+    width: 100%;
+  }
+
+  .ip-table th,
+  .ip-table td {
+    overflow-wrap: anywhere;
+    padding: 6px 4px;
+    white-space: normal;
+  }
+
+  .ip-table th:first-child,
+  .ip-table tbody th {
+    min-width: 0;
   }
 
   .ip-pitem {

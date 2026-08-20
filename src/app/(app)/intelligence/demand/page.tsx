@@ -26,6 +26,8 @@ import { IntelligenceDrawer } from "@/components/intelligence/intelligence-drawe
 import { cohortPath } from "@/modules/intelligence/cohorts";
 import { windowLabel } from "@/modules/intelligence/filters";
 import { resolveIntelligencePage } from "@/modules/intelligence/page-context";
+import { scopeHash, SCOPE_KEYS } from "@/modules/intelligence/pilot";
+import { recordIntelligenceView } from "@/modules/intelligence/pilot-store";
 import type { PopulationRow } from "@/modules/intelligence/population";
 
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
@@ -203,12 +205,30 @@ export default async function CustomerDemandPage({ searchParams }: PageProps) {
   // does not keep when the underlying list is longer than ten.
   const listLimit = expanded ? Number.MAX_SAFE_INTEGER : 40;
   const openDrawer = single(raw, "drawer");
+  const scope = scopeHash(Object.fromEntries(SCOPE_KEYS.map((key) => [key, single(raw, key)])));
   const carry: Record<string, string> = {
     need,
     voice: voiceTab,
     ...(expanded ? { all: "1" } : {}),
     ...(allCategories ? { cats: "1" } : {}),
   };
+
+  // Recorded from the URL, which is the record of what the manager asked for.
+  await recordIntelligenceView({
+    organizationId,
+    membershipId: page.membershipId,
+    page: "demand",
+    sessionId: scope,
+    filters: Object.fromEntries(
+      SCOPE_KEYS.flatMap((key) => {
+        const chosen = single(raw, key);
+        return chosen ? [[key, chosen] as const] : [];
+      }),
+    ),
+    drawer: openDrawer,
+    drawerIsPriority: openDrawer ? false : false,
+    drawerIsNumerator: openDrawer?.startsWith("numerator:") ?? false,
+  });
 
   return (
     <>

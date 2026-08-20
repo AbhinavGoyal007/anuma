@@ -174,3 +174,63 @@ export async function readFindingReviews(
     return new Map();
   }
 }
+
+/**
+ * The events a page render implies, recorded once per navigation.
+ *
+ * Emitted from the server component rather than the browser, because the URL is
+ * the record of what the manager asked for: a filter they applied, a signal
+ * they opened, a stage they selected. Client instrumentation would have to
+ * reconstruct the same thing from clicks and would disagree the moment somebody
+ * arrived by a shared link.
+ */
+export async function recordIntelligenceView(input: {
+  organizationId: string;
+  membershipId: string;
+  page: string;
+  sessionId: string;
+  filters: Record<string, string>;
+  /** The cohort key in `?drawer=`, where one is open. */
+  drawer: string | null;
+  /** True where the drawer key names a priority action or review. */
+  drawerIsPriority: boolean;
+  /** True where the drawer key names a metric's own numerator. */
+  drawerIsNumerator: boolean;
+}): Promise<void> {
+  const base = {
+    organizationId: input.organizationId,
+    membershipId: input.membershipId,
+    sessionId: input.sessionId,
+    page: input.page,
+    filters: input.filters,
+  } as const;
+
+  await recordUsageEvent({ ...base, eventName: "intelligence_page_viewed" });
+
+  if (!input.drawer) return;
+  await recordUsageEvent({
+    ...base,
+    eventName: "evidence_drawer_opened",
+    objectType: "cohort",
+    objectKey: input.drawer,
+    cohortKey: input.drawer,
+  });
+  if (input.drawerIsPriority) {
+    await recordUsageEvent({
+      ...base,
+      eventName: "priority_action_opened",
+      objectType: "cohort",
+      objectKey: input.drawer,
+      cohortKey: input.drawer,
+    });
+  }
+  if (input.drawerIsNumerator) {
+    await recordUsageEvent({
+      ...base,
+      eventName: "core_signal_opened",
+      objectType: "metric",
+      objectKey: input.drawer,
+      cohortKey: input.drawer,
+    });
+  }
+}

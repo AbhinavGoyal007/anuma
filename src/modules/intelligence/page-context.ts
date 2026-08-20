@@ -26,6 +26,8 @@ export type FilterOption = { id: string; name: string };
 
 export type IntelligencePageContext = {
   organizationId: string;
+  /** The viewer's own membership, for attributing pilot events to them. */
+  membershipId: string;
   /** Null unless a supporting read failed; never rendered as empty data. */
   directoryError: string | null;
   filters: IntelligenceFilters;
@@ -197,6 +199,7 @@ export async function resolveIntelligencePage(
 
   return {
     organizationId: organization.id,
+    membershipId: membership.id,
     /** Set where a supporting read failed, so the page can say so rather than under-report. */
     directoryError: directory.ok ? null : directory.message,
     filters: scopedFilters,
