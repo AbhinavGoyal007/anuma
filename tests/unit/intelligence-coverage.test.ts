@@ -335,3 +335,37 @@ describe("recording hours are rounded to the stated rule", () => {
     expect(formatRecordingHours(140.6)).toBe("141");
   });
 });
+
+describe("a salesperson with nothing to show is still a salesperson", () => {
+  // The question these answer: when a filter narrows to someone real who has
+  // no data yet, does the product report an honest zero, or does it fall back
+  // to the whole estate? Silently widening is the one failure that hands over
+  // data nobody asked for, and the three ways a salesperson can have nothing
+  // are three different points on the chain.
+
+  it("reports zero rather than everything when they have no recordings", () => {
+    const coverage = coverageOf([]);
+    expect(coverage.recordedInteractions).toBe(0);
+    expect(coverage.transcribedInteractions).toBe(0);
+    expect(coverage.analysedInteractions).toBe(0);
+    expect(coverage.usableInteractions).toBe(0);
+    // A rate over nothing is not zero percent, it is nothing.
+    expect(coverage.outcomeKnown.value).toBeNull();
+    expect(coverage.evidenceReady.value).toBeNull();
+  });
+
+  it("reports zero transcribed when a recording exists and nothing transcribed", () => {
+    const coverage = coverageOf([chain("c1", { runStatus: "failed" })]);
+    expect(coverage.recordedInteractions).toBe(1);
+    expect(coverage.transcribedInteractions).toBe(0);
+    expect(coverage.usableInteractions).toBe(0);
+    expect(coverage.outcomeKnown.value).toBeNull();
+  });
+
+  it("reports zero usable when everything they said was abstained", () => {
+    const coverage = coverageOf([chain("c1", { observed: false, outcome: null })]);
+    expect(coverage.analysedInteractions).toBe(1);
+    expect(coverage.usableInteractions).toBe(0);
+    expect(coverage.outcomeKnown.value).toBeNull();
+  });
+});

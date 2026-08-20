@@ -77,3 +77,22 @@ describe("turning a window into instants", () => {
     expect(resolvePeriods(parseFilters({ compare: "off" }), now).previous).toBeNull();
   });
 });
+
+describe("a filter the page cannot explain is still a filter", () => {
+  it("keeps a salesperson id that matches nothing in the directory", () => {
+    // Stale, unauthorized or simply new: none of them is a reason to answer a
+    // question the reader did not ask. The parameter survives parsing, and the
+    // query stays narrowed to somebody with no rows.
+    const filters = parseFilters({ rep: "00000000-0000-0000-0000-000000000000" });
+    expect(filters.representativeMembershipId).toBe("00000000-0000-0000-0000-000000000000");
+  });
+
+  it("keeps a store id that matches nothing", () => {
+    const filters = parseFilters({ store: "00000000-0000-0000-0000-000000000000" });
+    expect(filters.storeId).toBe("00000000-0000-0000-0000-000000000000");
+  });
+
+  it("keeps a category nobody in this period mentioned", () => {
+    expect(parseFilters({ category: "hovercraft" }).category).toBe("hovercraft");
+  });
+});
