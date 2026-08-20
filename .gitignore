@@ -22,3 +22,6 @@ Thumbs.db
 # Evaluation working data. Customer audio never belongs in the repository.
 /eval
 .vercel
+
+# Playwright session state. A real session, never committed.
+/playwright/.auth

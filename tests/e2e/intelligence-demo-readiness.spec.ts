@@ -11,9 +11,10 @@ import { cohortPath, valueCohortKey } from "../../src/modules/intelligence/cohor
  * that the drawer is a dialog rather than a box on top, and that no page
  * scrolls sideways on a phone.
  *
- * A session is needed. This deployment signs an anonymous visitor into the
- * synthetic demo tenant (see src/lib/supabase/proxy.ts), so one is normally
- * available; where it is not, the suite says so instead of passing quietly.
+ * The session comes from tests/auth.setup.ts, which every authenticated project
+ * depends on. Nothing here checks whether it is signed in: a suite that skips
+ * itself when authentication breaks reports success by not running, which is
+ * the one failure mode these tests exist to catch.
  */
 
 const INTELLIGENCE_PAGES = [
@@ -59,17 +60,7 @@ async function expectNoHorizontalOverflow(page: Page, where: string) {
   ).toBe(false);
 }
 
-async function requireSession(page: Page) {
-  await page.goto("/intelligence/overview");
-  if (/\/sign-in$/.test(page.url())) {
-    test.skip(true, "No session available: sign in, or enable the demo tenant, to run this suite.");
-  }
-}
-
 test.describe("Intelligence, signed in", () => {
-  test.beforeEach(async ({ page }) => {
-    await requireSession(page);
-  });
 
   test("every page renders its fixed sections", async ({ page }) => {
     const expected: Record<string, string[]> = {
@@ -239,19 +230,22 @@ test.describe("Intelligence, signed in", () => {
     await expect(page.getByRole("heading", { name: /iPhone 15\/Pro 50%/ })).toBeVisible();
   });
 
-  test("every page fits its width at desktop, tablet and phone", async ({ page }) => {
-    for (const size of [
-      { width: 1440, height: 900 },
-      { width: 1024, height: 900 },
-      { width: 390, height: 844 },
-    ]) {
+  // One test per width rather than one test for twelve page loads: the
+  // combined version spent longer loading pages than the default timeout
+  // allows, and a timeout on the last page said nothing about the first eleven.
+  for (const size of [
+    { width: 1440, height: 900 },
+    { width: 1024, height: 900 },
+    { width: 390, height: 844 },
+  ]) {
+    test(`every page fits its width at ${size.width}x${size.height}`, async ({ page }) => {
       await page.setViewportSize(size);
       for (const path of INTELLIGENCE_PAGES) {
         await page.goto(path);
         await expectNoHorizontalOverflow(page, `${path} at ${size.width}px`);
       }
-    }
-  });
+    });
+  }
 
   test("the first viewport carries each page's answer at 1440x900", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });

@@ -83,18 +83,31 @@ export const QUADRANT_BENCHMARK_ROWS: readonly { key: string; label: string }[] 
  * Fixed templates, chosen by metric key. Nothing here is generated at runtime:
  * coaching text that changes between two readings of the same numbers is not
  * coaching, it is a slot machine, and a manager cannot hold anyone to it.
+ *
+ * Every line stays inside what a recording can show. The earlier set told
+ * representatives to give a reason *before the price*, to demonstrate *before
+ * the objection*, to offer *before the customer asks for a discount* and to
+ * show *the next tier* — sequencing and discounting instructions that no
+ * business here has issued and that no conversation field measures. A page that
+ * prints them is inventing a sales methodology and attributing it to the
+ * employer.
+ *
+ * Three benchmark rows — proactive offer, cross-sell, upsell — therefore have
+ * no template at all. Their safe form would be a commercial policy decision,
+ * and the honest thing is to show the gap without telling anybody what to do
+ * about it until somebody who owns that policy says.
  */
 export const PRACTICE_TEMPLATES: Readonly<Record<string, string>> = {
-  recommendation_rationale: "State one reason tied to what the customer said, before the price.",
-  demo_rate: "Offer the demonstration before the objection, not after it.",
-  alternative_rate: "Have a second option ready at a different price point.",
-  full_objection_handling: "Answer the objection that was raised before moving on.",
-  finance_question_response: "Record the finance answer given, on the finance question.",
-  proactive_offer: "Make the offer before the customer asks for a discount.",
-  cross_sell_rate: "Name one companion product tied to the stated use case.",
-  upsell_rate: "Show the next tier once the requirement is clear.",
-  close_after_commitment: "Ask for the sale straight after the buying signal.",
-  next_action_capture: "Agree and record a specific next step before they leave.",
+  recommendation_rationale: "Explain why the recommendation matches the customer's stated need.",
+  demo_rate: "When applicable, demonstrate rather than only describe.",
+  full_objection_handling:
+    "Address the objection fully; if unresolved, state the limitation or relevant alternative.",
+  finance_question_response:
+    "When the customer asks about finance, provide the complete recorded response where information is available.",
+  alternative_rate:
+    "When the primary request cannot progress and an alternative is applicable, offer a relevant alternative.",
+  close_after_commitment: "After an explicit buying signal, make a clear close attempt.",
+  next_action_capture: "If the interaction remains open, agree a concrete next step.",
 };
 
 /** Percentage points a Q1 gap must clear before it is coached. */
