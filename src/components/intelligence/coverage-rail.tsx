@@ -21,9 +21,12 @@ const STAGE_LABELS = ["Recorded", "Transcribed", "Analysed", "Usable"] as const;
 export function CoverageRail({
   coverage,
   drawerHref,
+  analyticalFiltersActive,
 }: {
   coverage: IntelligenceCoverage;
   drawerHref: string;
+  /** Coverage describes capture scope; the metrics below may be narrower. */
+  analyticalFiltersActive: boolean;
 }) {
   const stages = [
     { label: STAGE_LABELS[0], count: coverage.recordedInteractions, of: null as number | null },
@@ -74,14 +77,15 @@ export function CoverageRail({
           <span className="ip-label">Outcome known</span>
           <strong>{formatPercent(coverage.outcomeKnown.value)}</strong>
           <span className="ip-meta">
-            {coverage.outcomeKnown.affected ?? 0} of {coverage.outcomeKnown.observed}
+            {coverage.outcomeKnown.affected ?? 0} of {coverage.outcomeKnown.observed} usable · field
+            available {coverage.outcomeFieldAvailable}
           </span>
         </div>
         <div className="ip-pitem">
-          <span className="ip-label">Evidence ready</span>
+          <span className="ip-label">Evidence linked</span>
           <strong>{formatPercent(coverage.evidenceReady.value)}</strong>
           <span className="ip-meta">
-            {coverage.evidenceReady.affected ?? 0} of {coverage.evidenceReady.observed}
+            {coverage.evidenceReady.affected ?? 0} of {coverage.evidenceReady.observed} applicable
           </span>
         </div>
         <div className="ip-pitem">
@@ -94,9 +98,15 @@ export function CoverageRail({
       </div>
       <p className="ip-note">
         Interactions, not files, each measured against the current transcription and the record
-        built from it. Evidence ready means at least one fact that must cite something does — not
-        that every fact is evidenced.
+        built from it. Evidence linked means every fact that must cite something cites the current
+        transcript; interactions where nothing required a citation are not counted either way.
       </p>
+      {analyticalFiltersActive ? (
+        <p className="ip-note">
+          Coverage reflects capture scope (Period · Store · Salesperson). Analytical filters apply
+          after analysis.
+        </p>
+      ) : null}
     </section>
   );
 }

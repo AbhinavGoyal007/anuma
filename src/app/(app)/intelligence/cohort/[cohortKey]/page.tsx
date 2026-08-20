@@ -66,9 +66,12 @@ export default async function FrontlineCohortPage({ params, searchParams }: Page
   const journeyCohort: JourneyCohortKey =
     JOURNEY_COHORTS.find((key) => key === requestedCohort) ?? "all";
 
-  // Decoded exactly once, by Next, before it arrives here. A second
-  // decodeURIComponent turns "50% off" into a malformed-URI exception.
-  const cohort = resolveCohort(population.rows, decodeCohortKey(cohortKey), journeyCohort);
+  // Decoded exactly once, here. Everything downstream — resolution and both
+  // pagination links — uses the decoded key: feeding the already-encoded route
+  // segment back into cohortPath() would encode it twice and send Next a
+  // product name it has never seen.
+  const decodedCohortKey = decodeCohortKey(cohortKey);
+  const cohort = resolveCohort(population.rows, decodedCohortKey, journeyCohort);
   if (!cohort) notFound();
 
   const matched = new Set(cohort.conversationIds);
@@ -204,7 +207,7 @@ export default async function FrontlineCohortPage({ params, searchParams }: Page
               {pageNumber > 1 ? (
                 <Link
                   className="ip-link"
-                  href={intelligenceHref(cohortPath(cohortKey), filters, {
+                  href={intelligenceHref(cohortPath(decodedCohortKey), filters, {
                     ...(requestedCohort ? { cohort: journeyCohort } : {}),
                     page: String(pageNumber - 1),
                   })}
@@ -215,7 +218,7 @@ export default async function FrontlineCohortPage({ params, searchParams }: Page
               {pageNumber < pages ? (
                 <Link
                   className="ip-link"
-                  href={intelligenceHref(cohortPath(cohortKey), filters, {
+                  href={intelligenceHref(cohortPath(decodedCohortKey), filters, {
                     ...(requestedCohort ? { cohort: journeyCohort } : {}),
                     page: String(pageNumber + 1),
                   })}

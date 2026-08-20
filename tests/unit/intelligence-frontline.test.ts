@@ -30,7 +30,9 @@ describe("denominators that decide whether a frontline metric is fair", () => {
     ]);
     expect(metrics.demoRate.observed).toBe(2);
     expect(metrics.demoRate.value).toBe(0.5);
-    expect(metrics.demoRate.eligible).toBe(3);
+    // Two eligible, not three: "not applicable" leaves the denominator
+    // altogether rather than reducing the coverage of the applicable rate.
+    expect(metrics.demoRate.eligible).toBe(2);
   });
 
   it("matches the specified demo fixture exactly", () => {
@@ -44,7 +46,8 @@ describe("denominators that decide whether a frontline metric is fair", () => {
     ]);
     expect(metrics.demoRate.value).toBe(0.4);
     expect(metrics.demoRate.observed).toBe(5);
-    expect(metrics.demoRate.eligible).toBe(10);
+    // The five not-applicable interactions are excluded outright.
+    expect(metrics.demoRate.eligible).toBe(5);
   });
 
   it("applies the same applicability rule to alternatives", () => {
@@ -329,10 +332,21 @@ describe("how friction was answered", () => {
 describe("the interactions behind each failure", () => {
   it("finds a ready-to-buy customer who was never asked for the sale", () => {
     const cohorts = frontlineActionCohorts([
+      // Ready to buy, outcome never established, close attempt definitively
+      // absent: the one interaction a manager can act on.
+      row({
+        values: [
+          value("arrival_intent_state", "ready_to_buy"),
+          notStated("confirmed_business_outcome"),
+          notStated("close_attempts"),
+        ],
+      }),
+      // A confirmed no-sale belongs to the confirmed-outcome cohorts, not here.
       row({
         values: [
           value("arrival_intent_state", "ready_to_buy"),
           value("confirmed_business_outcome", "no_sale"),
+          notStated("close_attempts"),
         ],
       }),
       row({
@@ -350,12 +364,18 @@ describe("the interactions behind each failure", () => {
 
   it("catches a follow-up agreed with nothing to actually do", () => {
     const cohorts = frontlineActionCohorts([
-      row({ values: [value("final_decision_state", "follow_up_scheduled")] }),
+      row({
+        values: [value("final_decision_state", "follow_up_scheduled"), notStated("next_action")],
+      }),
       row({
         values: [
           value("final_decision_state", "follow_up_scheduled"),
           value("next_action", "call Saturday"),
         ],
+      }),
+      // Unreadable rather than absent: a data-quality question, not a gap.
+      row({
+        values: [value("final_decision_state", "follow_up_scheduled"), unreadable("next_action")],
       }),
     ]);
     expect(
@@ -365,8 +385,12 @@ describe("the interactions behind each failure", () => {
 
   it("keeps the conversation ids so the count can be opened", () => {
     const cohorts = frontlineActionCohorts([
-      row({ values: [value("products_recommended", "Acer Swift")] }),
-      row({ values: [value("products_recommended", "Dell 14")] }),
+      row({
+        values: [value("products_recommended", "Acer Swift"), notStated("recommendation_reasons")],
+      }),
+      row({
+        values: [value("products_recommended", "Dell 14"), notStated("recommendation_reasons")],
+      }),
     ]);
     const cohort = cohorts.find((c) => c.key === "recommendation_without_rationale");
     expect(cohort?.conversationIds).toHaveLength(2);
@@ -375,8 +399,12 @@ describe("the interactions behind each failure", () => {
 
   it("orders cohorts by how many interactions they affect", () => {
     const cohorts = frontlineActionCohorts([
-      row({ values: [value("products_recommended", "Acer Swift")] }),
-      row({ values: [value("products_recommended", "Dell 14")] }),
+      row({
+        values: [value("products_recommended", "Acer Swift"), notStated("recommendation_reasons")],
+      }),
+      row({
+        values: [value("products_recommended", "Dell 14"), notStated("recommendation_reasons")],
+      }),
       row({
         values: [
           value("customer_questions", "EMI hai kya?", { label: "finance" }),

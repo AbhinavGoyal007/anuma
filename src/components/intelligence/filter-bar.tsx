@@ -182,6 +182,8 @@ export function IntelligenceFilterBar({
   coverage,
   carry = {},
   directoryError = null,
+  storeUnavailable = false,
+  representativeUnnamed = false,
 }: {
   basePath: string;
   filters: IntelligenceFilters;
@@ -199,6 +201,10 @@ export function IntelligenceFilterBar({
   carry?: Record<string, string>;
   /** Set where the salesperson directory could not be read. */
   directoryError?: string | null;
+  /** True where a store was asked for that the viewer may not see. */
+  storeUnavailable?: boolean;
+  /** True where a salesperson is filtered but cannot safely be named. */
+  representativeUnnamed?: boolean;
 }) {
   const narrowed =
     filters.storeId !== null ||
@@ -359,6 +365,19 @@ export function IntelligenceFilterBar({
           </Link>
         ) : null}
       </div>
+      {storeUnavailable ? (
+        // Narrowed to nothing and said plainly. The store's name is not echoed
+        // back: if the viewer is not entitled to it, printing it would be the
+        // disclosure the filter was supposed to prevent.
+        <p className="ip-scope ip-scope--error" role="status">
+          Selected store is unavailable in your scope.
+        </p>
+      ) : null}
+      {representativeUnnamed && !directoryError ? (
+        <p className="ip-scope ip-scope--error" role="status">
+          Showing a selected salesperson whose name is unavailable in your scope.
+        </p>
+      ) : null}
       {directoryError ? (
         // Named rather than absorbed. An empty salesperson list would look like
         // an organization with one member, and the selected person would have

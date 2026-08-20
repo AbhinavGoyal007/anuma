@@ -124,12 +124,10 @@ export function JourneyView({
   cohortKey,
   cohortSizes,
   stages,
-  selectedStage,
-  stageHref,
   diagnosis,
   lanes,
   gaps,
-  breakdown,
+  breakdowns,
   breakdownDimension,
   breakdownHref,
   outcomes,
@@ -141,13 +139,11 @@ export function JourneyView({
   cohortKey: JourneyCohortKey;
   cohortSizes: Record<JourneyCohortKey, number>;
   stages: JourneyStage[];
-  /** The node whose diagnosis is showing. Page-local; never carried elsewhere. */
-  selectedStage: string;
-  stageHref: (stageKey: string) => string;
   diagnosis: DiagnosisRow[];
   lanes: InterventionRate[];
   gaps: ActionCohort[];
-  breakdown: JourneyBreakdownRow[];
+  /** Both dimensions, computed from the same cohort rows. */
+  breakdowns: Record<string, JourneyBreakdownRow[]>;
   /** Chosen by the reader; the page never switches dimension on its own. */
   breakdownDimension: string;
   breakdownHref: (dimension: string) => string;
@@ -195,21 +191,21 @@ export function JourneyView({
         </div>
         {pathState === "POPULATED" ? (
           <>
+            {/* Static analytical states, not selectors. Diagnosis is five fixed
+                rows, so a node had nothing distinct to select — a control that
+                highlights itself and changes nothing teaches a reader that the
+                page's controls are decorative. The gap links below remain
+                interactive because they open a real cohort. */}
             <div className="ip-nodes">
               {stages.map((stage) => (
-                <Link
-                  className={`ip-node ip-node-link${stage.key === selectedStage ? " ip-node--active" : ""}`}
-                  key={stage.key}
-                  href={stageHref(stage.key)}
-                  aria-current={stage.key === selectedStage ? "true" : undefined}
-                >
+                <div className="ip-node" key={stage.key}>
                   <span className="ip-dot" aria-hidden="true" />
                   <strong>{stage.reached}</strong>
                   <span className="ip-label">{stage.label}</span>
                   <small className="ip-meta">
                     {formatPercent(stage.reach.value)} of {stage.reach.observed} measurable
                   </small>
-                </Link>
+                </div>
               ))}
             </div>
             <div className="ip-gaps">
@@ -386,36 +382,46 @@ export function JourneyView({
               label="Breakdown dimension"
             />
           </div>
-          {breakdown.length === 0 ? (
-            <DataState state="NO_OBSERVATIONS" />
-          ) : (
-            <div className="ip-table-scroll">
-              <table className="ip-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Scope</th>
-                    <th scope="col">n</th>
-                    <th scope="col">Requirement clear</th>
-                    <th scope="col">Preference formed</th>
-                    <th scope="col">Commitment</th>
-                    <th scope="col">Outcome established</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {breakdown.map((row) => (
-                    <tr key={row.key}>
-                      <th scope="row">{row.label}</th>
-                      <td>{row.size}</td>
-                      <Cell measure={row.requirementClear} />
-                      <Cell measure={row.preferenceFormed} />
-                      <Cell measure={row.commitment} />
-                      <Cell measure={row.outcomeEstablished} />
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          {/* Both tables rendered; the tab only changes which is visible. A tab
+              that updated aria-current and left the same rows on screen was a
+              control that did nothing. */}
+          {BREAKDOWN_TABS.map((tab) => {
+            const rows = breakdowns[tab.key];
+            return (
+              <div data-local-panel={tab.key} hidden={tab.key !== breakdownDimension} key={tab.key}>
+                {rows.length === 0 ? (
+                  <DataState state="NO_OBSERVATIONS" />
+                ) : (
+                  <div className="ip-table-scroll">
+                    <table className="ip-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Scope</th>
+                          <th scope="col">n</th>
+                          <th scope="col">Requirement clear</th>
+                          <th scope="col">Preference formed</th>
+                          <th scope="col">Commitment</th>
+                          <th scope="col">Outcome established</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((row) => (
+                          <tr key={row.key}>
+                            <th scope="row">{row.label}</th>
+                            <td>{row.size}</td>
+                            <Cell measure={row.requirementClear} />
+                            <Cell measure={row.preferenceFormed} />
+                            <Cell measure={row.commitment} />
+                            <Cell measure={row.outcomeEstablished} />
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            );
+          })}
           <p className="ip-note">
             Each cell is judged on its own denominator. Below{" "}
             {DEFAULT_GUARDRAILS.minimumForComparison} measurable it shows a count, not a percentage.

@@ -159,14 +159,17 @@ describe("the coverage chain, to the specified fixture", () => {
     expect(coverage.usableInteractions).toBe(85);
     expect(coverage.notUsableInteractions).toBe(5);
 
-    // Outcome known is measured against the usable interactions that carry the
-    // field at all, not against everything.
+    // Outcome known is measured against every usable interaction, not against
+    // the ones that happened to carry the field. Dividing by field support let
+    // the tile read 100% while the outcome was unknown for most of the floor.
     expect(coverage.outcomeKnown.affected).toBe(70);
-    expect(coverage.outcomeKnown.observed).toBe(70);
-    expect(coverage.outcomeKnown.eligible).toBe(85);
+    expect(coverage.outcomeKnown.observed).toBe(85);
+    expect(coverage.outcomeKnown.value).toBeCloseTo(70 / 85, 6);
+    // Field availability survives as secondary metadata, not as the denominator.
+    expect(coverage.outcomeFieldAvailable).toBe(70);
 
-    // Evidence ready: all 85 usable interactions carry a field that must cite
-    // something; 80 of them cite the current run.
+    // Evidence linked: 85 usable interactions carry a fact that must cite
+    // something; 80 of them cite the current run on every such fact.
     expect(coverage.evidenceReady.affected).toBe(80);
     expect(coverage.evidenceReady.observed).toBe(85);
   });

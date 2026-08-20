@@ -125,10 +125,14 @@ describe("the scope a finding was judged under", () => {
 });
 
 describe("the event vocabulary is closed", () => {
-  it("is exactly the sixteen names the contract allows", () => {
+  it("is exactly the fifteen names the contract allows", () => {
     // Adding a name here without adding it to the database check constraint
     // would write rows the table refuses, silently losing the event.
-    expect(USAGE_EVENTS).toHaveLength(16);
+    // `journey_stage_selected` was removed when the rail nodes became static:
+    // an event for a control that no longer exists is a metric nobody can
+    // interpret.
+    expect(USAGE_EVENTS).toHaveLength(15);
+    expect(USAGE_EVENTS).not.toContain("journey_stage_selected");
     expect(USAGE_EVENTS).toContain("priority_action_opened");
     expect(USAGE_EVENTS).toContain("management_action_saved");
   });

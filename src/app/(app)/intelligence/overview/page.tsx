@@ -40,6 +40,9 @@ export default async function IntelligenceOverviewPage({ searchParams }: PagePro
     storeCount,
     selectedStoreName,
     directoryError,
+    storeUnavailable,
+    representativeUnnamed,
+    analyticalFiltersActive,
   } = page;
   const rows = current.rows;
 
@@ -104,10 +107,13 @@ export default async function IntelligenceOverviewPage({ searchParams }: PagePro
         coverage={current.coverage}
         carry={carry}
         directoryError={directoryError}
+        storeUnavailable={storeUnavailable}
+        representativeUnnamed={representativeUnnamed}
       />
       <OverviewView
         coverage={current.coverage}
         coverageHref={intelligenceHref(BASE, filters, { ...carry, drawer: "coverage" })}
+        analyticalFiltersActive={analyticalFiltersActive}
         signals={overviewSignals(rows, previous ? previous.rows : null)}
         actions={overviewPriorityActions(rows)}
         actionHref={(cohortKey) => intelligenceHref(BASE, filters, { ...carry, drawer: cohortKey })}
@@ -119,24 +125,33 @@ export default async function IntelligenceOverviewPage({ searchParams }: PagePro
         trendMetrics={TREND_METRICS}
         trendMetricKey={trendMetric.key}
         trendHref={(key) => intelligenceHref(BASE, filters, { ...carry, signal: key })}
-        breakdown={overviewBreakdown(
-          rows,
-          (row) => (dimension === "stores" ? row.locationId : row.purchaseCategory),
-          (key) => (dimension === "stores" ? (storeName.get(key) ?? key) : key),
-        )}
+        // Both dimensions, from the rows already in memory, so switching the
+        // tab costs nothing and genuinely changes the table.
+        breakdowns={{
+          stores: overviewBreakdown(
+            rows,
+            (row) => row.locationId,
+            (key) => storeName.get(key) ?? key,
+          ),
+          categories: overviewBreakdown(
+            rows,
+            (row) => row.purchaseCategory,
+            (key) => key,
+          ),
+        }}
         breakdownDimension={dimension}
         breakdownHref={(next) => intelligenceHref(BASE, filters, { ...carry, dimension: next })}
-        breakdownRowHref={(key) =>
+        breakdownRowHref={(which, key) =>
           intelligenceHref(
             BASE,
-            dimension === "stores" ? { ...filters, storeId: key } : { ...filters, category: key },
+            which === "stores" ? { ...filters, storeId: key } : { ...filters, category: key },
             carry,
           )
         }
-        breakdownCellHref={(key, measureKey) =>
+        breakdownCellHref={(which, key, measureKey) =>
           intelligenceHref(
             BASE,
-            dimension === "stores" ? { ...filters, storeId: key } : { ...filters, category: key },
+            which === "stores" ? { ...filters, storeId: key } : { ...filters, category: key },
             { ...carry, drawer: numeratorCohortKey(measureKey) },
           )
         }

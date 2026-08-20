@@ -1,3 +1,4 @@
+import type { ApplicableStatus, FieldStatus } from "@/modules/intelligence/field-status";
 import { readOutcome, type Outcome } from "@/modules/intelligence/outcome";
 
 /**
@@ -25,7 +26,13 @@ import { readOutcome, type Outcome } from "@/modules/intelligence/outcome";
  * same conversation.
  */
 
-/** An abstention that settles the question as "no". */
+/**
+ * The only abstention that settles a question as "no".
+ *
+ * `not_stated` means the subject did not come up. `ambiguous`,
+ * `insufficient_evidence` and `unknown` mean we could not tell, which is a
+ * different fact and must never be counted against anybody.
+ */
 const DEFINITIVE_NO = "not_stated";
 
 export type ValueRow = {
@@ -42,14 +49,13 @@ export type ValueRow = {
 /**
  * Whether something happened, and whether we can tell.
  *
- * `unusable` is not `no`. "The audio does not settle it" and "it never came up"
- * are different commercial facts, and collapsing them makes every rate look
- * worse the noisier the recording was.
+ * Aliases of the canonical statuses so existing call sites keep reading
+ * naturally; there is one definition, in `field-status.ts`.
  */
-export type Presence = "yes" | "no" | "unusable" | "unsupported";
+export type Presence = FieldStatus;
 
 /** A yes/no field where "not applicable" is a real third answer. */
-export type Applicable = "yes" | "no" | "not_applicable" | "unusable" | "unsupported";
+export type Applicable = ApplicableStatus;
 
 export const rowsFor = (values: readonly ValueRow[], fieldKey: string): ValueRow[] =>
   values.filter((value) => value.fieldKey === fieldKey);
@@ -211,8 +217,16 @@ export function readEffective(
   const financeAtomic = presenceOf(values, "finance_requested");
 
   return {
-    purchaseCategory: firstText(values, "purchase_category") ?? projection.purchaseCategory,
-    arrivalIntent: firstText(values, "arrival_intent_state") ?? projection.arrivalIntent,
+    // `?? projection` would resurrect a stale projection the moment a manager
+    // rejected the atomic value: the correction would show on the conversation
+    // page and be silently undone on every dashboard. The projection may only
+    // stand in where the field was never asked.
+    purchaseCategory: isSupported(values, "purchase_category")
+      ? firstText(values, "purchase_category")
+      : projection.purchaseCategory,
+    arrivalIntent: isSupported(values, "arrival_intent_state")
+      ? firstText(values, "arrival_intent_state")
+      : projection.arrivalIntent,
     clarityStart: isSupported(values, "requirement_clarity_start")
       ? clarityOf(values, "requirement_clarity_start")
       : projection.clarityStart,

@@ -1,5 +1,6 @@
+import { closeAfterCommitmentStatus } from "@/modules/intelligence/concepts";
 import { distribution, rankedShare, type RankedResult } from "@/modules/intelligence/demand";
-import { firstAt, isSupported, statedRows, statedText } from "@/modules/intelligence/effective";
+import { isSupported, presenceOf, statedRows, statedText } from "@/modules/intelligence/effective";
 import {
   DEFAULT_GUARDRAILS,
   measure,
@@ -10,7 +11,6 @@ import {
   alternativeApplicableRate,
   closeAfterCommitment,
   closeAttemptIncidence,
-  closedAfterCommitment,
   commercialOfferIncidence,
   crossSellIncidence,
   demoApplicableRate,
@@ -42,6 +42,18 @@ export { normalizeResponseState, type ResponseState };
 
 const has = (row: PopulationRow, fieldKey: string): boolean =>
   statedText(row.values, fieldKey).length > 0;
+
+/**
+ * Whether a field can answer yes or no on this interaction at all.
+ *
+ * A management gap has to be drawn from interactions where the absence is a
+ * fact rather than a gap in extraction, so every absence-based cohort is
+ * measured against this population and matches only a definitive no.
+ */
+const decidable = (row: PopulationRow, fieldKey: string): boolean => {
+  const status = presenceOf(row.values, fieldKey);
+  return status === "yes" || status === "no";
+};
 
 export type FrontlineMetrics = {
   /** Of interactions where a question was asked, how many carry a response state. */
@@ -225,24 +237,29 @@ export function frontlineActionCohorts(rows: readonly PopulationRow[]): ActionCo
 
   // Flags raised during extraction, surfaced as work rather than as a badge on a
   // conversation nobody opens. The flag itself is the evidence.
-  const flagSupported = rows.filter((row) => isSupported(row.values, "red_flags"));
+  const flagDecidable = rows.filter((row) => decidable(row, "red_flags"));
   push(
     "red_flag_raised",
     "carried a red flag raised during analysis",
     "At least one red flag was recorded against the interaction",
     ["red_flags"],
-    flagSupported.length,
-    flagSupported.filter((row) => has(row, "red_flags")),
+    flagDecidable.length,
+    flagDecidable.filter((row) => presenceOf(row.values, "red_flags") === "yes"),
   );
 
-  const recommending = rows.filter((row) => row.recommendedCount > 0);
+  // Recommendation present and a reason definitively absent. An unreadable
+  // reason field is a data-quality question, not a coaching one.
+  const recommending = rows.filter(
+    (row) => presenceOf(row.values, "products_recommended") === "yes",
+  );
+  const rationaleDecidable = recommending.filter((row) => decidable(row, "recommendation_reasons"));
   push(
     "recommendation_without_rationale",
     "recommended a product without a recorded reason",
     "A recommendation was made and no reason was recorded",
     ["products_recommended"],
-    recommending.length,
-    recommending.filter((row) => !has(row, "recommendation_reasons")),
+    rationaleDecidable.length,
+    rationaleDecidable.filter((row) => presenceOf(row.values, "recommendation_reasons") === "no"),
   );
 
   const financeAsked = financeQuestionRows(rows);
@@ -280,39 +297,49 @@ export function frontlineActionCohorts(rows: readonly PopulationRow[]): ActionCo
     ),
   );
 
-  // Chronology, matching the metric exactly. A close recorded before the
-  // customer signalled anything does not count as following it, and an
-  // interaction whose signal carries no timing cannot be judged either way.
-  const commitmentTimed = rows.filter(
-    (row) => firstAt(row.values, "customer_commitment_signals") !== null,
-  );
+  // A definitive no, never a maybe. The canonical status already refuses to
+  // call an unreadable close attempt "no close after commitment"; a management
+  // gap built on "not yes" would turn our own missing evidence into an
+  // accusation about the floor.
+  const closeDecidable = rows.filter((row) => {
+    const status = closeAfterCommitmentStatus(row);
+    return status === "yes" || status === "no";
+  });
   push(
     "commitment_without_close_attempt",
     "showed a buying signal with no later close attempt recorded",
     "A commitment signal was recorded and no close attempt followed it",
     ["customer_commitment_signals"],
-    commitmentTimed.length,
-    commitmentTimed.filter((row) => !closedAfterCommitment(row)),
+    closeDecidable.length,
+    closeDecidable.filter((row) => closeAfterCommitmentStatus(row) === "no"),
   );
 
-  const readyToBuy = rows.filter((row) => row.arrivalIntent === "ready_to_buy");
+  // Ready to buy, outcome never established, and a close attempt definitively
+  // absent. Confirmed no-sales are excluded: they are already represented as
+  // confirmed-outcome cohorts, and counting them twice would double the work a
+  // manager thinks they have.
+  const readyToBuy = rows.filter(
+    (row) => row.arrivalIntent === "ready_to_buy" && row.outcome.business === "unknown",
+  );
+  const readyDecidable = readyToBuy.filter((row) => decidable(row, "close_attempts"));
   push(
     "ready_to_buy_without_close_attempt",
     "arrived ready to buy with no close attempt recorded and no outcome established",
-    "Arrival intent was ready to buy, no close attempt was recorded, and the outcome is not a sale",
-    ["arrival_intent_state", "customer_commitment_signals"],
-    readyToBuy.length,
-    readyToBuy.filter((row) => isUnresolved(row.outcome) && !has(row, "close_attempts")),
+    "Arrival intent was ready to buy, the outcome was never established, and no close attempt was recorded",
+    ["arrival_intent_state", "close_attempts"],
+    readyDecidable.length,
+    readyDecidable.filter((row) => presenceOf(row.values, "close_attempts") === "no"),
   );
 
   const followUp = rows.filter((row) => row.outcome.decision === "follow_up_scheduled");
+  const followUpDecidable = followUp.filter((row) => decidable(row, "next_action"));
   push(
     "follow_up_without_next_action",
     "agreed a follow-up with no next action recorded",
     "The customer left on a follow-up and no next action was captured",
     ["final_decision_state"],
-    followUp.length,
-    followUp.filter((row) => !has(row, "next_action")),
+    followUpDecidable.length,
+    followUpDecidable.filter((row) => presenceOf(row.values, "next_action") === "no"),
   );
 
   // Largest first: the page shows a handful, and the handful should be the ones
@@ -438,8 +465,12 @@ const BEHAVIOURS: readonly {
   {
     key: "close",
     label: "Close after commitment",
-    eligible: (row) => firstAt(row.values, "customer_commitment_signals") !== null,
-    matched: closedAfterCommitment,
+    // The canonical status, so this row and the headline cannot disagree.
+    eligible: (row) => {
+      const status = closeAfterCommitmentStatus(row);
+      return status === "yes" || status === "no";
+    },
+    matched: (row) => closeAfterCommitmentStatus(row) === "yes",
   },
   {
     key: "next_action",

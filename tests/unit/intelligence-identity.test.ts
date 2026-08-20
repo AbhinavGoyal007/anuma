@@ -10,6 +10,7 @@ import {
   valueCohortKey,
 } from "@/modules/intelligence/cohorts";
 import { NUMERATOR_COHORTS } from "@/modules/intelligence/measures";
+import { CONCEPTS } from "@/modules/intelligence/concepts";
 import { buildSeries, TREND_METRICS } from "@/modules/intelligence/trend";
 import { notStated, row, unreadable, value } from "../support/population";
 
@@ -174,7 +175,7 @@ describe("a trend label describes its own predicate", () => {
   });
 
   it("counts a preference only where the requirement was clear enough to form one", () => {
-    const metric = TREND_METRICS.find((entry) => entry.key === "preference_formed")!;
+    const status = CONCEPTS.preference_formed.status;
     const clearAndChosen = row({
       values: [
         value("requirement_clarity_end", "high"),
@@ -187,21 +188,17 @@ describe("a trend label describes its own predicate", () => {
         value("final_preferred_product", "Acer Swift"),
       ],
     });
-    expect(metric.eligible!(clearAndChosen)).toBe(true);
-    expect(metric.matched(clearAndChosen)).toBe(true);
+    expect(status(clearAndChosen)).toBe("yes");
     // Excluded from the denominator rather than counted as a miss.
-    expect(metric.eligible!(unclearButChosen)).toBe(false);
+    expect(status(unclearButChosen)).toBe("unsupported");
   });
 
-  it("keeps an unreadable finance field out of the finance line entirely", () => {
-    const metric = TREND_METRICS.find((entry) => entry.key === "finance_demand")!;
-    const raised = row({ values: [value("finance_requested", "EMI")] });
-    const notRaised = row({ values: [notStated("finance_requested")] });
-    const cannotTell = row({ values: [unreadable("finance_requested")] });
-    expect(metric.eligible!(raised)).toBe(true);
-    expect(metric.eligible!(notRaised)).toBe(true);
-    expect(metric.eligible!(cannotTell)).toBe(false);
-    expect(metric.matched(raised)).toBe(true);
+  it("keeps an unreadable finance field out of the finance rate entirely", () => {
+    const status = CONCEPTS.finance_demand.status;
+    expect(status(row({ values: [value("finance_requested", "EMI")] }))).toBe("yes");
+    expect(status(row({ values: [notStated("finance_requested")] }))).toBe("no");
+    // Unusable is neither: it lowers coverage, never the rate.
+    expect(status(row({ values: [unreadable("finance_requested")] }))).toBe("unusable");
   });
 
   it("leaves a period with too few interactions as a gap rather than a zero", () => {

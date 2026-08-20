@@ -93,7 +93,11 @@ export type IntelligenceCoverage = {
   analysedInteractions: number;
   usableInteractions: number;
   notUsableInteractions: number;
+  /** Established outcome over all usable interactions, never over field support. */
   outcomeKnown: Measure;
+  /** Secondary metadata: how many usable interactions carry the field at all. */
+  outcomeFieldAvailable: number;
+  /** Fully linked over the interactions where evidence was required at all. */
   evidenceReady: Measure;
   /** The conversations that survived to the usable population, in order. */
   usableConversationIds: string[];
@@ -246,45 +250,49 @@ export function computeCoverage(input: CoverageInput): IntelligenceCoverage {
     referencesByGroup.set(reference.evidenceGroupId, list);
   }
 
-  let outcomeEligible = 0;
   let outcomeAffected = 0;
-  let evidenceEligible = 0;
+  let outcomeFieldAvailable = 0;
+  let evidenceApplicable = 0;
   let evidenceAffected = 0;
 
   for (const { candidate } of usable) {
     const all = valuesByRecord.get(candidate.id) ?? [];
     const observed = observedValues(candidate.id);
 
-    // 5.12 — eligible means the field is on the record at all, however it was
-    // answered. Unknown never becomes no-sale.
+    // Outcome known is a question about the whole usable population, not about
+    // the interactions that happened to carry the field. Dividing by field
+    // support let the tile read 100% while the outcome was actually unknown for
+    // most of the floor — the most flattering possible reading of a gap.
     if (all.some((value) => value.fieldKey === "confirmed_business_outcome")) {
-      outcomeEligible += 1;
-      const outcome = observed.find(
-        (value) => value.fieldKey === "confirmed_business_outcome",
-      )?.valueText;
-      // Exactly these two. Anything else — including a value we cannot read —
-      // leaves the outcome unknown, and unknown never becomes a no-sale.
-      if (outcome === "sale" || outcome === "no_sale") outcomeAffected += 1;
+      outcomeFieldAvailable += 1;
     }
+    const outcome = observed.find(
+      (value) => value.fieldKey === "confirmed_business_outcome",
+    )?.valueText;
+    // Exactly these two. Anything else — absent, unreadable, unsupported —
+    // leaves the outcome unknown, and unknown never becomes a no-sale.
+    if (outcome === "sale" || outcome === "no_sale") outcomeAffected += 1;
 
-    // 5.13 — an interaction is evidence ready when at least one fact that is
-    // required to cite something actually cites something from the current
-    // transcription run. Evidence from a superseded run does not count: the
-    // segment ids it points at belong to a transcript this record was not
-    // built from.
+    // Every observed fact that is required to cite something must cite the
+    // current transcript. "At least one" let an interaction with nine
+    // unevidenced claims and one evidenced one count as evidence ready.
+    // Evidence from a superseded run never counts: the segment ids it points at
+    // belong to a transcript this record was not built from.
     const requiresEvidence = observed.filter(
       (value) => enabled.get(value.fieldKey)?.requiresEvidence === true,
     );
+    // No such fact means the question does not apply, and an interaction it
+    // does not apply to must not drag the rate down.
     if (requiresEvidence.length > 0) {
-      evidenceEligible += 1;
-      const linked = requiresEvidence.some(
+      evidenceApplicable += 1;
+      const allLinked = requiresEvidence.every(
         (value) =>
           value.evidenceGroupId !== null &&
           (referencesByGroup.get(value.evidenceGroupId) ?? []).some(
             (reference) => reference.transcriptionRunId === candidate.sourceTranscriptionRunId,
           ),
       );
-      if (linked) evidenceAffected += 1;
+      if (allLinked) evidenceAffected += 1;
     }
   }
 
@@ -301,8 +309,9 @@ export function computeCoverage(input: CoverageInput): IntelligenceCoverage {
     analysedInteractions: analysed.length,
     usableInteractions: usable.length,
     notUsableInteractions: analysed.length - usable.length,
-    outcomeKnown: measure(outcomeAffected, usable.length, outcomeEligible),
-    evidenceReady: measure(evidenceAffected, usable.length, evidenceEligible),
+    outcomeKnown: measure(outcomeAffected, usable.length, usable.length),
+    outcomeFieldAvailable,
+    evidenceReady: measure(evidenceAffected, evidenceApplicable, evidenceApplicable),
     usableConversationIds: usable.map(({ conversation }) => conversation.id),
     currentRecordIdByConversation: new Map(
       usable.map(({ conversation, candidate }) => [conversation.id, candidate.id]),

@@ -46,6 +46,8 @@ export default async function FrontlineIntelligencePage({ searchParams }: PagePr
     languages,
     storeCount,
     directoryError,
+    storeUnavailable,
+    representativeUnnamed,
     selectedStoreName,
   } = page;
   const rows = current.rows;
@@ -97,6 +99,8 @@ export default async function FrontlineIntelligencePage({ searchParams }: PagePr
         storeCount={storeCount}
         coverage={current.coverage}
         directoryError={directoryError}
+        storeUnavailable={storeUnavailable}
+        representativeUnnamed={representativeUnnamed}
         carry={carry}
       />
       <FrontlineIntelligenceView

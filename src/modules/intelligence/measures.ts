@@ -1,11 +1,12 @@
 import {
-  firstAt,
-  isSupported,
-  statedRows,
-  statedText,
-  type Applicable,
-  type Presence,
-} from "@/modules/intelligence/effective";
+  CONCEPTS,
+  closeAfterCommitmentStatus,
+  conceptMeasure,
+  conceptNumerator,
+  type ConceptKey,
+} from "@/modules/intelligence/concepts";
+import { isSupported, presenceOf, statedRows, statedText } from "@/modules/intelligence/effective";
+import { incidence } from "@/modules/intelligence/field-status";
 import { measure, type Measure } from "@/modules/intelligence/guardrails";
 import type { PopulationRow } from "@/modules/intelligence/population";
 
@@ -27,182 +28,69 @@ import type { PopulationRow } from "@/modules/intelligence/population";
 
 const HIGH_INTENT = new Set(["specific_product", "ready_to_buy"]);
 
-/**
- * A presence-shaped field: yes, no, or we cannot tell.
- *
- * `eligible` is every interaction the field was asked of. `observed` is those
- * we can actually read either way. An interaction whose audio does not settle
- * the question is eligible and unobserved — it is not a no, and counting it as
- * one makes every rate look worse the noisier the recording was.
- */
-function presenceMeasure(
-  rows: readonly PopulationRow[],
-  read: (row: PopulationRow) => Presence,
-): Measure {
-  const eligible = rows.filter((row) => read(row) !== "unsupported");
-  const observed = eligible.filter((row) => read(row) === "yes" || read(row) === "no");
-  return measure(
-    observed.filter((row) => read(row) === "yes").length,
-    eligible.length,
-    observed.length,
-  );
-}
+// ---- Concept-backed measures ----------------------------------------------
+//
+// Each of these is a one-line delegation on purpose. The definition lives in
+// `concepts.ts`; if a page wants "clarity improved" it gets the same status
+// function the trend bins and the drill-down use, so the three cannot drift.
 
-function presenceNumerator(
-  rows: readonly PopulationRow[],
-  read: (row: PopulationRow) => Presence,
-): PopulationRow[] {
-  return rows.filter((row) => read(row) === "yes");
-}
+const forConcept =
+  (key: ConceptKey) =>
+  (rows: readonly PopulationRow[]): Measure =>
+    conceptMeasure(key, rows);
 
-/**
- * An applicability field: yes, no, or it did not apply.
- *
- * `not_applicable` stays in `eligible` and leaves `observed`. A demo that made
- * no sense for the product is not a demo the representative failed to give, and
- * counting it as one turns a metric a manager would act on into a number they
- * learn to ignore.
- */
-function applicableMeasure(
-  rows: readonly PopulationRow[],
-  read: (row: PopulationRow) => Applicable,
-): Measure {
-  const eligible = rows.filter((row) => read(row) !== "unsupported");
-  const observed = eligible.filter((row) => read(row) === "yes" || read(row) === "no");
-  return measure(
-    observed.filter((row) => read(row) === "yes").length,
-    eligible.length,
-    observed.length,
-  );
-}
+const rowsForConcept =
+  (key: ConceptKey) =>
+  (rows: readonly PopulationRow[]): PopulationRow[] =>
+    conceptNumerator(key, rows);
 
-/** A field-presence rate expressed against the interactions that carry the field. */
-function fieldMeasure(
-  rows: readonly PopulationRow[],
-  fieldKey: string,
-  matched: (row: PopulationRow) => boolean = (row) => statedText(row.values, fieldKey).length > 0,
-): Measure {
-  const eligible = rows.filter((row) => isSupported(row.values, fieldKey));
-  return measure(eligible.filter(matched).length, eligible.length, eligible.length);
-}
+export const arrivedDecided = forConcept("high_intent_arrivals");
+export const arrivedDecidedRows = rowsForConcept("high_intent_arrivals");
 
-// ---- Customer demand -------------------------------------------------------
+export const financeDemand = forConcept("finance_demand");
+export const financeDemandRows = rowsForConcept("finance_demand");
 
-export function arrivedDecided(rows: readonly PopulationRow[]): Measure {
-  const eligible = rows.length;
-  const observed = rows.filter((row) => row.arrivalIntent !== null);
-  return measure(
-    observed.filter((row) => HIGH_INTENT.has(row.arrivalIntent!)).length,
-    eligible,
-    observed.length,
-  );
-}
+export const competitorMentionIncidence = forConcept("competitor_mentions");
+export const competitorMentionRows = rowsForConcept("competitor_mentions");
 
-export const arrivedDecidedRows = (rows: readonly PopulationRow[]): PopulationRow[] =>
-  rows.filter((row) => row.arrivalIntent !== null && HIGH_INTENT.has(row.arrivalIntent));
+export const clarityImproved = forConcept("clarity_improved");
+export const clarityImprovedRows = rowsForConcept("clarity_improved");
 
-/**
- * How often finance came up, exactly as specified.
- *
- * eligible = interactions where the field was asked · observed = interactions
- * where it can be read either way · affected = interactions where finance was
- * raised. An interaction analysed before the field existed carries no row and
- * never becomes a false.
- */
-export const financeDemand = (rows: readonly PopulationRow[]): Measure =>
-  presenceMeasure(rows, (row) => row.financeRequested);
+export const preferenceFormed = forConcept("preference_formed");
+export const preferenceFormedRows = rowsForConcept("preference_formed");
 
-export const financeDemandRows = (rows: readonly PopulationRow[]): PopulationRow[] =>
-  presenceNumerator(rows, (row) => row.financeRequested);
+export const objectionIncidence = forConcept("objection_incidence");
+export const objectionRows = rowsForConcept("objection_incidence");
 
-/**
- * How often a customer named a competitor.
- *
- * Support-aware, like everything else: a record that never carried the field
- * has not told us a competitor went unmentioned. Commercial context, never a
- * performance judgement — a customer shopping around is information about the
- * market, not about the representative.
- */
-export const competitorMentionIncidence = (rows: readonly PopulationRow[]): Measure =>
-  fieldMeasure(rows, "competitor_named");
+export const recommendationIncidence = forConcept("recommendation_incidence");
+export const recommendationRows = rowsForConcept("recommendation_incidence");
 
-export const competitorMentionRows = (rows: readonly PopulationRow[]): PopulationRow[] =>
-  rows.filter((row) => statedText(row.values, "competitor_named").length > 0);
+export const outcomeEstablished = forConcept("outcome_established");
+export const outcomeEstablishedRows = rowsForConcept("outcome_established");
 
-/**
- * Whether the customer left having settled on a specific product.
- *
- * Eligible only where the requirement was actually clear by the close: asking
- * whether somebody chose a product when they never worked out what they needed
- * measures the wrong thing, and it makes the rate look worse in exactly the
- * conversations where the earlier stage was the problem.
- */
-export function preferenceFormed(rows: readonly PopulationRow[]): Measure {
-  const eligible = rows.filter(
-    (row) =>
-      row.clarityEnd !== null &&
-      row.clarityEnd >= 2 &&
-      isSupported(row.values, "final_preferred_product"),
-  );
-  return measure(
-    eligible.filter((row) => statedText(row.values, "final_preferred_product").length > 0).length,
-    eligible.length,
-    eligible.length,
-  );
-}
+export const demoApplicableRate = forConcept("demo_where_applicable");
+export const demoRows = rowsForConcept("demo_where_applicable");
 
-export const preferenceFormedRows = (rows: readonly PopulationRow[]): PopulationRow[] =>
-  rows.filter(
-    (row) =>
-      row.clarityEnd !== null &&
-      row.clarityEnd >= 2 &&
-      statedText(row.values, "final_preferred_product").length > 0,
-  );
+export const alternativeApplicableRate = forConcept("alternative_where_applicable");
+export const alternativeRows = rowsForConcept("alternative_where_applicable");
 
-/**
- * How often a customer raised an objection.
- *
- * Customer friction context. A high rate is not a bad store — it can be a
- * category where people ask hard questions — so this is never coloured as a
- * failure. What was done about them is Resolve's business, not this one's.
- */
-export const objectionIncidence = (rows: readonly PopulationRow[]): Measure =>
-  fieldMeasure(rows, "objections");
+export const crossSellIncidence = forConcept("cross_sell_incidence");
+export const crossSellRows = rowsForConcept("cross_sell_incidence");
 
-export const objectionRows = (rows: readonly PopulationRow[]): PopulationRow[] =>
-  rows.filter((row) => statedText(row.values, "objections").length > 0);
+export const upsellIncidence = forConcept("upsell_incidence");
+export const upsellRows = rowsForConcept("upsell_incidence");
 
-/**
- * Whether the conversation left the customer clearer than it found them.
- *
- * Only interactions carrying both an opening and a closing clarity can answer
- * this; the rest are eligible and unobserved.
- */
-export function clarityImproved(rows: readonly PopulationRow[]): Measure {
-  const observed = rows.filter((row) => row.clarityStart !== null && row.clarityEnd !== null);
-  return measure(
-    observed.filter((row) => row.clarityEnd! > row.clarityStart!).length,
-    rows.length,
-    observed.length,
-  );
-}
+export const closeAttemptIncidence = forConcept("close_attempt_incidence");
+export const closeAttemptRows = rowsForConcept("close_attempt_incidence");
 
-export const clarityImprovedRows = (rows: readonly PopulationRow[]): PopulationRow[] =>
-  rows.filter(
-    (row) =>
-      row.clarityStart !== null && row.clarityEnd !== null && row.clarityEnd > row.clarityStart,
-  );
+export const closeAfterCommitment = forConcept("close_after_commitment");
+export const closeAfterCommitmentRows = rowsForConcept("close_after_commitment");
 
-export function outcomeEstablished(rows: readonly PopulationRow[]): Measure {
-  return measure(
-    rows.filter((row) => row.outcome.business !== "unknown").length,
-    rows.length,
-    rows.length,
-  );
-}
+export const nextActionCapture = forConcept("next_action_capture");
+export const nextActionRows = rowsForConcept("next_action_capture");
 
-export const outcomeEstablishedRows = (rows: readonly PopulationRow[]): PopulationRow[] =>
-  rows.filter((row) => row.outcome.business !== "unknown");
+export const commercialOfferIncidence = forConcept("commercial_offer_incidence");
+export const commercialOfferRows = rowsForConcept("commercial_offer_incidence");
 
 /** Sales among interactions whose outcome we actually know. Never over everything. */
 export function saleAmongEstablished(rows: readonly PopulationRow[]): Measure {
@@ -217,22 +105,8 @@ export function saleAmongEstablished(rows: readonly PopulationRow[]): Measure {
 /** Of confirmed no-sales, how many carry an observed reason. */
 export function confirmedNoSaleReasonCoverage(rows: readonly PopulationRow[]): Measure {
   const confirmed = rows.filter((row) => row.outcome.business === "no_sale");
-  return measure(
-    confirmed.filter((row) => statedText(row.values, "primary_non_conversion_reason").length > 0)
-      .length,
-    confirmed.length,
-    confirmed.length,
-  );
+  return incidence(confirmed, (row) => presenceOf(row.values, "primary_non_conversion_reason"));
 }
-
-// ---- Frontline execution ---------------------------------------------------
-
-/** Eligible is the records that carry the field, and only those. */
-export const recommendationIncidence = (rows: readonly PopulationRow[]): Measure =>
-  fieldMeasure(rows, "products_recommended", (row) => row.recommendedCount > 0);
-
-export const recommendationRows = (rows: readonly PopulationRow[]): PopulationRow[] =>
-  rows.filter((row) => row.recommendedCount > 0);
 
 /**
  * Of the recommendations that were made, how many carry a recorded reason.
@@ -242,27 +116,11 @@ export const recommendationRows = (rows: readonly PopulationRow[]): PopulationRo
  * that reason and the page says so.
  */
 export function recommendationRationaleCoverage(rows: readonly PopulationRow[]): Measure {
-  const eligible = rows.filter(
-    (row) => row.recommendedCount > 0 && isSupported(row.values, "recommendation_reasons"),
+  const recommending = rows.filter(
+    (row) => CONCEPTS.recommendation_incidence.status(row) === "yes",
   );
-  return measure(
-    eligible.filter((row) => statedText(row.values, "recommendation_reasons").length > 0).length,
-    eligible.length,
-    eligible.length,
-  );
+  return incidence(recommending, (row) => presenceOf(row.values, "recommendation_reasons"));
 }
-
-export const demoApplicableRate = (rows: readonly PopulationRow[]): Measure =>
-  applicableMeasure(rows, (row) => row.demo);
-
-export const demoRows = (rows: readonly PopulationRow[]): PopulationRow[] =>
-  rows.filter((row) => row.demo === "yes");
-
-export const alternativeApplicableRate = (rows: readonly PopulationRow[]): Measure =>
-  applicableMeasure(rows, (row) => row.alternative);
-
-export const alternativeRows = (rows: readonly PopulationRow[]): PopulationRow[] =>
-  rows.filter((row) => row.alternative === "yes");
 
 const OBJECTION_STATES = new Set(["full", "partial", "none"]);
 
@@ -360,66 +218,6 @@ export function questionResponseCoverage(rows: readonly PopulationRow[]): Measur
     asked.length,
   );
 }
-
-export const commercialOfferIncidence = (rows: readonly PopulationRow[]): Measure =>
-  fieldMeasure(rows, "commercial_offer_made");
-
-export const commercialOfferRows = (rows: readonly PopulationRow[]): PopulationRow[] =>
-  rows.filter((row) => statedText(row.values, "commercial_offer_made").length > 0);
-
-export const crossSellIncidence = (rows: readonly PopulationRow[]): Measure =>
-  presenceMeasure(rows, (row) => row.crossSell);
-
-export const crossSellRows = (rows: readonly PopulationRow[]): PopulationRow[] =>
-  presenceNumerator(rows, (row) => row.crossSell);
-
-export const upsellIncidence = (rows: readonly PopulationRow[]): Measure =>
-  presenceMeasure(rows, (row) => row.upsell);
-
-export const upsellRows = (rows: readonly PopulationRow[]): PopulationRow[] =>
-  presenceNumerator(rows, (row) => row.upsell);
-
-export const closeAttemptIncidence = (rows: readonly PopulationRow[]): Measure =>
-  fieldMeasure(rows, "close_attempts");
-
-export const closeAttemptRows = (rows: readonly PopulationRow[]): PopulationRow[] =>
-  rows.filter((row) => statedText(row.values, "close_attempts").length > 0);
-
-/**
- * Whether a close followed the customer's buying signal.
- *
- * Ordering, not presence. A close attempt made before the customer signalled
- * anything is a representative working through a script; one made after is a
- * representative responding to the person in front of them, and treating the
- * two as the same event would flatter exactly the behaviour this metric exists
- * to find. Interactions whose commitment carries no timing cannot be judged
- * either way and leave the denominator.
- */
-export const closedAfterCommitment = (row: PopulationRow): boolean => {
-  const signalled = firstAt(row.values, "customer_commitment_signals");
-  if (signalled === null) return false;
-  const closed = firstAt(row.values, "close_attempts");
-  return closed !== null && closed >= signalled;
-};
-
-export function closeAfterCommitment(rows: readonly PopulationRow[]): Measure {
-  const observed = rows.filter(
-    (row) => firstAt(row.values, "customer_commitment_signals") !== null,
-  );
-  const eligible = rows.filter(
-    (row) => statedText(row.values, "customer_commitment_signals").length > 0,
-  );
-  return measure(observed.filter(closedAfterCommitment).length, eligible.length, observed.length);
-}
-
-export const closeAfterCommitmentRows = (rows: readonly PopulationRow[]): PopulationRow[] =>
-  rows.filter(closedAfterCommitment);
-
-export const nextActionCapture = (rows: readonly PopulationRow[]): Measure =>
-  fieldMeasure(rows, "next_action");
-
-export const nextActionRows = (rows: readonly PopulationRow[]): PopulationRow[] =>
-  rows.filter((row) => statedText(row.values, "next_action").length > 0);
 
 /**
  * The canonical measures a headline can be built from, keyed for the URL.

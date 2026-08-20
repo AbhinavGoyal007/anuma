@@ -1,6 +1,4 @@
-import { firstAt } from "@/modules/intelligence/effective";
-import { DEFAULT_GUARDRAILS, type Guardrails } from "@/modules/intelligence/guardrails";
-import { closedAfterCommitment } from "@/modules/intelligence/measures";
+import { CONCEPTS, conceptMeasure, type ConceptKey } from "@/modules/intelligence/concepts";
 import type { PopulationRow } from "@/modules/intelligence/population";
 
 /**
@@ -41,13 +39,18 @@ export const DEFAULT_TREND: TrendGuardrails = {
  * Order is the tie-break when two signals move by the same amount, which keeps
  * the default selection stable between refreshes.
  */
+/**
+ * A tracked signal. Its meaning lives in the concept registry, not here.
+ *
+ * Trend used to carry its own copy of each predicate, which is how the same
+ * named concept ends up with two slightly different denominators and one page
+ * quietly disagrees with another. A trend bin is now the identical status
+ * function the headline tile and the drill-down use, aggregated over a period.
+ */
 export type TrendMetric = {
-  key: string;
+  key: ConceptKey;
   label: string;
-  /** Null for a count; otherwise the interactions that could contribute. */
-  eligible: ((row: PopulationRow) => boolean) | null;
-  matched: (row: PopulationRow) => boolean;
-  format: "percent" | "count";
+  format: "percent";
 };
 
 /**
@@ -59,70 +62,20 @@ export type TrendMetric = {
  * for. The reader chooses; if their choice cannot carry a line, the slot says
  * so rather than substituting a metric they did not ask about.
  */
-export const TREND_METRICS: readonly TrendMetric[] = [
-  {
-    key: "high_intent_arrivals",
-    label: "High-intent arrivals",
-    eligible: (row) => row.arrivalIntent !== null,
-    matched: (row) =>
-      row.arrivalIntent === "ready_to_buy" || row.arrivalIntent === "specific_product",
-    format: "percent",
-  },
-  {
-    key: "clarity_improved",
-    label: "Clarity improved",
-    eligible: (row) => row.clarityStart !== null && row.clarityEnd !== null,
-    matched: (row) => row.clarityEnd! > row.clarityStart!,
-    format: "percent",
-  },
-  {
-    key: "preference_formed",
-    label: "Preference formed",
-    // The same eligibility as the canonical measure: asking whether somebody
-    // chose a product when they never worked out what they needed measures the
-    // wrong thing.
-    eligible: (row) =>
-      row.clarityEnd !== null &&
-      row.clarityEnd >= 2 &&
-      row.values.some((value) => value.fieldKey === "final_preferred_product"),
-    matched: (row) =>
-      row.values.some(
-        (value) =>
-          value.fieldKey === "final_preferred_product" &&
-          !value.abstention &&
-          (value.valueText ?? "").trim().length > 0,
-      ),
-    format: "percent",
-  },
-  {
-    key: "close_after_commitment",
-    label: "Close after commitment",
-    eligible: (row) => firstAt(row.values, "customer_commitment_signals") !== null,
-    matched: closedAfterCommitment,
-    format: "percent",
-  },
-  {
-    key: "competitor_mentions",
-    label: "Competitor mentions",
-    eligible: (row) => row.values.some((value) => value.fieldKey === "competitor_named"),
-    matched: (row) =>
-      row.values.some(
-        (value) =>
-          value.fieldKey === "competitor_named" &&
-          !value.abstention &&
-          (value.valueText ?? "").trim().length > 0,
-      ),
-    format: "percent",
-  },
-  {
-    key: "finance_demand",
-    label: "Finance demand",
-    // Only interactions we can read either way. An unreadable one is not a no.
-    eligible: (row) => row.financeRequested === "yes" || row.financeRequested === "no",
-    matched: (row) => row.financeRequested === "yes",
-    format: "percent",
-  },
+export const TREND_CONCEPTS: readonly ConceptKey[] = [
+  "high_intent_arrivals",
+  "clarity_improved",
+  "preference_formed",
+  "close_after_commitment",
+  "competitor_mentions",
+  "finance_demand",
 ];
+
+export const TREND_METRICS: readonly TrendMetric[] = TREND_CONCEPTS.map((key) => ({
+  key,
+  label: CONCEPTS[key].label,
+  format: "percent",
+}));
 
 export type TrendPoint = {
   /** Start of the bin, ISO date. */
@@ -200,43 +153,34 @@ export function buildSeries(
 
   const points: TrendPoint[] = binsFor(days, now).map((bin) => {
     const inBin = grouped.get(bin.from) ?? [];
-    if (metric.format === "count") {
-      return {
-        ...bin,
-        value: inBin.length === 0 ? null : inBin.length,
-        matched: inBin.length,
-        eligible: inBin.length,
-        thin: false,
-      };
-    }
-    const eligible = inBin.filter(metric.eligible!);
-    const matched = eligible.filter(metric.matched);
-    const plottable = eligible.length >= trend.minimumPerBin;
+    // The identical status function the headline uses, aggregated over a bin.
+    const binMeasure = conceptMeasure(metric.key, inBin);
+    const observed = binMeasure.observed;
+    const matched = binMeasure.affected ?? 0;
+    const plottable = observed >= trend.minimumPerBin;
     return {
       ...bin,
       // Below the bar the bin is a gap, not a point. A rate from three
       // conversations is 0 or 100 and joining it to its neighbours draws a
       // slope out of nothing.
-      value: plottable ? matched.length / eligible.length : null,
-      matched: matched.length,
-      eligible: eligible.length,
-      thin: eligible.length > 0 && !plottable,
+      value: plottable ? binMeasure.value : null,
+      matched,
+      eligible: observed,
+      thin: observed > 0 && !plottable,
     };
   });
 
   const plotted = points.filter((point) => point.value !== null);
   let movement: TrendSeries["movement"] = null;
-  if (metric.format === "percent") {
-    for (let index = 1; index < plotted.length; index += 1) {
-      const delta = (plotted[index]!.value! - plotted[index - 1]!.value!) * 100;
-      if (Math.abs(delta) < trend.materialPoints) continue;
-      if (movement && Math.abs(delta) <= Math.abs(movement.points)) continue;
-      movement = {
-        fromLabel: plotted[index - 1]!.label,
-        toLabel: plotted[index]!.label,
-        points: delta,
-      };
-    }
+  for (let index = 1; index < plotted.length; index += 1) {
+    const delta = (plotted[index]!.value! - plotted[index - 1]!.value!) * 100;
+    if (Math.abs(delta) < trend.materialPoints) continue;
+    if (movement && Math.abs(delta) <= Math.abs(movement.points)) continue;
+    movement = {
+      fromLabel: plotted[index - 1]!.label,
+      toLabel: plotted[index]!.label,
+      points: delta,
+    };
   }
 
   return { metric, points, plotted: plotted.length, movement };

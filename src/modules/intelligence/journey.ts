@@ -4,7 +4,8 @@ import {
   type RankedResult,
   type RankedShare,
 } from "@/modules/intelligence/demand";
-import { isSupported, statedText } from "@/modules/intelligence/effective";
+import { CONCEPTS } from "@/modules/intelligence/concepts";
+import { isSupported, presenceOf, statedText } from "@/modules/intelligence/effective";
 import type { ActionCohort } from "@/modules/intelligence/frontline";
 import { measure, type Measure } from "@/modules/intelligence/guardrails";
 import {
@@ -297,6 +298,8 @@ export function journeyLeakageCohorts(cohort: readonly PopulationRow[]): ActionC
     });
   };
 
+  // Clarity is a graded reading rather than a presence, so "still unclear" is
+  // already a definitive answer where the field was readable at all.
   const clarityMeasurable = cohort.filter((row) => row.clarityEnd !== null);
   push(
     "clarity_not_reached",
@@ -307,29 +310,36 @@ export function journeyLeakageCohorts(cohort: readonly PopulationRow[]): ActionC
     clarityMeasurable.filter((row) => row.clarityEnd! <= 1),
   );
 
-  const preferenceMeasurable = cohort.filter(
-    (row) =>
-      row.clarityEnd !== null && row.clarityEnd >= 2 && supported(row, "final_preferred_product"),
-  );
+  // Clear requirement, and a preferred product definitively absent. An
+  // unreadable preference is a data-quality question, not a decision that
+  // stopped.
+  const preferenceDecidable = cohort.filter((row) => {
+    const status = CONCEPTS.preference_formed.status(row);
+    return status === "yes" || status === "no";
+  });
   push(
     "no_preference_formed",
     "had a clear requirement with no preferred product observed",
     "Requirement was clear at the close and no preferred product was recorded",
     ["specification_requirements", "products_considered"],
-    preferenceMeasurable.length,
-    preferenceMeasurable.filter((row) => !has(row, "final_preferred_product")),
+    preferenceDecidable.length,
+    preferenceDecidable.filter((row) => CONCEPTS.preference_formed.status(row) === "no"),
   );
 
-  const commitmentMeasurable = cohort.filter(
-    (row) => has(row, "final_preferred_product") && supported(row, "customer_commitment_signals"),
-  );
+  const commitmentDecidable = cohort.filter((row) => {
+    if (!has(row, "final_preferred_product")) return false;
+    const status = presenceOf(row.values, "customer_commitment_signals");
+    return status === "yes" || status === "no";
+  });
   push(
     "no_commitment_signal",
     "settled on a product with no commitment signal observed",
     "A preferred product was recorded and no commitment signal was observed",
     ["final_preferred_product", "objections"],
-    commitmentMeasurable.length,
-    commitmentMeasurable.filter((row) => !has(row, "customer_commitment_signals")),
+    commitmentDecidable.length,
+    commitmentDecidable.filter(
+      (row) => presenceOf(row.values, "customer_commitment_signals") === "no",
+    ),
   );
 
   // Split deliberately. "Signalled and did not buy" and "signalled and we never

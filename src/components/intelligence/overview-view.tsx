@@ -131,6 +131,7 @@ const BREAKDOWN_COLUMNS = [
 export function OverviewView({
   coverage,
   coverageHref,
+  analyticalFiltersActive,
   signals,
   actions,
   actionHref,
@@ -140,7 +141,7 @@ export function OverviewView({
   trendMetrics,
   trendMetricKey,
   trendHref,
-  breakdown,
+  breakdowns,
   breakdownDimension,
   breakdownHref,
   breakdownRowHref,
@@ -149,6 +150,7 @@ export function OverviewView({
 }: {
   coverage: IntelligenceCoverage;
   coverageHref: string;
+  analyticalFiltersActive: boolean;
   signals: OverviewSignal[];
   actions: (ActionCohort | null)[];
   actionHref: (cohortKey: string) => string;
@@ -159,19 +161,21 @@ export function OverviewView({
   trendMetrics: readonly TrendMetric[];
   trendMetricKey: string;
   trendHref: (key: string) => string;
-  breakdown: BreakdownRow[];
+  /** Both dimensions, computed from the same loaded rows. */
+  breakdowns: Record<BreakdownDimension, BreakdownRow[]>;
   breakdownDimension: BreakdownDimension;
   breakdownHref: (dimension: BreakdownDimension) => string;
-  breakdownRowHref: (key: string) => string;
-  breakdownCellHref: (key: string, measureKey: string) => string;
+  breakdownRowHref: (dimension: BreakdownDimension, key: string) => string;
+  breakdownCellHref: (dimension: BreakdownDimension, key: string, measureKey: string) => string;
   usable: number;
 }) {
-  const breakdownState: SlotState =
-    usable === 0 ? "NO_OBSERVATIONS" : breakdown.length === 0 ? "NOT_SUPPORTED" : "POPULATED";
-
   return (
     <div className="ip-grid12">
-      <CoverageRail coverage={coverage} drawerHref={coverageHref} />
+      <CoverageRail
+        coverage={coverage}
+        drawerHref={coverageHref}
+        analyticalFiltersActive={analyticalFiltersActive}
+      />
 
       <section className="ip-panel ip-col-8" aria-labelledby="ov-signals">
         <div className="ip-section-title">
@@ -299,44 +303,56 @@ export function OverviewView({
               label="Breakdown dimension"
             />
           </div>
-          {breakdownState === "POPULATED" ? (
-            <div className="ip-table-scroll">
-              <table className="ip-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Scope</th>
-                    <th scope="col">n</th>
-                    {BREAKDOWN_COLUMNS.map((column) => (
-                      <th key={column.key} scope="col">
-                        {column.label}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {breakdown.map((row) => (
-                    <tr key={row.key}>
-                      <th scope="row">
-                        <Link className="ip-link" href={breakdownRowHref(row.key)}>
-                          {row.label}
-                        </Link>
-                      </th>
-                      <td>{row.size}</td>
-                      {BREAKDOWN_COLUMNS.map((column) => (
-                        <Cell
-                          key={column.key}
-                          measure={row[column.key]}
-                          href={breakdownCellHref(row.key, column.cohort)}
-                        />
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <DataState state={breakdownState} />
-          )}
+          {/* Both tables are rendered. LocalSwitch only changes which is
+              visible — a tab that updated the URL and left the same table on
+              screen was a control that did nothing. */}
+          {BREAKDOWN_TABS.map((tab) => {
+            const rows = breakdowns[tab.key];
+            const state: SlotState =
+              usable === 0 ? "NO_OBSERVATIONS" : rows.length === 0 ? "NOT_SUPPORTED" : "POPULATED";
+            return (
+              <div data-local-panel={tab.key} hidden={tab.key !== breakdownDimension} key={tab.key}>
+                {state === "POPULATED" ? (
+                  <div className="ip-table-scroll">
+                    <table className="ip-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Scope</th>
+                          <th scope="col">n</th>
+                          {BREAKDOWN_COLUMNS.map((column) => (
+                            <th key={column.key} scope="col">
+                              {column.label}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {rows.map((row) => (
+                          <tr key={row.key}>
+                            <th scope="row">
+                              <Link className="ip-link" href={breakdownRowHref(tab.key, row.key)}>
+                                {row.label}
+                              </Link>
+                            </th>
+                            <td>{row.size}</td>
+                            {BREAKDOWN_COLUMNS.map((column) => (
+                              <Cell
+                                key={column.key}
+                                measure={row[column.key]}
+                                href={breakdownCellHref(tab.key, row.key, column.cohort)}
+                              />
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <DataState state={state} />
+                )}
+              </div>
+            );
+          })}
         </LocalSwitch>
       </section>
     </div>

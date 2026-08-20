@@ -232,7 +232,12 @@ describe("intent, friction and outcome", () => {
           value("primary_non_conversion_reason", "stock"),
         ],
       }),
-      row({ values: [value("confirmed_business_outcome", "no_sale")] }),
+      row({
+        values: [
+          value("confirmed_business_outcome", "no_sale"),
+          notStated("primary_non_conversion_reason"),
+        ],
+      }),
     ]);
     expect(reasons.confirmedNoSales).toBe(2);
     expect(reasons.classified).toBe(1);

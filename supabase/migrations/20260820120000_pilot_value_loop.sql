@@ -36,7 +36,6 @@ create table if not exists public.product_usage_events (
       'breakdown_dimension_selected',
       'demand_value_reviewed',
       'journey_cohort_selected',
-      'journey_stage_selected',
       'journey_diagnosis_opened',
       'frontline_stage_selected',
       'evidence_drawer_opened',

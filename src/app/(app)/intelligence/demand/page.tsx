@@ -191,6 +191,8 @@ export default async function CustomerDemandPage({ searchParams }: PageProps) {
     storeCount,
     selectedStoreName,
     directoryError,
+    storeUnavailable,
+    representativeUnnamed,
   } = page;
   const rows = current.rows;
 
@@ -245,6 +247,8 @@ export default async function CustomerDemandPage({ searchParams }: PageProps) {
         storeCount={storeCount}
         coverage={current.coverage}
         directoryError={directoryError}
+        storeUnavailable={storeUnavailable}
+        representativeUnnamed={representativeUnnamed}
         carry={carry}
       />
       <DemandView

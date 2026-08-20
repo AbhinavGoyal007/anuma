@@ -41,8 +41,19 @@ export type IntelligencePageContext = {
   intents: string[];
   /** Languages actually observed in the authorized slice. */
   languages: string[];
+  /**
+   * True where an analytical-only filter is narrowing the metrics.
+   *
+   * Coverage still describes the capture scope, so the page says so rather than
+   * letting a reader assume the two counts describe the same interactions.
+   */
+  analyticalFiltersActive: boolean;
   selectedStoreName: string | null;
-  /** Distinct stores represented in the current, fully narrowed population. */
+  /** True where a store was asked for that the viewer may not see. */
+  storeUnavailable: boolean;
+  /** True where a salesperson is filtered but cannot safely be named. */
+  representativeUnnamed: boolean;
+  /** The selected scope: one store when one is chosen, otherwise the authorized count. */
   storeCount: number;
 };
 
@@ -107,9 +118,20 @@ export async function resolveIntelligencePage(
   ).map((item) => ({ id: item.id, name: item.name }));
 
   const selectedStore = stores.find((item) => item.id === filters.storeId) ?? null;
-  // An unauthorized or stale id is dropped rather than passed through, so a
-  // hand-edited URL narrows to nothing rather than widening to everything.
-  const scopedFilters: IntelligenceFilters = { ...filters, storeId: selectedStore?.id ?? null };
+  // Three distinct states, and only the first means "all stores":
+  //   no parameter at all;
+  //   a store the viewer may see;
+  //   a store that is stale, deleted or not theirs.
+  //
+  // The third used to become `storeId: null`, which showed the whole estate to
+  // somebody who had asked for one shop — a filter silently widening is the one
+  // failure that hands over data nobody requested. It now narrows to nothing
+  // and says so, and the unavailable id is never echoed back.
+  const storeUnavailable = filters.storeId !== null && selectedStore === null;
+  const scopedFilters: IntelligenceFilters = {
+    ...filters,
+    storeId: selectedStore?.id ?? filters.storeId,
+  };
 
   const load = (
     from: string,
@@ -121,7 +143,9 @@ export async function resolveIntelligencePage(
       organizationId: organization.id,
       from,
       to,
-      locationId: selectedStore?.id ?? null,
+      // An unavailable store still narrows the query — to itself, which returns
+      // nothing under row-level security. Passing null here is what widened.
+      locationId: selectedStore?.id ?? filters.storeId ?? null,
       purchaseCategory,
       representativeMembershipId,
     });
@@ -155,12 +179,17 @@ export async function resolveIntelligencePage(
   // still a valid membership id inside this organization, RLS still scopes the
   // read, and keeping it narrows the page rather than widening it. What is lost
   // is the ability to name the person, which the page says.
-  const selectedRep = directory.ok
-    ? (representatives.find((item) => item.id === scopedFilters.representativeMembershipId) ?? null)
-    : scopedFilters.representativeMembershipId
-      ? { id: scopedFilters.representativeMembershipId, name: "Selected salesperson" }
-      : null;
-  scopedFilters.representativeMembershipId = selectedRep?.id ?? null;
+  // A salesperson with no usable interactions is not an invalid salesperson,
+  // and a directory that failed to load is not permission to widen. The
+  // selection is kept either way; only the ability to name them is lost.
+  const requestedRep = scopedFilters.representativeMembershipId;
+  const namedRep = requestedRep
+    ? (representatives.find((item) => item.id === requestedRep) ?? null)
+    : null;
+  const selectedRep = requestedRep
+    ? (namedRep ?? { id: requestedRep, name: "Selected salesperson" })
+    : null;
+  const representativeUnnamed = requestedRep !== null && namedRep === null;
 
   // An authorized representative with no rows in the selected category stays
   // selected and returns nothing, which is the honest answer. Dropping them
@@ -189,8 +218,21 @@ export async function resolveIntelligencePage(
   // Interaction-level dimensions are applied after the read, to the same
   // population both periods are drawn from. A selection matching nothing stays
   // selected and returns zero rows rather than quietly widening.
+  //
+  // Coverage deliberately keeps the unnarrowed capture-scope figure. Category,
+  // arrival intent, outcome, closing state and language do not exist for an
+  // interaction that has not been analysed, so applying them backwards to
+  // Recorded or Transcribed would invent a classification for data that does
+  // not have one yet.
+  const analyticalFilters =
+    scopedFilters.category !== null ||
+    scopedFilters.intent !== null ||
+    scopedFilters.businessOutcome !== null ||
+    scopedFilters.decisionState !== null ||
+    scopedFilters.language !== null;
   const current: PopulationSummary = {
     ...currentAll,
+    coverage: base.coverage,
     rows: narrowByScope(currentAll.rows, scopedFilters),
   };
   const previous: PopulationSummary | null = previousAll
@@ -214,8 +256,14 @@ export async function resolveIntelligencePage(
       ...new Set(base.rows.flatMap((row) => (row.arrivalIntent ? [row.arrivalIntent] : []))),
     ].sort(),
     languages: observedLanguages(base.rows),
+    /** True where Coverage and the analytical numbers describe different sets. */
+    analyticalFiltersActive: analyticalFilters,
     selectedStoreName: selectedStore?.name ?? null,
-    storeCount: new Set(current.rows.flatMap((row) => (row.locationId ? [row.locationId] : [])))
-      .size,
+    storeUnavailable,
+    representativeUnnamed,
+    // The scope the reader chose, not the stores that happened to contain data.
+    // "0 usable interactions · 0 stores" told a manager their store had
+    // vanished; "0 usable interactions · 1 selected store" tells them the truth.
+    storeCount: filters.storeId !== null ? 1 : stores.length,
   };
 }

@@ -79,6 +79,7 @@ const EMPTY_COVERAGE = {
   usableInteractions: 0,
   notUsableInteractions: 0,
   outcomeKnown: measure(0, 0, 0),
+  outcomeFieldAvailable: 0,
   evidenceReady: measure(0, 0, 0),
   usableConversationIds: [] as string[],
   currentRecordIdByConversation: new Map<string, string>(),
@@ -155,6 +156,7 @@ function renderOverview(rows: PopulationRow[]) {
     <OverviewView
       coverage={EMPTY_COVERAGE}
       coverageHref="/intelligence/overview?drawer=coverage"
+      analyticalFiltersActive={false}
       signals={overviewSignals(rows, null)}
       actions={overviewPriorityActions(rows)}
       actionHref={(key) => `/intelligence/overview?drawer=${key}`}
@@ -164,15 +166,24 @@ function renderOverview(rows: PopulationRow[]) {
       trendMetrics={TREND_METRICS}
       trendMetricKey={TREND_METRICS[0]!.key}
       trendHref={(key) => `/intelligence/overview?signal=${key}`}
-      breakdown={overviewBreakdown(
-        rows,
-        (item) => item.locationId,
-        (key) => key,
-      )}
+      breakdowns={{
+        stores: overviewBreakdown(
+          rows,
+          (item) => item.locationId,
+          (key) => key,
+        ),
+        categories: overviewBreakdown(
+          rows,
+          (item) => item.purchaseCategory,
+          (key) => key,
+        ),
+      }}
       breakdownDimension="stores"
       breakdownHref={(dimension) => `/intelligence/overview?dimension=${dimension}`}
-      breakdownRowHref={(key) => `/intelligence/overview?store=${key}`}
-      breakdownCellHref={(key, metric) => `/intelligence/overview?store=${key}&drawer=${metric}`}
+      breakdownRowHref={(which, key) => `/intelligence/overview?${which}=${key}`}
+      breakdownCellHref={(which, key, metric) =>
+        `/intelligence/overview?${which}=${key}&drawer=${metric}`
+      }
       usable={rows.length}
     />,
   );
@@ -220,16 +231,21 @@ function renderJourney(rows: PopulationRow[]) {
         all: cohort.length,
       }}
       stages={journeyStages(cohort, leakage)}
-      selectedStage="entered"
-      stageHref={(key) => `/intelligence/journey?stage=${key}`}
       diagnosis={journeyDiagnosis(leakage)}
       lanes={interventions(cohort)}
       gaps={leakage}
-      breakdown={journeyBreakdown(
-        cohort,
-        (item) => item.locationId,
-        (key) => key,
-      )}
+      breakdowns={{
+        stores: journeyBreakdown(
+          cohort,
+          (item) => item.locationId,
+          (key) => key,
+        ),
+        categories: journeyBreakdown(
+          cohort,
+          (item) => item.purchaseCategory,
+          (key) => key,
+        ),
+      }}
       breakdownDimension="stores"
       breakdownHref={(next) => `/intelligence/journey?dimension=${next}`}
       outcomes={outcomeDistributions(cohort)}
@@ -297,7 +313,7 @@ describe("two materially different populations produce the same product", () => 
       "Analysed",
       "Usable",
       "Outcome known",
-      "Evidence ready",
+      "Evidence linked",
       "Recording hours",
       "High-intent arrivals",
       "Clarity improved",

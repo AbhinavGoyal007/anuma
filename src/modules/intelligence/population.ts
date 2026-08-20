@@ -204,6 +204,7 @@ const EMPTY_COVERAGE: IntelligenceCoverage = {
   usableInteractions: 0,
   notUsableInteractions: 0,
   outcomeKnown: measure(0, 0, 0),
+  outcomeFieldAvailable: 0,
   evidenceReady: measure(0, 0, 0),
   usableConversationIds: [],
   currentRecordIdByConversation: new Map(),
@@ -434,12 +435,10 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
     };
   }
 
-  // Read every analysed record in scope, then narrow by category in memory.
-  // Filtering in the query conflated two different absences: a conversation of
-  // another category looked identical to one whose analysis had not finished,
-  // so choosing a category inflated the "incomplete analysis" note. It also let
-  // the category selector be built from an already-category-filtered result,
-  // which collapsed it to the one category the reader had picked.
+  // Every usable record's projection, unnarrowed. Category is applied only
+  // after the effective rows exist: filtering on `interaction_metrics` first
+  // meant a category a manager had corrected was invisible to the filter, and
+  // the selector was built from the stale projection too.
   const { data: metrics, error: metricsError } = await supabase
     .from("interaction_metrics")
     .select(METRIC_COLUMNS)
@@ -447,37 +446,7 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
     .in("interaction_record_id", recordIds);
   if (metricsError)
     throw new Error(`Interaction metrics could not be read: ${metricsError.message}`);
-  const analysedRows = metrics ?? [];
-  const metricRows = filters.purchaseCategory
-    ? analysedRows.filter((row) => row.purchase_category === filters.purchaseCategory)
-    : analysedRows;
-  // Every category present in the authorized slice, computed before narrowing so
-  // a selection never removes the other choices from the selector.
-  const availableCategories = [
-    ...new Set(
-      analysedRows.flatMap((row) => (row.purchase_category ? [row.purchase_category] : [])),
-    ),
-  ].sort();
-  // Conversations analysed but missing metrics. Only meaningful when no category
-  // is selected: we cannot know which category an unanalysed conversation would
-  // have turned out to be, so claiming it as missing from this category would be
-  // asserting something we have no basis for.
-  // Analysed but not usable: every value abstained or rejected, so there is
-  // nothing to count. Null where a category is selected, because an unusable
-  // interaction has no category and cannot honestly be counted as missing from
-  // one.
-  const withoutMetrics = filters.purchaseCategory ? null : coverage.notUsableInteractions;
-
-  if (metricRows.length === 0) {
-    return {
-      rows: [],
-      coverage,
-      conversationsInPeriod: conversationIds.length,
-      withoutMetrics,
-      availableCategories,
-      correctionsApplied: 0,
-    };
-  }
+  const metricRows = metrics ?? [];
 
   const includedRecordIds = new Set(metricRows.map((row) => row.interaction_record_id));
   // Already read once, for Coverage. Reading the same values a second time to
@@ -488,11 +457,8 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
   const allCorrections = corrections;
 
   // Earliest citation per evidence group, so a value can be placed in the
-  // conversation rather than only counted.
-  //
-  // Only for the fields whose metric depends on order. Everything else is
-  // counted, never placed, and fetching a timestamp for all of them was the
-  // single most expensive thing this loader did.
+  // conversation rather than only counted. Only for the fields whose metric
+  // depends on order; everything else is counted, never placed.
   const earliest = new Map<string, number>();
   for (const reference of evidenceRows) {
     const at = reference.start_milliseconds ?? 0;
@@ -527,11 +493,10 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
     valuesByRecord.set(row.interaction_record_id, list);
   }
 
-  const rows: PopulationRow[] = metricRows.map((row) => {
+  // Every effective row, before any category narrowing.
+  const allRows: PopulationRow[] = metricRows.map((row) => {
     const values = valuesByRecord.get(row.interaction_record_id) ?? [];
     const dimension = dimensions.get(row.conversation_id);
-    // The projection is handed to the effective reader rather than read
-    // directly, so it can only stand in where the atomic field is unsupported.
     const effective = readEffective(values, {
       purchaseCategory: row.purchase_category,
       arrivalIntent: row.arrival_intent,
@@ -558,6 +523,22 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
       values,
     };
   });
+
+  // Options come from the corrected values, so a category a manager fixed is
+  // the category the selector offers.
+  const availableCategories = [
+    ...new Set(allRows.flatMap((row) => (row.purchaseCategory ? [row.purchaseCategory] : []))),
+  ].sort();
+
+  const rows = filters.purchaseCategory
+    ? allRows.filter((row) => row.purchaseCategory === filters.purchaseCategory)
+    : allRows;
+
+  // Analysed but not usable: every value abstained or rejected, so there is
+  // nothing to count. Null where a category is selected, because an unusable
+  // interaction has no category and cannot honestly be counted as missing from
+  // one.
+  const withoutMetrics = filters.purchaseCategory ? null : coverage.notUsableInteractions;
 
   return {
     rows,

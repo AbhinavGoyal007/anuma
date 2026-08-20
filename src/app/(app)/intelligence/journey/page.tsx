@@ -43,6 +43,8 @@ export default async function CustomerJourneyPage({ searchParams }: PageProps) {
     languages,
     storeCount,
     directoryError,
+    storeUnavailable,
+    representativeUnnamed,
     selectedStoreName,
   } = page;
 
@@ -57,7 +59,6 @@ export default async function CustomerJourneyPage({ searchParams }: PageProps) {
   // The breakdown dimension is the reader's choice. Switching it because one
   // had more rows moved the page under them between mornings.
   const dimension = single(raw, "dimension") === "categories" ? "categories" : "stores";
-  const byStore = dimension === "stores";
 
   const sizes = Object.fromEntries(
     JOURNEY_COHORTS.map((key) => [key, selectCohort(current.rows, key).length]),
@@ -76,7 +77,7 @@ export default async function CustomerJourneyPage({ searchParams }: PageProps) {
     openDrawer && diagnosisKeys.has(openDrawer)
       ? await readFindingReviews(organizationId, scope)
       : new Map();
-  const carry: Record<string, string> = { cohort: cohortKey, stage: selectedStage, dimension };
+  const carry: Record<string, string> = { cohort: cohortKey, dimension };
 
   // Recorded from the URL, which is the record of what the manager asked for.
   await recordIntelligenceView({
@@ -110,31 +111,34 @@ export default async function CustomerJourneyPage({ searchParams }: PageProps) {
         storeCount={storeCount}
         coverage={current.coverage}
         directoryError={directoryError}
+        storeUnavailable={storeUnavailable}
+        representativeUnnamed={representativeUnnamed}
         carry={carry}
       />
       <JourneyView
         cohortKey={cohortKey}
         cohortSizes={sizes}
         stages={stages}
-        selectedStage={selectedStage}
-        stageHref={(stageKey) =>
-          intelligenceHref(BASE, filters, { ...carry, stage: stageKey, drawer: null })
-        }
         diagnosis={journeyDiagnosis(leakage)}
         lanes={interventions(cohort)}
         gaps={leakage}
-        breakdown={journeyBreakdown(
-          cohort,
-          (row) => (byStore ? row.locationId : row.purchaseCategory),
-          (key) => (byStore ? (storeName.get(key) ?? key) : key),
-        )}
+        breakdowns={{
+          stores: journeyBreakdown(
+            cohort,
+            (row) => row.locationId,
+            (key) => storeName.get(key) ?? key,
+          ),
+          categories: journeyBreakdown(
+            cohort,
+            (row) => row.purchaseCategory,
+            (key) => key,
+          ),
+        }}
         breakdownDimension={dimension}
         breakdownHref={(next) => intelligenceHref(BASE, filters, { ...carry, dimension: next })}
         outcomes={outcomeDistributions(cohort)}
         products={productPath(cohort)}
-        cohortHref={(key) =>
-          intelligenceHref(BASE, filters, { cohort: key, stage: null, drawer: null })
-        }
+        cohortHref={(key) => intelligenceHref(BASE, filters, { cohort: key, drawer: null })}
         gapHref={(key) => intelligenceHref(BASE, filters, { ...carry, drawer: key })}
         productHref={(fieldKey, value) =>
           intelligenceHref(BASE, filters, { ...carry, drawer: valueCohortKey(fieldKey, value) })

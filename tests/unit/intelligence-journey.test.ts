@@ -171,7 +171,11 @@ describe("resolving a cohort for the drill-down", () => {
   it("finds a frontline cohort and a journey cohort through one door", () => {
     const rows = [
       through("preference"),
-      row({ values: [value("products_recommended", "Dell 14")] }),
+      // A recommendation with the reason definitively absent: a gap a manager
+      // can act on, rather than a field we could not read.
+      row({
+        values: [value("products_recommended", "Dell 14"), notStated("recommendation_reasons")],
+      }),
     ];
     expect(resolveCohort(rows, "recommendation_without_rationale")).not.toBeNull();
     expect(resolveCohort(rows, "no_commitment_signal", "all")).not.toBeNull();
