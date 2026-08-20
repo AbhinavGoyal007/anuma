@@ -10,7 +10,12 @@ import {
 import { cohortPath } from "@/modules/intelligence/cohorts";
 import { statedText } from "@/modules/intelligence/effective";
 import { distribution, rankedShare } from "@/modules/intelligence/demand";
-import { intelligenceHref, single, windowLabel } from "@/modules/intelligence/filters";
+import {
+  FILTER_PARAM_KEYS,
+  intelligenceHref,
+  single,
+  windowLabel,
+} from "@/modules/intelligence/filters";
 import {
   computeFrontline,
   expandDetail,
@@ -22,8 +27,13 @@ import {
 } from "@/modules/intelligence/frontline";
 import { frontlinePriorityReviews } from "@/modules/intelligence/overview";
 import { resolveIntelligencePage } from "@/modules/intelligence/page-context";
-import { scopeHash, SCOPE_KEYS } from "@/modules/intelligence/pilot";
-import { readFindingReviews, recordIntelligenceView } from "@/modules/intelligence/pilot-store";
+import { scopeFingerprint } from "@/modules/intelligence/canonical";
+import { readFindingReviews } from "@/modules/intelligence/pilot-store";
+import {
+  reviewableCohortKeys,
+  reviewFindingKey,
+} from "@/modules/intelligence/reviewable";
+import { IntelligencePageTracker } from "@/components/intelligence/telemetry";
 
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -55,37 +65,35 @@ export default async function FrontlineIntelligencePage({ searchParams }: PagePr
   const stage: StageKey =
     STAGES.find((item) => item.key === single(raw, "stage"))?.key ?? "understand";
   const openDrawer = single(raw, "drawer");
-  const priorityKeys = new Set(
-    frontlinePriorityReviews(rows).flatMap((cohort) => (cohort ? [cohort.key] : [])),
-  );
-  const scope = scopeHash(Object.fromEntries(SCOPE_KEYS.map((key) => [key, single(raw, key)])));
+  // The same registry the save path uses, so a manager cannot answer a
+  // finding the page never offered.
+  const reviewableKeys = new Set(reviewableCohortKeys("frontline", rows));
+  const scope = scopeFingerprint({
+    from: page.periods.current.from,
+    to: page.periods.current.to,
+    filters: Object.fromEntries(FILTER_PARAM_KEYS.map((key) => [key, single(raw, key)])),
+  });
   const reviews =
-    openDrawer && priorityKeys.has(openDrawer)
-      ? await readFindingReviews(organizationId, scope)
+    openDrawer && reviewableKeys.has(openDrawer)
+      ? await readFindingReviews(organizationId, page.membershipId, scope)
       : new Map();
   const carry = { stage };
 
   const compositions = responseCompositions(rows);
 
-  // Recorded from the URL, which is the record of what the manager asked for.
-  await recordIntelligenceView({
-    organizationId,
-    membershipId: page.membershipId,
-    page: "frontline",
-    sessionId: scope,
-    filters: Object.fromEntries(
-      SCOPE_KEYS.flatMap((key) => {
-        const chosen = single(raw, key);
-        return chosen ? [[key, chosen] as const] : [];
-      }),
-    ),
-    drawer: openDrawer,
-    drawerIsPriority: openDrawer ? priorityKeys.has(openDrawer) : false,
-    drawerIsNumerator: openDrawer?.startsWith("numerator:") ?? false,
-  });
-
   return (
     <>
+      <IntelligencePageTracker
+        page="frontline"
+        scopeFingerprint={scope}
+        filters={Object.fromEntries(
+          FILTER_PARAM_KEYS.flatMap((key) => {
+            const chosen = single(raw, key);
+            return chosen ? [[key, chosen] as const] : [];
+          }),
+        )}
+        drawerKey={openDrawer}
+      />
       <IntelligenceHead title="Frontline" />
       <IntelligenceFilterBar
         basePath={BASE}
@@ -145,13 +153,18 @@ export default async function FrontlineIntelligencePage({ searchParams }: PagePr
           closeHref={intelligenceHref(BASE, filters, { ...carry, drawer: null })}
           fullHref={intelligenceHref(cohortPath(openDrawer), filters)}
           review={
-            priorityKeys.has(openDrawer)
+            reviewableKeys.has(openDrawer)
               ? {
-                  findingKey: `frontline_priority:${openDrawer}`,
-                  scopeHash: scope,
                   page: "frontline",
+                  filters: Object.fromEntries(
+                    FILTER_PARAM_KEYS.flatMap((key) => {
+                      const chosen = single(raw, key);
+                      return chosen ? [[key, chosen] as const] : [];
+                    }),
+                  ),
                   returnPath: BASE,
-                  existing: reviews.get(`frontline_priority:${openDrawer}:${openDrawer}`) ?? null,
+                  existing:
+                    reviews.get(reviewFindingKey("frontline", openDrawer)) ?? null,
                 }
               : null
           }

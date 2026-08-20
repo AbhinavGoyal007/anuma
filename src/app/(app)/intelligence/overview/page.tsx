@@ -5,7 +5,12 @@ import { IntelligenceFilterBar, IntelligenceHead } from "@/components/intelligen
 import { IntelligenceDrawer } from "@/components/intelligence/intelligence-drawer";
 import { OverviewView } from "@/components/intelligence/overview-view";
 import { cohortPath, numeratorCohortKey } from "@/modules/intelligence/cohorts";
-import { intelligenceHref, single, windowLabel } from "@/modules/intelligence/filters";
+import {
+  FILTER_PARAM_KEYS,
+  intelligenceHref,
+  single,
+  windowLabel,
+} from "@/modules/intelligence/filters";
 import {
   overviewBreakdown,
   overviewPriorityActions,
@@ -14,8 +19,13 @@ import {
   type BreakdownDimension,
 } from "@/modules/intelligence/overview";
 import { resolveIntelligencePage } from "@/modules/intelligence/page-context";
-import { scopeHash, SCOPE_KEYS } from "@/modules/intelligence/pilot";
-import { readFindingReviews, recordIntelligenceView } from "@/modules/intelligence/pilot-store";
+import { scopeFingerprint } from "@/modules/intelligence/canonical";
+import { readFindingReviews } from "@/modules/intelligence/pilot-store";
+import {
+  reviewableCohortKeys,
+  reviewFindingKey,
+} from "@/modules/intelligence/reviewable";
+import { IntelligencePageTracker } from "@/components/intelligence/telemetry";
 import { buildSeries, qualifies, TREND_METRICS } from "@/modules/intelligence/trend";
 
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
@@ -65,34 +75,32 @@ export default async function IntelligenceOverviewPage({ searchParams }: PagePro
 
   // Review Outcome appears only on a priority action — a thing the product is
   // asking somebody to do — never under a descriptive tile.
-  const priorityKeys = new Set(
-    overviewPriorityActions(rows).flatMap((cohort) => (cohort ? [cohort.key] : [])),
-  );
-  const scope = scopeHash(Object.fromEntries(SCOPE_KEYS.map((key) => [key, single(raw, key)])));
-  const reviews =
-    openDrawer && priorityKeys.has(openDrawer)
-      ? await readFindingReviews(organizationId, scope)
-      : new Map();
-
-  // Recorded from the URL, which is the record of what the manager asked for.
-  await recordIntelligenceView({
-    organizationId,
-    membershipId: page.membershipId,
-    page: "overview",
-    sessionId: scope,
-    filters: Object.fromEntries(
-      SCOPE_KEYS.flatMap((key) => {
-        const chosen = single(raw, key);
-        return chosen ? [[key, chosen] as const] : [];
-      }),
-    ),
-    drawer: openDrawer,
-    drawerIsPriority: openDrawer ? priorityKeys.has(openDrawer) : false,
-    drawerIsNumerator: openDrawer?.startsWith("numerator:") ?? false,
+  // The same registry the save path uses, so a manager cannot answer a
+  // finding the page never offered.
+  const reviewableKeys = new Set(reviewableCohortKeys("overview", rows));
+  const scope = scopeFingerprint({
+    from: page.periods.current.from,
+    to: page.periods.current.to,
+    filters: Object.fromEntries(FILTER_PARAM_KEYS.map((key) => [key, single(raw, key)])),
   });
+  const reviews =
+    openDrawer && reviewableKeys.has(openDrawer)
+      ? await readFindingReviews(organizationId, page.membershipId, scope)
+      : new Map();
 
   return (
     <>
+      <IntelligencePageTracker
+        page="overview"
+        scopeFingerprint={scope}
+        filters={Object.fromEntries(
+          FILTER_PARAM_KEYS.flatMap((key) => {
+            const chosen = single(raw, key);
+            return chosen ? [[key, chosen] as const] : [];
+          }),
+        )}
+        drawerKey={openDrawer}
+      />
       <IntelligenceHead title="Overview" />
       <IntelligenceFilterBar
         basePath={BASE}
@@ -176,13 +184,18 @@ export default async function IntelligenceOverviewPage({ searchParams }: PagePro
           closeHref={intelligenceHref(BASE, filters, { ...carry, drawer: null })}
           fullHref={intelligenceHref(cohortPath(openDrawer), filters)}
           review={
-            priorityKeys.has(openDrawer)
+            reviewableKeys.has(openDrawer)
               ? {
-                  findingKey: `overview_priority:${openDrawer}`,
-                  scopeHash: scope,
                   page: "overview",
+                  filters: Object.fromEntries(
+                    FILTER_PARAM_KEYS.flatMap((key) => {
+                      const chosen = single(raw, key);
+                      return chosen ? [[key, chosen] as const] : [];
+                    }),
+                  ),
                   returnPath: BASE,
-                  existing: reviews.get(`overview_priority:${openDrawer}:${openDrawer}`) ?? null,
+                  existing:
+                    reviews.get(reviewFindingKey("overview", openDrawer)) ?? null,
                 }
               : null
           }

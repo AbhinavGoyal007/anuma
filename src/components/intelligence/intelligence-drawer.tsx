@@ -67,9 +67,8 @@ export async function IntelligenceDrawer({
   /** The full, unpaginated list of the same interactions. */
   fullHref: string;
   review?: {
-    findingKey: string;
-    scopeHash: string;
     page: string;
+    filters: Record<string, string>;
     returnPath: string;
     existing: FindingReview | null;
   } | null;
@@ -213,10 +212,9 @@ export async function IntelligenceDrawer({
 
       {review ? (
         <ReviewOutcome
-          findingKey={review.findingKey}
           cohortKey={cohortKey}
-          scopeHash={review.scopeHash}
           page={review.page}
+          filters={review.filters}
           returnPath={review.returnPath}
           existing={review.existing}
         />

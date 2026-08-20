@@ -62,21 +62,6 @@ export const ACTION_LABELS: Readonly<Record<ActionType, string>> = {
 export const PRIOR_KNOWLEDGE = ["yes", "no", "unsure"] as const;
 export type PriorKnowledge = (typeof PRIOR_KNOWLEDGE)[number];
 
-/**
- * A stable fingerprint of the population a finding was answered under.
- *
- * Deterministic and order-independent, so the same selection always produces
- * the same hash and a manager's answer is not orphaned because two filters were
- * applied in a different order.
- */
-export function scopeHash(filters: Record<string, string | number | boolean | null>): string {
-  const parts = Object.entries(filters)
-    .filter(([, value]) => value !== null && value !== "")
-    .map(([key, value]) => `${key}=${String(value)}`)
-    .sort();
-  return parts.join("&") || "all";
-}
-
 /** Only the population filters. Page-local state is not part of a finding's scope. */
 export const SCOPE_KEYS = [
   "days",
@@ -93,7 +78,7 @@ export const SCOPE_KEYS = [
 export type FindingReview = {
   findingKey: string;
   cohortKey: string;
-  scopeHash: string;
+  scopeFingerprint: string;
   reviewedAt: string | null;
   usefulness: Usefulness | null;
   actionType: ActionType | null;

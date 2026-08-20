@@ -20,14 +20,14 @@ import {
   rankedShare,
 } from "@/modules/intelligence/demand";
 import { valueCohortKey } from "@/modules/intelligence/cohorts";
-import { intelligenceHref, single } from "@/modules/intelligence/filters";
+import { FILTER_PARAM_KEYS, intelligenceHref, single } from "@/modules/intelligence/filters";
 import { isUnresolved } from "@/modules/intelligence/outcome";
 import { IntelligenceDrawer } from "@/components/intelligence/intelligence-drawer";
 import { cohortPath } from "@/modules/intelligence/cohorts";
 import { windowLabel } from "@/modules/intelligence/filters";
+import { scopeFingerprint } from "@/modules/intelligence/canonical";
 import { resolveIntelligencePage } from "@/modules/intelligence/page-context";
-import { scopeHash, SCOPE_KEYS } from "@/modules/intelligence/pilot";
-import { recordIntelligenceView } from "@/modules/intelligence/pilot-store";
+import { IntelligencePageTracker } from "@/components/intelligence/telemetry";
 import type { PopulationRow } from "@/modules/intelligence/population";
 
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
@@ -207,7 +207,11 @@ export default async function CustomerDemandPage({ searchParams }: PageProps) {
   // does not keep when the underlying list is longer than ten.
   const listLimit = expanded ? Number.MAX_SAFE_INTEGER : 40;
   const openDrawer = single(raw, "drawer");
-  const scope = scopeHash(Object.fromEntries(SCOPE_KEYS.map((key) => [key, single(raw, key)])));
+  const scope = scopeFingerprint({
+    from: page.periods.current.from,
+    to: page.periods.current.to,
+    filters: Object.fromEntries(FILTER_PARAM_KEYS.map((key) => [key, single(raw, key)])),
+  });
   const carry: Record<string, string> = {
     need,
     voice: voiceTab,
@@ -215,25 +219,19 @@ export default async function CustomerDemandPage({ searchParams }: PageProps) {
     ...(allCategories ? { cats: "1" } : {}),
   };
 
-  // Recorded from the URL, which is the record of what the manager asked for.
-  await recordIntelligenceView({
-    organizationId,
-    membershipId: page.membershipId,
-    page: "demand",
-    sessionId: scope,
-    filters: Object.fromEntries(
-      SCOPE_KEYS.flatMap((key) => {
-        const chosen = single(raw, key);
-        return chosen ? [[key, chosen] as const] : [];
-      }),
-    ),
-    drawer: openDrawer,
-    drawerIsPriority: openDrawer ? false : false,
-    drawerIsNumerator: openDrawer?.startsWith("numerator:") ?? false,
-  });
-
   return (
     <>
+      <IntelligencePageTracker
+        page="demand"
+        scopeFingerprint={scope}
+        filters={Object.fromEntries(
+          FILTER_PARAM_KEYS.flatMap((key) => {
+            const chosen = single(raw, key);
+            return chosen ? [[key, chosen] as const] : [];
+          }),
+        )}
+        drawerKey={openDrawer}
+      />
       <IntelligenceHead title="Demand" />
       <IntelligenceFilterBar
         basePath={BASE}

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { computePilotMetrics, scopeHash, USAGE_EVENTS } from "@/modules/intelligence/pilot";
+import {
+  canonicalize,
+  findingFingerprint,
+  scopeFingerprint,
+} from "@/modules/intelligence/canonical";
+import { computePilotMetrics, USAGE_EVENTS } from "@/modules/intelligence/pilot";
 
 /**
  * Whether the pilot is working, measured the same way every time.
@@ -109,18 +114,88 @@ describe("pilot adoption", () => {
 });
 
 describe("the scope a finding was judged under", () => {
+  const scope = { from: "2026-07-21", to: "2026-08-20" };
+
   it("is stable however the filters were ordered", () => {
-    expect(scopeHash({ days: 7, store: "s1", category: null })).toBe(
-      scopeHash({ category: null, store: "s1", days: 7 }),
-    );
+    expect(
+      scopeFingerprint({ ...scope, filters: { store: "s1", category: "sofas", stage: null } }),
+    ).toBe(scopeFingerprint({ ...scope, filters: { stage: null, category: "sofas", store: "s1" } }));
   });
 
   it("distinguishes two different selections", () => {
-    expect(scopeHash({ days: 7 })).not.toBe(scopeHash({ days: 30 }));
+    expect(scopeFingerprint({ ...scope, filters: { store: "s1" } })).not.toBe(
+      scopeFingerprint({ ...scope, filters: { store: "s2" } }),
+    );
   });
 
-  it("says so when nothing is narrowed", () => {
-    expect(scopeHash({ store: null, category: "" })).toBe("all");
+  it("changes when the absolute period moves under the same relative window", () => {
+    // "Last 30 days" is a different population every morning. A review saved
+    // yesterday must not silently attach itself to today's numbers.
+    expect(scopeFingerprint({ from: "2026-07-21", to: "2026-08-20", filters: {} })).not.toBe(
+      scopeFingerprint({ from: "2026-07-22", to: "2026-08-21", filters: {} }),
+    );
+  });
+
+  it("treats an unset filter and an empty one as the same absence", () => {
+    expect(scopeFingerprint({ ...scope, filters: { store: null, category: "" } })).toBe(
+      scopeFingerprint({ ...scope, filters: {} }),
+    );
+  });
+
+  it("is a sha-256 digest, not a joined string", () => {
+    const fingerprint = scopeFingerprint({ ...scope, filters: { store: "s1" } });
+    expect(fingerprint).toMatch(/^[0-9a-f]{64}$/);
+    expect(fingerprint).not.toContain("s1");
+  });
+});
+
+describe("a finding as it stood when it was answered", () => {
+  const base = {
+    scopeFingerprint: "scope",
+    page: "overview",
+    findingKey: "overview_finding:action:no_demo",
+    cohortKey: "action:no_demo",
+    recordIds: ["c1", "c2", "c3"],
+  };
+
+  it("does not depend on the order the cohort came back in", () => {
+    expect(findingFingerprint(base)).toBe(
+      findingFingerprint({ ...base, recordIds: ["c3", "c1", "c2"] }),
+    );
+  });
+
+  it("changes when the cohort's membership changes", () => {
+    // Same finding, same filters, different eighteen interactions. Answering
+    // "yes, useful" about one set must not silently become an answer about the
+    // other.
+    expect(findingFingerprint(base)).not.toBe(
+      findingFingerprint({ ...base, recordIds: ["c1", "c2", "c4"] }),
+    );
+  });
+
+  it("changes when the scope changes", () => {
+    expect(findingFingerprint(base)).not.toBe(
+      findingFingerprint({ ...base, scopeFingerprint: "other" }),
+    );
+  });
+
+  it("keeps two cohorts on the same page distinct", () => {
+    expect(findingFingerprint(base)).not.toBe(
+      findingFingerprint({ ...base, cohortKey: "action:no_alternative" }),
+    );
+  });
+});
+
+describe("canonical serialisation", () => {
+  it("sorts keys and keeps nulls", () => {
+    expect(canonicalize({ b: 1, a: null })).toBe('{"a":null,"b":1}');
+  });
+
+  it("cannot be forged by moving a delimiter between fields", () => {
+    // The failure mode of `key=value&key=value`: two different selections
+    // producing one string, and one manager's answer landing on another's
+    // finding.
+    expect(canonicalize({ a: "x&b=y" })).not.toBe(canonicalize({ a: "x", b: "y" }));
   });
 });
 

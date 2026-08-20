@@ -33,6 +33,9 @@ export type UsageEventInput = {
   organizationId: string;
   membershipId: string;
   sessionId: string;
+  /** One real interaction, one UUID. Retries with the same id are idempotent. */
+  clientEventId: string;
+  scopeFingerprint?: string | null;
   page: string;
   eventName: UsageEventName;
   objectType?: string | null;
@@ -51,10 +54,16 @@ export async function recordUsageEvent(input: UsageEventInput): Promise<void> {
       // The generated types predate these tables; the shape is enforced by the
       // migration's check constraints and by the input type above.
       .from("product_usage_events" as never)
-      .insert({
+      // Upsert on the client event id: a retried beacon is the same
+      // interaction, and counting it twice would inflate every adoption number
+      // by however flaky the network was.
+      .upsert(
+        {
         organization_id: input.organizationId,
         membership_id: input.membershipId,
         session_id: input.sessionId,
+        client_event_id: input.clientEventId,
+        scope_fingerprint: input.scopeFingerprint ?? null,
         page: input.page,
         event_name: input.eventName,
         object_type: input.objectType ?? null,
@@ -63,7 +72,9 @@ export async function recordUsageEvent(input: UsageEventInput): Promise<void> {
         conversation_id: input.conversationId ?? null,
         filters: input.filters ?? {},
         metadata: input.metadata ?? {},
-      } as never);
+        } as never,
+        { onConflict: "client_event_id", ignoreDuplicates: true } as never,
+      );
     if (error) logFailure("record a usage event", error.message);
   } catch (failure) {
     logFailure("record a usage event", failure instanceof Error ? failure.message : "unknown");
@@ -75,7 +86,9 @@ export type FindingReviewInput = {
   membershipId: string;
   findingKey: string;
   cohortKey: string;
-  scopeHash: string;
+  scopeFingerprint: string;
+  /** Binds the answer to the cohort as it stood when it was answered. */
+  findingFingerprint: string;
   reviewed: boolean;
   usefulness: Usefulness | null;
   actionType: ActionType | null;
@@ -106,13 +119,14 @@ export async function saveFindingReview(input: FindingReviewInput): Promise<bool
         membership_id: input.membershipId,
         finding_key: input.findingKey,
         cohort_key: input.cohortKey,
-        scope_hash: input.scopeHash,
+        scope_fingerprint: input.scopeFingerprint,
+        finding_fingerprint: input.findingFingerprint,
         reviewed_at: input.reviewed ? new Date().toISOString() : null,
         updated_at: new Date().toISOString(),
         ...clean(input),
       } as never,
       {
-        onConflict: "organization_id,membership_id,finding_key,cohort_key,scope_hash",
+        onConflict: "organization_id,membership_id,finding_fingerprint",
       } as never,
     );
     if (error) {
@@ -126,20 +140,29 @@ export async function saveFindingReview(input: FindingReviewInput): Promise<bool
   }
 }
 
-/** The manager's own earlier answers, so the panel opens where they left it. */
+/**
+ * The manager's own earlier answers, so the panel opens where they left it.
+ *
+ * Filtered by membership as well as organization, because the sentence above
+ * has to be literally true. Reading organization-wide showed one manager
+ * another's private judgement of a colleague's work — and the panel presented
+ * it as the reader's own previous answer.
+ */
 export async function readFindingReviews(
   organizationId: string,
-  scope: string,
+  membershipId: string,
+  scopeFingerprint: string,
 ): Promise<Map<string, FindingReview>> {
   try {
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("management_finding_reviews" as never)
       .select(
-        "finding_key, cohort_key, scope_hash, reviewed_at, usefulness, action_type, would_have_known_without_anuma, note",
+        "finding_key, cohort_key, scope_fingerprint, reviewed_at, usefulness, action_type, would_have_known_without_anuma, note",
       )
       .eq("organization_id", organizationId)
-      .eq("scope_hash", scope);
+      .eq("membership_id", membershipId)
+      .eq("scope_fingerprint", scopeFingerprint);
     if (error) {
       logFailure("read finding reviews", error.message);
       return new Map();
@@ -147,7 +170,7 @@ export async function readFindingReviews(
     const rows = (data ?? []) as unknown as {
       finding_key: string;
       cohort_key: string;
-      scope_hash: string;
+      scope_fingerprint: string;
       reviewed_at: string | null;
       usefulness: Usefulness | null;
       action_type: ActionType | null;
@@ -160,7 +183,7 @@ export async function readFindingReviews(
         {
           findingKey: row.finding_key,
           cohortKey: row.cohort_key,
-          scopeHash: row.scope_hash,
+          scopeFingerprint: row.scope_fingerprint,
           reviewedAt: row.reviewed_at,
           usefulness: row.usefulness,
           actionType: row.action_type,
@@ -172,65 +195,5 @@ export async function readFindingReviews(
   } catch (failure) {
     logFailure("read finding reviews", failure instanceof Error ? failure.message : "unknown");
     return new Map();
-  }
-}
-
-/**
- * The events a page render implies, recorded once per navigation.
- *
- * Emitted from the server component rather than the browser, because the URL is
- * the record of what the manager asked for: a filter they applied, a signal
- * they opened, a stage they selected. Client instrumentation would have to
- * reconstruct the same thing from clicks and would disagree the moment somebody
- * arrived by a shared link.
- */
-export async function recordIntelligenceView(input: {
-  organizationId: string;
-  membershipId: string;
-  page: string;
-  sessionId: string;
-  filters: Record<string, string>;
-  /** The cohort key in `?drawer=`, where one is open. */
-  drawer: string | null;
-  /** True where the drawer key names a priority action or review. */
-  drawerIsPriority: boolean;
-  /** True where the drawer key names a metric's own numerator. */
-  drawerIsNumerator: boolean;
-}): Promise<void> {
-  const base = {
-    organizationId: input.organizationId,
-    membershipId: input.membershipId,
-    sessionId: input.sessionId,
-    page: input.page,
-    filters: input.filters,
-  } as const;
-
-  await recordUsageEvent({ ...base, eventName: "intelligence_page_viewed" });
-
-  if (!input.drawer) return;
-  await recordUsageEvent({
-    ...base,
-    eventName: "evidence_drawer_opened",
-    objectType: "cohort",
-    objectKey: input.drawer,
-    cohortKey: input.drawer,
-  });
-  if (input.drawerIsPriority) {
-    await recordUsageEvent({
-      ...base,
-      eventName: "priority_action_opened",
-      objectType: "cohort",
-      objectKey: input.drawer,
-      cohortKey: input.drawer,
-    });
-  }
-  if (input.drawerIsNumerator) {
-    await recordUsageEvent({
-      ...base,
-      eventName: "core_signal_opened",
-      objectType: "metric",
-      objectKey: input.drawer,
-      cohortKey: input.drawer,
-    });
   }
 }

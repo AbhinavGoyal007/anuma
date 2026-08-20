@@ -22,27 +22,32 @@ import {
  */
 
 export function ReviewOutcome({
-  findingKey,
   cohortKey,
-  scopeHash,
   page,
+  filters,
   returnPath,
   existing,
 }: {
-  findingKey: string;
   cohortKey: string;
-  scopeHash: string;
   page: string;
+  /** The population filters, replayed so the server can resolve the same scope. */
+  filters: Record<string, string>;
   returnPath: string;
   existing: FindingReview | null;
 }) {
+  const findingKey = `${page}_finding:${cohortKey}`;
   return (
     <form className="ip-review-outcome" action={saveReviewOutcome}>
-      <input type="hidden" name="finding_key" value={findingKey} />
+      {/* Only the page, the cohort and the population filters travel. The
+          finding's identity and the fingerprints are recomputed server-side:
+          a hidden field is browser-owned and can be pointed at a cohort this
+          page never showed. */}
       <input type="hidden" name="cohort_key" value={cohortKey} />
-      <input type="hidden" name="scope_hash" value={scopeHash} />
       <input type="hidden" name="page" value={page} />
       <input type="hidden" name="return_path" value={returnPath} />
+      {Object.entries(filters).map(([key, value]) => (
+        <input key={key} type="hidden" name={key} value={value} />
+      ))}
 
       <p className="ip-drawer-section">Review outcome</p>
       {existing?.reviewedAt ? (
