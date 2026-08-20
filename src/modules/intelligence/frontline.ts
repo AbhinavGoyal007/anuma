@@ -566,6 +566,7 @@ export function offerDetail(rows: readonly PopulationRow[], limit = 5): OfferDet
     response: distribution(
       rows,
       (row) => statedText(row.values, "commercial_offer_response")[0] ?? null,
+      "commercial_offer_response",
     ),
   };
 }

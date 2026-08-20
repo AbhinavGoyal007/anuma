@@ -146,8 +146,8 @@ function renderDemand(rows: PopulationRow[]) {
       prices={contextPrices(rows)}
       clarity={clarityMatrix(rows)}
       origins={originStrip(rows)}
-      categories={distribution(rows, (item) => item.purchaseCategory)}
-      intents={distribution(rows, (item) => item.arrivalIntent)}
+      categories={distribution(rows, (item) => item.purchaseCategory, "purchase_category")}
+      intents={distribution(rows, (item) => item.arrivalIntent, "arrival_intent_state")}
       needs={Object.fromEntries(
         NEED_TABS.map((tab) => [tab.key, rankedShare(rows, NEED_FIELD_KEYS[tab.key]!, 5)]),
       )}
@@ -178,7 +178,7 @@ function renderDemand(rows: PopulationRow[]) {
       intentHref={(value) =>
         intelligenceHref("/intelligence/demand", { ...FILTERS, intent: value })
       }
-      evidenceHref={(fieldKey, value) => `/intelligence/demand?drawer=value:${fieldKey}:${value}`}
+      evidenceHref={(cohortKey) => `/intelligence/demand?drawer=${cohortKey}`}
     />,
   );
 }
@@ -215,6 +215,13 @@ function renderJourney(rows: PopulationRow[]) {
       breakdownDimension="stores"
       breakdownHref={(next) => `/intelligence/journey?dimension=${next}`}
       outcomes={outcomeDistributions(cohort)}
+      outcomeHref={(axis, key) =>
+        axis === "business"
+          ? key === "sale" || key === "no_sale"
+            ? `/intelligence/journey?outcome=${key}`
+            : null
+          : `/intelligence/journey?decision=${key}`
+      }
       products={productPath(cohort)}
       cohortHref={(key) => `/intelligence/journey?cohort=${key}`}
       gapHref={(key) => `/intelligence/journey?drawer=${key}`}

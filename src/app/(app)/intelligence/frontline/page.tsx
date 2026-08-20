@@ -128,6 +128,7 @@ export default async function FrontlineIntelligencePage({ searchParams }: PagePr
           recommendationResponse: distribution(
             rows,
             (row) => statedText(row.values, "recommendation_response")[0] ?? null,
+            "recommendation_response",
           ),
           objection: compositions.objection,
           finance: compositions.finance,

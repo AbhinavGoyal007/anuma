@@ -492,6 +492,7 @@ export function productPath(cohort: readonly PopulationRow[], limit = 5): Produc
     response: distribution(
       cohort,
       (row) => statedText(row.values, "recommendation_response")[0] ?? null,
+      "recommendation_response",
     ),
   };
 }

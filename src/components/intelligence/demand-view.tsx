@@ -1,9 +1,11 @@
 import { LocalSwitch } from "@/components/intelligence/local-switch";
 
 import { DataState, stateFor, type SlotState } from "@/components/intelligence/data-state";
+import { observedCohortKey, valueCohortKey } from "@/modules/intelligence/cohorts";
 import { RankedBars } from "@/components/intelligence/interactive-ranked-bar";
 import { Delta, formatMoney, formatPercent, tipText } from "@/components/intelligence/metric-tile";
 import { SectionTabs, type Tab } from "@/components/intelligence/section-tabs";
+import { TelemetryLink } from "@/components/intelligence/telemetry";
 import { SegmentedBar, type Segment } from "@/components/intelligence/segmented-bar";
 import {
   CLARITY_LABELS,
@@ -60,6 +62,12 @@ export type VoicePanel = {
   controlled: boolean;
   /** The field a value's evidence is read from, where one applies. */
   fieldKey?: string;
+  /**
+   * Overrides how a value becomes a cohort, for panels whose values are derived
+   * rather than recorded — a party-size bucket is not a stored value, so
+   * matching on the text would open the wrong interactions.
+   */
+  cohortKeyFor?: (value: string) => string;
 };
 
 /** Which field each Needs tab reads first, for the evidence link. */
@@ -121,9 +129,9 @@ function ListPanel({
   controlled?: boolean;
   limit?: number;
   expandHref?: string | null;
-  hrefFor?: (value: string) => string;
+  hrefFor?: (value: string, fieldKey: string) => string;
   /** A separate small affordance, so one click never does two jobs. */
-  evidenceHrefFor?: (value: string) => string;
+  evidenceHrefFor?: (value: string, fieldKey: string) => string;
 }) {
   const eligible = "eligible" in list ? list.eligible : list.classified;
   const state: SlotState =
@@ -237,7 +245,8 @@ export function DemandView({
   categoryExpandHref: string | null;
   intentHref: (value: string) => string;
   /** Opens the evidence behind one observed value of one field. */
-  evidenceHref: (fieldKey: string, value: string) => string;
+  /** Opens a named cohort in the evidence drawer. */
+  evidenceHref: (cohortKey: string) => string;
 }) {
   // One currency or none: a median is a number. More than one and it is not.
   const lead = budget.byCurrency.length === 1 ? budget.byCurrency[0] : null;
@@ -303,7 +312,9 @@ export function DemandView({
           limit={categoryExpandHref === null ? undefined : 8}
           expandHref={categoryExpandHref}
           hrefFor={categoryHref}
-          evidenceHrefFor={(item: string) => evidenceHref("purchase_category", item)}
+          evidenceHrefFor={(item: string, fieldKey: string) =>
+            evidenceHref(valueCohortKey(fieldKey, item))
+          }
         />
       </section>
 
@@ -332,8 +343,11 @@ export function DemandView({
                 unit={`of ${needs[tab.key]!.eligible} interactions carried this field`}
                 limit={5}
                 expandHref={expandHref}
-                evidenceHrefFor={(item: string) =>
-                  evidenceHref(NEED_FIELD_KEYS[tab.key]![0]!, item)
+                // The field the value actually came from. Requirements reads
+                // three fields, and opening the first of them for a value
+                // recorded in the third showed quotes the number did not count.
+                evidenceHrefFor={(item: string, fieldKey: string) =>
+                  evidenceHref(valueCohortKey(fieldKey, item))
                 }
               />
             </div>
@@ -406,14 +420,31 @@ export function DemandView({
             {prices.competitorClaim.length === 0 ? (
               <DataState state="NO_OBSERVATIONS" compact />
             ) : (
-              prices.competitorClaim.map((line) => (
-                <Figure
-                  key={line.currency ?? "none"}
-                  label={line.currency ?? "Unstated currency"}
-                  value={formatMoney(line.median, line.currency)}
-                  meta={`median of ${line.observed} claim${line.observed === 1 ? "" : "s"}`}
-                />
-              ))
+              <>
+                {prices.competitorClaim.map((line) => (
+                  <Figure
+                    key={line.currency ?? "none"}
+                    label={line.currency ?? "Unstated currency"}
+                    value={formatMoney(line.median, line.currency)}
+                    meta={`median of ${line.observed} claim${line.observed === 1 ? "" : "s"}`}
+                  />
+                ))}
+                {/* The qualification travels with the number, not only in the
+                    note under the section. Somebody reading one figure has to
+                    see what it is. */}
+                <p className="ip-note">Customer-stated; unverified</p>
+                <TelemetryLink
+                  className="ip-review"
+                  href={evidenceHref(observedCohortKey("competitor_price_claim"))}
+                  telemetry={{
+                    event: "demand_value_reviewed",
+                    objectType: "competitor_price_claim",
+                    objectKey: "observed",
+                  }}
+                >
+                  Review
+                </TelemetryLink>
+              </>
             )}
           </div>
         </div>
@@ -471,9 +502,12 @@ export function DemandView({
                       controlled={panel.controlled}
                       limit={6}
                       evidenceHrefFor={
-                        panel.fieldKey
-                          ? (item: string) => evidenceHref(panel.fieldKey!, item)
-                          : undefined
+                        panel.cohortKeyFor
+                          ? (item: string) => evidenceHref(panel.cohortKeyFor!(item))
+                          : panel.fieldKey
+                            ? (item: string, fieldKey: string) =>
+                                evidenceHref(valueCohortKey(fieldKey, item))
+                            : undefined
                       }
                     />
                   </div>
@@ -499,7 +533,9 @@ export function DemandView({
             eligible={blockers.classified}
             controlled
             unit={`of ${blockers.classified} confirmed no-sales carrying an observed reason`}
-            evidenceHrefFor={(item: string) => evidenceHref("primary_non_conversion_reason", item)}
+            evidenceHrefFor={(item: string, fieldKey: string) =>
+              evidenceHref(valueCohortKey(fieldKey, item))
+            }
             evidenceEvent="demand_value_reviewed"
           />
         ) : (

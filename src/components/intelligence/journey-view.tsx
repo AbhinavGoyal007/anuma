@@ -132,6 +132,7 @@ export function JourneyView({
   breakdownDimension,
   breakdownHref,
   outcomes,
+  outcomeHref,
   products,
   cohortHref,
   gapHref,
@@ -149,6 +150,12 @@ export function JourneyView({
   breakdownDimension: string;
   breakdownHref: (dimension: string) => string;
   outcomes: { business: OutcomeSlice[]; decision: OutcomeSlice[] };
+  /**
+   * Narrows the page to a segment, or null where no filter represents it
+   * exactly. An approximate filter would answer a different question than the
+   * one the segment was showing.
+   */
+  outcomeHref: (axis: "business" | "decision", key: string) => string | null;
   products: ProductPath;
   cohortHref: (key: JourneyCohortKey) => string;
   gapHref: (cohortKey: string) => string;
@@ -163,12 +170,16 @@ export function JourneyView({
     label: slice.label,
     count: slice.count,
     tone: BUSINESS_TONE[slice.key] ?? "slate",
+    href: outcomeHref("business", slice.key),
+    dimension: "outcome",
   }));
   const decisionSegments: Segment[] = outcomes.decision.map((slice) => ({
     key: slice.key,
     label: slice.label,
     count: slice.count,
     tone: DECISION_TONE[slice.key] ?? "slate",
+    href: outcomeHref("decision", slice.key),
+    dimension: "decision",
   }));
 
   return (

@@ -1,4 +1,12 @@
-import { isSupported, statedRows, statedText, type Money } from "@/modules/intelligence/effective";
+import {
+  isSupported,
+  moneyPresenceOf,
+  statedRows,
+  statedText,
+  type Money,
+  type Presence,
+} from "@/modules/intelligence/effective";
+import { incidence } from "@/modules/intelligence/field-status";
 import type { Measure } from "@/modules/intelligence/guardrails";
 import { measure } from "@/modules/intelligence/guardrails";
 import {
@@ -39,6 +47,14 @@ export type RankedShare = {
   share: number;
   /** Present where the field carries a requirement dimension. */
   label: string | null;
+  /**
+   * The atomic field this value was read from.
+   *
+   * Carried so evidence opens the cohort the value actually came from. A panel
+   * that merges several fields and then drills into the first of them shows a
+   * reader quotes from a field their number did not include.
+   */
+  fieldKey: string;
 };
 
 export type RankedResult = {
@@ -56,7 +72,15 @@ export function rankedShare(
   const eligible = rows.filter((row) =>
     fieldKeys.some((key) => isSupported(row.values, key)),
   ).length;
-  const counts = new Map<string, { interactions: Set<string>; label: string | null }>();
+  // Identity is the field, the dimension and the text — not the text alone.
+  // "Waterproof" recorded as a specification and "waterproof" mentioned as an
+  // additional requirement are two observations of two different fields; adding
+  // them together would assert an equivalence no business taxonomy has defined,
+  // and there would be no field left to open the evidence from.
+  const counts = new Map<
+    string,
+    { interactions: Set<string>; label: string | null; fieldKey: string; value: string }
+  >();
 
   for (const row of rows) {
     for (const key of fieldKeys) {
@@ -66,19 +90,26 @@ export function rankedShare(
         // Cased and spaced as spoken. Merging near-identical free text here
         // would invent a taxonomy the business never agreed to, and the page
         // says so rather than presenting these as controlled categories.
-        const entry = counts.get(text) ?? { interactions: new Set<string>(), label: value.label };
+        const identity = JSON.stringify([key, value.label ?? "", text]);
+        const entry = counts.get(identity) ?? {
+          interactions: new Set<string>(),
+          label: value.label,
+          fieldKey: key,
+          value: text,
+        };
         entry.interactions.add(row.conversationId);
-        counts.set(text, entry);
+        counts.set(identity, entry);
       }
     }
   }
 
-  const all = [...counts.entries()]
-    .map(([value, entry]) => ({
-      value,
+  const all = [...counts.values()]
+    .map((entry) => ({
+      value: entry.value,
       interactions: entry.interactions.size,
       share: eligible > 0 ? entry.interactions.size / eligible : 0,
       label: entry.label,
+      fieldKey: entry.fieldKey,
     }))
     .sort((a, b) => b.interactions - a.interactions || a.value.localeCompare(b.value));
 
@@ -92,6 +123,8 @@ export function rankedShare(
 export function distribution(
   rows: readonly PopulationRow[],
   read: (row: PopulationRow) => string | null,
+  /** The field the classification was read from, so evidence can open it. */
+  fieldKey: string,
 ): { entries: RankedShare[]; classified: number } {
   const counts = new Map<string, number>();
   let classified = 0;
@@ -107,6 +140,7 @@ export function distribution(
       interactions,
       share: classified > 0 ? interactions / classified : 0,
       label: null,
+      fieldKey,
     }))
     .sort((a, b) => b.interactions - a.interactions);
   return { entries, classified };
@@ -175,6 +209,23 @@ function budgetsFor(rows: readonly PopulationRow[], currency: string | null): Cu
   };
 }
 
+/**
+ * Whether this interaction told us the customer's target budget.
+ *
+ * The same four-state model every other field uses. The previous version
+ * divided "stated a budget" by every row in the population, which reported a
+ * confident coverage figure over a denominator that included interactions where
+ * the field was never extracted at all — the number went down when extraction
+ * got worse and read as customers volunteering less.
+ */
+export function targetBudgetStatus(row: PopulationRow): Presence {
+  const atomic = moneyPresenceOf(row.values, "target_budget");
+  // Where the atomic field is absent the conversation summary may still have
+  // carried a figure, and the picture above already uses it.
+  if (atomic === "unsupported" && row.targetBudget.length > 0) return "yes";
+  return atomic;
+}
+
 export function budgetPicture(rows: readonly PopulationRow[]): BudgetPicture {
   const currencies = [
     ...new Set(
@@ -184,11 +235,10 @@ export function budgetPicture(rows: readonly PopulationRow[]): BudgetPicture {
     ),
   ].sort((a, b) => (a ?? "").localeCompare(b ?? ""));
 
-  const stated = rows.filter((row) => row.targetBudget.length > 0).length;
   return {
     byCurrency: currencies.map((currency) => budgetsFor(rows, currency)),
     mixed: currencies.length > 1,
-    observationRate: measure(stated, rows.length, rows.length),
+    observationRate: incidence(rows, targetBudgetStatus),
   };
 }
 
@@ -311,6 +361,7 @@ export function nonConversionReasons(rows: readonly PopulationRow[], limit = 10)
   const { entries, classified } = distribution(
     confirmed,
     (row) => statedText(row.values, "primary_non_conversion_reason")[0] ?? null,
+    "primary_non_conversion_reason",
   );
   return {
     entries: entries.slice(0, limit),
@@ -322,26 +373,47 @@ export function nonConversionReasons(rows: readonly PopulationRow[], limit = 10)
 }
 
 /**
- * Party size, bucketed to the three groups a manager acts on.
+ * Party size, as a number.
  *
- * The stored value is free text — "2", "two", "couple with child". Only values
- * that read as a number are bucketed; anything else stays out of the
- * distribution rather than being guessed into one, and the raw value is still
- * reachable through the evidence path.
+ * The field is numeric, so the number is read from the number column. A legacy
+ * row written before the field was typed can still carry the same observation
+ * as text, and a purely numeric text is that observation — but only a purely
+ * numeric one. "Couple with child" is prose about who came in; turning it into
+ * 3 would be inferring family composition from a sentence, which is exactly the
+ * kind of guess a manager would later find had no basis in the recording.
  */
+export function partySize(row: PopulationRow): number | null {
+  const rows = statedRows(row.values, "customer_party_size");
+  for (const value of rows) {
+    const number = value.valueNumber;
+    if (typeof number === "number" && Number.isInteger(number) && number > 0) return number;
+  }
+  for (const value of rows) {
+    if (value.valueNumber !== null) continue;
+    const text = (value.valueText ?? "").trim();
+    if (!/^\d+$/.test(text)) continue;
+    const size = Number(text);
+    if (Number.isInteger(size) && size > 0) return size;
+  }
+  return null;
+}
+
+/** The three groups a manager acts on. Exactly these three, always. */
+export const PARTY_SIZE_BUCKETS = ["1", "2", "3+"] as const;
+export type PartySizeBucket = (typeof PARTY_SIZE_BUCKETS)[number];
+
+export function partySizeBucket(row: PopulationRow): PartySizeBucket | null {
+  const size = partySize(row);
+  if (size === null) return null;
+  if (size >= 3) return "3+";
+  return size === 1 ? "1" : "2";
+}
+
 export function partySizeDistribution(rows: readonly PopulationRow[]): {
   entries: RankedShare[];
   classified: number;
 } {
-  return distribution(rows, (row) => {
-    const text = statedText(row.values, "customer_party_size")[0] ?? null;
-    if (!text) return null;
-    const digits = text.match(/\d+/);
-    if (!digits) return null;
-    const size = Number(digits[0]);
-    if (!Number.isFinite(size) || size <= 0) return null;
-    return size >= 3 ? "3+" : String(size);
-  });
+  return distribution(rows, partySizeBucket, "customer_party_size");
 }
 
 /**
@@ -376,6 +448,7 @@ export function originStrip(rows: readonly PopulationRow[]): {
       interactions: counts.get(origin) ?? 0,
       share: eligible > 0 ? (counts.get(origin) ?? 0) / eligible : 0,
       label: null,
+      fieldKey: "requirement_origin",
     })),
     eligible,
   };

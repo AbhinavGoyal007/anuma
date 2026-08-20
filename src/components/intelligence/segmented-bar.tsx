@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { TelemetryLink } from "@/components/intelligence/telemetry";
 
 /**
  * A composition as a single 100% bar.
@@ -15,7 +15,15 @@ export type Segment = {
   count: number;
   /** Fixed semantic tone, never a per-category colour. */
   tone: "indigo" | "teal" | "coral" | "amber" | "slate";
+  /**
+   * Set only where a filter exactly represents this segment.
+   *
+   * A segment that narrowed the page to an approximation of itself would show
+   * a different count than the one the reader just clicked.
+   */
   href?: string | null;
+  /** Which population dimension the href narrows, for the pilot record. */
+  dimension?: string;
 };
 
 export function SegmentedBar({ segments, unit }: { segments: Segment[]; unit: string }) {
@@ -34,13 +42,18 @@ export function SegmentedBar({ segments, unit }: { segments: Segment[]; unit: st
             const tip = `${segment.label} · ${segment.count} of ${total} · ${Math.round(share * 100)}%`;
             const style = { width: `${share * 100}%` };
             return segment.href ? (
-              <Link
+              <TelemetryLink
                 key={segment.key}
                 className={`ip-seg ip-seg--${segment.tone} ip-tip`}
                 data-tip={tip}
                 href={segment.href}
                 style={style}
                 aria-label={tip}
+                telemetry={{
+                  event: "filter_changed",
+                  objectType: segment.dimension ?? "outcome",
+                  objectKey: segment.key,
+                }}
               />
             ) : (
               <span

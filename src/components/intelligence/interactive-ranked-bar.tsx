@@ -44,11 +44,17 @@ export function RankedBars({
   eligible: number;
   unit: string;
   controlled?: boolean;
-  hrefFor?: (value: string) => string;
+  hrefFor?: (value: string, fieldKey: string) => string;
   limit?: number;
   expandHref?: string | null;
-  /** Opens the evidence behind this value, separately from any filter. */
-  evidenceHrefFor?: (value: string) => string;
+  /**
+   * Opens the evidence behind this value, separately from any filter.
+   *
+   * Given the field the value came from, not just the text: a panel that reads
+   * three fields and drills into the first would show a reader quotes from a
+   * field their number did not include.
+   */
+  evidenceHrefFor?: (value: string, fieldKey: string) => string;
   /** What opening that evidence means to the pilot, where it has a name. */
   evidenceEvent?: UsageEventName;
 }) {
@@ -88,10 +94,10 @@ export function RankedBars({
               </span>
             </>
           );
-          const filterHref = hrefFor?.(entry.value) ?? null;
-          const reviewHref = evidenceHrefFor?.(entry.value) ?? null;
+          const filterHref = hrefFor?.(entry.value, entry.fieldKey) ?? null;
+          const reviewHref = evidenceHrefFor?.(entry.value, entry.fieldKey) ?? null;
           return (
-            <li key={`${entry.label ?? ""}-${entry.value}`}>
+            <li key={`${entry.fieldKey}-${entry.label ?? ""}-${entry.value}`}>
               {filterHref ? (
                 <Link className="ip-bar ip-bar--action ip-tip" data-tip={tip} href={filterHref}>
                   {inner}

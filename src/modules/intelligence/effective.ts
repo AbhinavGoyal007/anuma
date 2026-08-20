@@ -91,6 +91,25 @@ export function presenceOf(values: readonly ValueRow[], fieldKey: string): Prese
   return "unusable";
 }
 
+/**
+ * A money-shaped field read as presence.
+ *
+ * The amount lives in its own column, so the text reader above calls a stated
+ * ₹40,000 unusable: the field has a row, no text, and no abstention. Read this
+ * way, a stated amount is the observation, `not_stated` is a real no, and an
+ * unreadable figure stays unusable instead of becoming a customer who declined
+ * to say what they wanted to spend.
+ */
+export function moneyPresenceOf(values: readonly ValueRow[], fieldKey: string): Presence {
+  const rows = rowsFor(values, fieldKey);
+  if (rows.length === 0) return "unsupported";
+  if (rows.some((value) => !value.abstention && typeof value.amountMinor === "number")) {
+    return "yes";
+  }
+  if (rows.some((value) => value.abstention === DEFINITIVE_NO)) return "no";
+  return "unusable";
+}
+
 /** An enum field of yes / no / not_applicable. */
 export function applicableOf(values: readonly ValueRow[], fieldKey: string): Applicable {
   const rows = rowsFor(values, fieldKey);

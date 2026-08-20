@@ -17,13 +17,13 @@ import {
   nonConversionReasons,
   originStrip,
   partySizeDistribution,
+  type PartySizeBucket,
   rankedShare,
 } from "@/modules/intelligence/demand";
-import { valueCohortKey } from "@/modules/intelligence/cohorts";
 import { FILTER_PARAM_KEYS, intelligenceHref, single } from "@/modules/intelligence/filters";
 import { isUnresolved } from "@/modules/intelligence/outcome";
 import { IntelligenceDrawer } from "@/components/intelligence/intelligence-drawer";
-import { cohortPath } from "@/modules/intelligence/cohorts";
+import { cohortPath, partySizeCohortKey } from "@/modules/intelligence/cohorts";
 import { windowLabel } from "@/modules/intelligence/filters";
 import { scopeFingerprint } from "@/modules/intelligence/canonical";
 import { resolveIntelligencePage } from "@/modules/intelligence/page-context";
@@ -57,14 +57,9 @@ function voicePanels(tab: string, rows: readonly PopulationRow[]): VoicePanel[] 
           controlled: false,
           fieldKey: "competitor_product",
         },
-        {
-          key: "competitor_price_claim",
-          title: "Customer-stated competitor price",
-          list: list(["competitor_price_claim"]),
-          unit: unit("claimed, never verified"),
-          controlled: false,
-          fieldKey: "competitor_price_claim",
-        },
+        // The competitor price is money, not text. It is shown per currency
+        // in the Budget section's price slot; ranking "₹45,000" against
+        // "45000" as two strings compared spellings, not prices.
       ];
     case "stock":
       return [
@@ -157,9 +152,13 @@ function voicePanels(tab: string, rows: readonly PopulationRow[]): VoicePanel[] 
           key: "customer_party_size",
           title: "Party size",
           list: partySizeDistribution(rows),
-          unit: unit("with a readable party size"),
+          unit: unit("with a recorded party size"),
           controlled: false,
           fieldKey: "customer_party_size",
+          // A bucket is derived from the number, so its evidence is a bucket
+          // cohort. Matching the text "3+" would open the interactions where
+          // somebody typed that and miss every party of four.
+          cohortKeyFor: (bucket: string) => partySizeCohortKey(bucket as PartySizeBucket),
         },
         {
           key: "purchase_timing",
@@ -258,11 +257,11 @@ export default async function CustomerDemandPage({ searchParams }: PageProps) {
         prices={contextPrices(rows)}
         clarity={clarityMatrix(rows)}
         origins={originStrip(rows)}
-        categories={distribution(rows, (row) => row.purchaseCategory)}
+        categories={distribution(rows, (row) => row.purchaseCategory, "purchase_category")}
         categoryExpandHref={
           allCategories ? null : intelligenceHref(BASE, filters, { ...carry, cats: "1" })
         }
-        intents={distribution(rows, (row) => row.arrivalIntent)}
+        intents={distribution(rows, (row) => row.arrivalIntent, "arrival_intent_state")}
         // Every panel, computed from rows already in memory. Switching a tab
         // then costs nothing and never blanks the page.
         needs={Object.fromEntries(
@@ -280,8 +279,8 @@ export default async function CustomerDemandPage({ searchParams }: PageProps) {
         blockers={nonConversionReasons(rows)}
         categoryHref={(value) => intelligenceHref(BASE, { ...filters, category: value }, carry)}
         intentHref={(value) => intelligenceHref(BASE, { ...filters, intent: value }, carry)}
-        evidenceHref={(fieldKey, value) =>
-          intelligenceHref(BASE, filters, { ...carry, drawer: valueCohortKey(fieldKey, value) })
+        evidenceHref={(cohortKey) =>
+          intelligenceHref(BASE, filters, { ...carry, drawer: cohortKey })
         }
       />
       {openDrawer ? (

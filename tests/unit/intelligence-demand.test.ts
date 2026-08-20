@@ -114,10 +114,32 @@ describe("budgets", () => {
     expect(picture.byCurrency[0]!.stretchMedian).toBeNull();
   });
 
-  it("reports nothing rather than zero when no budget was stated", () => {
+  it("reports nothing rather than zero when the field was never extracted", () => {
     const picture = budgetPicture([row(), row()]);
     expect(picture.byCurrency).toEqual([]);
-    expect(picture.observationRate.value).toBe(0);
+    // Not 0%. Dividing "stated a budget" by every row in the population read as
+    // customers volunteering nothing, when what actually happened is that
+    // nobody asked the record.
+    expect(picture.observationRate.value).toBeNull();
+    expect(picture.observationRate.eligible).toBe(0);
+  });
+
+  it("counts a definitive not-stated against coverage and an unreadable one out of it", () => {
+    const picture = budgetPicture([
+      row({ values: [budget(4_000_000)] }),
+      row({ values: [notStated("target_budget")] }),
+      row({
+        values: [
+          value("target_budget", null, { abstention: "insufficient_evidence" }),
+        ],
+      }),
+      row(),
+    ]);
+    // One yes, one no, one unusable, one unsupported: the rate is one of the
+    // two the field could answer, and coverage says two of three were readable.
+    expect(picture.observationRate.value).toBe(0.5);
+    expect(picture.observationRate.observed).toBe(2);
+    expect(picture.observationRate.eligible).toBe(3);
   });
 });
 

@@ -1,3 +1,9 @@
+import {
+  partySizeBucket,
+  PARTY_SIZE_BUCKETS,
+  type PartySizeBucket,
+} from "@/modules/intelligence/demand";
+import { isSupported } from "@/modules/intelligence/effective";
 import { frontlineActionCohorts, type ActionCohort } from "@/modules/intelligence/frontline";
 import { journeyLeakageCohorts, selectCohort } from "@/modules/intelligence/journey";
 import type { JourneyCohortKey } from "@/modules/intelligence/journey";
@@ -13,14 +19,18 @@ import type { PopulationRow } from "@/modules/intelligence/population";
  * argument one level up: two routes each rebuilding "the interactions where a
  * commitment went unanswered" will agree until one of them is edited.
  *
- * Three kinds of group, distinguished by prefix:
- *   numerator:  the interactions a headline metric counted
- *   value:      the interactions carrying one observed value of one field
- *   (none)      a named failure or leakage cohort
+ * Four kinds of group, distinguished by prefix:
+ *   numerator:          the interactions a headline metric counted
+ *   value:              the interactions carrying one observed value of one field
+ *   party_size_bucket:  the interactions whose recorded party size falls in a bucket
+ *   observed:           the interactions where one field carries any observed value
+ *   (none)              a named failure or leakage cohort
  */
 
 export const NUMERATOR_COHORT_PREFIX = "numerator:";
 export const VALUE_COHORT_PREFIX = "value:";
+export const PARTY_SIZE_COHORT_PREFIX = "party_size_bucket:";
+export const OBSERVED_COHORT_PREFIX = "observed:";
 
 export function numeratorCohortKey(measureKey: string): string {
   return `${NUMERATOR_COHORT_PREFIX}${measureKey}`;
@@ -28,6 +38,35 @@ export function numeratorCohortKey(measureKey: string): string {
 
 export function valueCohortKey(fieldKey: string, value: string): string {
   return `${VALUE_COHORT_PREFIX}${fieldKey}:${value}`;
+}
+
+export function partySizeCohortKey(bucket: PartySizeBucket): string {
+  return `${PARTY_SIZE_COHORT_PREFIX}${bucket}`;
+}
+
+/**
+ * The interactions in one party-size bucket.
+ *
+ * A bucket is derived from a number, so it cannot be reached through the
+ * value cohort: matching `valueText === "3+"` would open the interactions where
+ * somebody had literally typed "3+" and miss every party of four. The bucket
+ * rule is applied again here from the same function the bar used, and the
+ * evidence shown is the party-size field itself.
+ */
+export function partySizeCohort(
+  rows: readonly PopulationRow[],
+  bucket: string,
+): ActionCohort | null {
+  if (!PARTY_SIZE_BUCKETS.includes(bucket as PartySizeBucket)) return null;
+  const matched = rows.filter((row) => partySizeBucket(row) === bucket);
+  return {
+    key: `${PARTY_SIZE_COHORT_PREFIX}${bucket}`,
+    headline: bucket === "1" ? "arrived alone" : `arrived as a party of ${bucket}`,
+    reason: "Party size was recorded as a number and falls in this bucket",
+    evidenceFieldKeys: ["customer_party_size"],
+    measurable: rows.filter((row) => isSupported(row.values, "customer_party_size")).length,
+    conversationIds: matched.map((row) => row.conversationId),
+  };
 }
 
 /** Marks a path segment as a transported key rather than a plain one. */
@@ -137,6 +176,42 @@ export function valueCohort(
   };
 }
 
+export function observedCohortKey(fieldKey: string): string {
+  return `${OBSERVED_COHORT_PREFIX}${fieldKey}`;
+}
+
+/**
+ * The interactions where a field was observed at all.
+ *
+ * For a field whose values are money rather than text there is no bar to click
+ * and no single value to open — a median is not one of the numbers it summarises.
+ * This is the honest drill-down: every interaction that carried a figure, with
+ * the figure's own field as its evidence.
+ */
+export function observedCohort(
+  rows: readonly PopulationRow[],
+  fieldKey: string,
+  headline: string,
+): ActionCohort {
+  const matched = rows.filter((row) =>
+    row.values.some((item) => item.fieldKey === fieldKey && !item.abstention),
+  );
+  return {
+    key: observedCohortKey(fieldKey),
+    headline,
+    reason: `The field ${fieldKey} carried an observed value`,
+    evidenceFieldKeys: [fieldKey],
+    measurable: rows.filter((row) => isSupported(row.values, fieldKey)).length,
+    conversationIds: matched.map((row) => row.conversationId),
+  };
+}
+
+/** Headlines for the observed-field cohorts a page can open. */
+const OBSERVED_HEADLINES: Readonly<Record<string, string>> = {
+  competitor_price_claim: "carried a customer-stated competitor price",
+  store_price_quoted: "carried a quoted store price",
+};
+
 export function resolveCohort(
   rows: readonly PopulationRow[],
   key: string,
@@ -144,6 +219,18 @@ export function resolveCohort(
 ): ActionCohort | null {
   if (key.startsWith(NUMERATOR_COHORT_PREFIX)) {
     return numeratorCohort(rows, key.slice(NUMERATOR_COHORT_PREFIX.length));
+  }
+
+  if (key.startsWith(OBSERVED_COHORT_PREFIX)) {
+    const fieldKey = key.slice(OBSERVED_COHORT_PREFIX.length);
+    const headline = OBSERVED_HEADLINES[fieldKey];
+    // Fixed registry rather than any field name a URL happens to carry: an
+    // arbitrary field would open a cohort no page ever showed.
+    return headline ? observedCohort(rows, fieldKey, headline) : null;
+  }
+
+  if (key.startsWith(PARTY_SIZE_COHORT_PREFIX)) {
+    return partySizeCohort(rows, key.slice(PARTY_SIZE_COHORT_PREFIX.length));
   }
 
   if (key.startsWith(VALUE_COHORT_PREFIX)) {

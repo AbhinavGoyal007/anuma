@@ -5,6 +5,7 @@ import { IntelligenceFilterBar, IntelligenceHead } from "@/components/intelligen
 import { JourneyView } from "@/components/intelligence/journey-view";
 import { cohortPath, valueCohortKey } from "@/modules/intelligence/cohorts";
 import {
+  DECISION_STATES,
   FILTER_PARAM_KEYS,
   intelligenceHref,
   single,
@@ -145,6 +146,19 @@ export default async function CustomerJourneyPage({ searchParams }: PageProps) {
         breakdownDimension={dimension}
         breakdownHref={(next) => intelligenceHref(BASE, filters, { ...carry, dimension: next })}
         outcomes={outcomeDistributions(cohort)}
+        // Only where the filter is the segment. "Unconfirmed" on the business
+        // axis is left plain: the contract names sale and no_sale as the exact
+        // business filters, and a segment that narrows to an approximation of
+        // itself shows the reader a different count than the one they clicked.
+        outcomeHref={(axis, key) =>
+          axis === "business"
+            ? key === "sale" || key === "no_sale"
+              ? intelligenceHref(BASE, { ...filters, businessOutcome: key }, carry)
+              : null
+            : DECISION_STATES.includes(key as (typeof DECISION_STATES)[number])
+              ? intelligenceHref(BASE, { ...filters, decisionState: key }, carry)
+              : null
+        }
         products={productPath(cohort)}
         cohortHref={(key) => intelligenceHref(BASE, filters, { cohort: key, drawer: null })}
         gapHref={(key) => intelligenceHref(BASE, filters, { ...carry, drawer: key })}
