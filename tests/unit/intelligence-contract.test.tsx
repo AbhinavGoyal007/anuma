@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
@@ -603,5 +606,26 @@ describe("the tab sets are the ones the contract fixes", () => {
       "Objections",
       "Conditions",
     ]);
+  });
+});
+
+describe("the copy contract", () => {
+  it("never describes a customer's condition as what would close the sale", () => {
+    // The field records the customer's own requirement for going ahead. The
+    // other phrasing turns it into our sales opportunity, which is a different
+    // claim about a person who has not agreed to anything.
+    const surfaces = [
+      "src/app/(app)/intelligence/demand/page.tsx",
+      "src/components/intelligence/demand-view.tsx",
+      "src/modules/intelligence/metric-registry.ts",
+    ];
+    for (const file of surfaces) {
+      const source = readFileSync(join(process.cwd(), file), "utf8");
+      const rendered = source
+        .split("\n")
+        .filter((line) => !line.trim().startsWith("//") && !line.trim().startsWith("*"))
+        .join("\n");
+      expect(rendered.toLowerCase(), `${file} still says it`).not.toContain("would close it");
+    }
   });
 });

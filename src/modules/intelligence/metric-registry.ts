@@ -170,7 +170,7 @@ export const metricRegistry: readonly MetricDefinition[] = [
   }),
   demand({
     key: "purchase_conditions_stated",
-    label: "Told us what would close it",
+    label: "Told us what they needed to proceed",
     businessQuestion: "What are customers explicitly saying they need before they buy?",
     definition:
       "Unresolved interactions where the customer stated an explicit condition for purchase. This is what they said, not our guess at what would have worked.",

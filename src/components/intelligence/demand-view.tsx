@@ -498,6 +498,7 @@ export function DemandView({
             eligible={blockers.classified}
             controlled
             unit={`of ${blockers.classified} confirmed no-sales carrying an observed reason`}
+            evidenceHrefFor={(item: string) => evidenceHref("primary_non_conversion_reason", item)}
           />
         ) : (
           <DataState state={blockerState} />

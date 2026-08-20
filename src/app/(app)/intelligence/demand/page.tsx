@@ -125,7 +125,10 @@ function voicePanels(tab: string, rows: readonly PopulationRow[]): VoicePanel[] 
       return [
         {
           key: "customer_purchase_conditions",
-          title: "What customers said would close it",
+          // The customer's own stated requirement for going ahead. Never "what
+          // would close it": that phrasing turns their condition into our sales
+          // opportunity, and the field records the first, not the second.
+          title: "What customers said they needed to proceed",
           // Only from interactions that did not close: a customer who bought had
           // no condition left to state.
           list: rankedShare(
@@ -135,6 +138,7 @@ function voicePanels(tab: string, rows: readonly PopulationRow[]): VoicePanel[] 
           ),
           unit: "of unresolved interactions · stated explicitly, not our guess",
           controlled: false,
+          fieldKey: "customer_purchase_conditions",
         },
       ];
     default:
