@@ -432,18 +432,20 @@ export function DemandView({
                 {/* The qualification travels with the number, not only in the
                     note under the section. Somebody reading one figure has to
                     see what it is. */}
-                <p className="ip-note">Customer-stated; unverified</p>
-                <TelemetryLink
-                  className="ip-review"
-                  href={evidenceHref(observedCohortKey("competitor_price_claim"))}
-                  telemetry={{
-                    event: "demand_value_reviewed",
-                    objectType: "competitor_price_claim",
-                    objectKey: "observed",
-                  }}
-                >
-                  Review
-                </TelemetryLink>
+                <p className="ip-claim-note">
+                  Customer-stated; unverified ·{" "}
+                  <TelemetryLink
+                    className="ip-link"
+                    href={evidenceHref(observedCohortKey("competitor_price_claim"))}
+                    telemetry={{
+                      event: "demand_value_reviewed",
+                      objectType: "competitor_price_claim",
+                      objectKey: "observed",
+                    }}
+                  >
+                    Review
+                  </TelemetryLink>
+                </p>
               </>
             )}
           </div>

@@ -546,6 +546,24 @@ describe("the journey rail", () => {
     expect(screen.getByRole("heading", { name: "Customer state" })).toBeInTheDocument();
   });
 
+  it("narrows the page from a segment only where a filter is exactly that segment", () => {
+    const decided = [
+      row({ values: [value("confirmed_business_outcome", "sale")] }),
+      row({ values: [notStated("confirmed_business_outcome")] }),
+    ];
+    const { container } = renderJourney(decided);
+    const business = container.querySelector("#jr-business")!.closest("section")!;
+
+    // A sale is `outcome=sale`, exactly.
+    expect(business.querySelector('a[href*="outcome=sale"]')).toBeInTheDocument();
+    // "Unconfirmed" is left plain: an approximate filter would show a different
+    // count than the segment the reader just clicked.
+    const links = [...business.querySelectorAll("a.ip-seg")].map((node) =>
+      node.getAttribute("href"),
+    );
+    expect(links.some((href) => href?.includes("outcome=unknown"))).toBe(false);
+  });
+
   it("shows counts rather than a confident rate on a tiny comparison", () => {
     const clarity = [
       value("requirement_clarity_start", "low"),

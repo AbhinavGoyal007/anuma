@@ -5470,6 +5470,16 @@ a.ip-action-card:focus-visible {
 /* A second, deliberately smaller affordance beside a bar. One click must not
    both narrow the page and open evidence — a reader cannot predict which they
    are about to get, so they stop clicking either. */
+/* A price is hearsay until somebody checks it, so the qualification and the way
+   to check it sit together under the figure rather than in a note at the foot
+   of the section, where a reader looking at one number would not meet it. */
+.ip-claim-note {
+  color: var(--intel-muted);
+  font-size: 12px;
+  margin-top: 8px;
+  text-align: left;
+}
+
 .ip-review {
   color: var(--intel-muted);
   font-size: 12px;
