@@ -1,8 +1,22 @@
-import { distribution, rankedShare, type RankedShare } from "@/modules/intelligence/demand";
+import {
+  distribution,
+  rankedShare,
+  type RankedResult,
+  type RankedShare,
+} from "@/modules/intelligence/demand";
+import { isSupported, statedText } from "@/modules/intelligence/effective";
 import type { ActionCohort } from "@/modules/intelligence/frontline";
 import { measure, type Measure } from "@/modules/intelligence/guardrails";
-import { DECISION_LABELS, DECISION_ORDER, isUnresolved } from "@/modules/intelligence/outcome";
-import type { PopulationRow, PopulationValue } from "@/modules/intelligence/population";
+import {
+  alternativeApplicableRate,
+  closeAttemptIncidence,
+  commercialOfferIncidence,
+  demoApplicableRate,
+  recommendationIncidence,
+  saleAmongEstablished,
+} from "@/modules/intelligence/measures";
+import { DECISION_LABELS, DECISION_ORDER } from "@/modules/intelligence/outcome";
+import type { PopulationRow } from "@/modules/intelligence/population";
 
 /**
  * How far customers got, and where they stopped getting further.
@@ -20,13 +34,11 @@ import type { PopulationRow, PopulationValue } from "@/modules/intelligence/popu
  * because the stage before it was.
  */
 
-const present = (row: PopulationRow, fieldKey: string): PopulationValue[] =>
-  row.values.filter((value) => value.fieldKey === fieldKey && !value.abstention);
-
-const has = (row: PopulationRow, fieldKey: string): boolean => present(row, fieldKey).length > 0;
+const has = (row: PopulationRow, fieldKey: string): boolean =>
+  statedText(row.values, fieldKey).length > 0;
 
 const supported = (row: PopulationRow, fieldKey: string): boolean =>
-  row.values.some((value) => value.fieldKey === fieldKey);
+  isSupported(row.values, fieldKey);
 
 export const JOURNEY_COHORTS = ["high_intent", "ready_to_buy", "specific_product", "all"] as const;
 export type JourneyCohortKey = (typeof JOURNEY_COHORTS)[number];
@@ -229,49 +241,28 @@ export function journeyStages(
 export type InterventionRate = { key: string; label: string; measure: Measure };
 
 export function interventions(cohort: readonly PopulationRow[]): InterventionRate[] {
-  const size = cohort.length;
-  const rate = (test: (row: PopulationRow) => boolean, fieldKey?: string) => {
-    const eligible = fieldKey ? cohort.filter((row) => supported(row, fieldKey)) : [...cohort];
-    return measure(eligible.filter(test).length, size, eligible.length);
-  };
-  /**
-   * A yes/no behaviour, measured only where it applied.
-   *
-   * Matching the Frontline page exactly. Dividing by the whole cohort instead
-   * counted "not applicable" as a miss, and the same behaviour then read 4%
-   * here and 13% there — two numbers for one fact, which is how a reader
-   * decides the dashboard cannot be trusted.
-   */
-  const applicable = (read: (row: PopulationRow) => string | null) => {
-    const eligible = cohort.filter((row) => read(row) === "yes" || read(row) === "no");
-    return measure(eligible.filter((row) => read(row) === "yes").length, size, eligible.length);
-  };
+  // Delegated to the canonical measures, so the same behaviour cannot read one
+  // way here and another way on Frontline. It did exactly that once: demo was
+  // divided by the whole cohort here and by the interactions where it applied
+  // there, and one fact showed as 4% on one page and 13% on the other.
   return [
     {
       key: "recommendation",
       label: "Recommended something",
-      measure: rate((row) => row.productsRecommendedCount > 0),
+      measure: recommendationIncidence(cohort),
     },
-    {
-      key: "demo",
-      label: "Showed the product",
-      measure: applicable((row) => row.demoPerformed),
-    },
+    { key: "demo", label: "Showed the product", measure: demoApplicableRate(cohort) },
     {
       key: "alternative",
       label: "Offered an alternative",
-      measure: applicable((row) => row.alternativeOffered),
+      measure: alternativeApplicableRate(cohort),
     },
     {
       key: "offer",
       label: "Made a commercial offer",
-      measure: rate((row) => has(row, "commercial_offer_made"), "commercial_offer_made"),
+      measure: commercialOfferIncidence(cohort),
     },
-    {
-      key: "close",
-      label: "Asked for the sale",
-      measure: rate((row) => has(row, "close_attempts"), "close_attempts"),
-    },
+    { key: "close", label: "Asked for the sale", measure: closeAttemptIncidence(cohort) },
   ];
 }
 
@@ -448,7 +439,6 @@ export function journeyBreakdown(
     .map(([key, rows]) => {
       const stages = journeyStages(rows);
       const stage = (name: string) => stages.find((item) => item.key === name)!.reach;
-      const outcomeKnown = rows.filter((row) => row.outcome.business !== "unknown");
       return {
         key,
         label: labelFor(key),
@@ -458,11 +448,7 @@ export function journeyBreakdown(
         commitment: stage("commitment"),
         // Read here rather than from the rail, which no longer carries a sale
         // state. Measured against established outcomes only.
-        sale: measure(
-          outcomeKnown.filter((row) => row.outcome.business === "sale").length,
-          rows.length,
-          outcomeKnown.length,
-        ),
+        sale: saleAmongEstablished(rows),
       };
     })
     .sort((a, b) => b.size - a.size);
@@ -476,9 +462,9 @@ export function journeyBreakdown(
  * and a shape that only ever narrows would quietly deny that.
  */
 export type ProductPath = {
-  considered: { entries: RankedShare[]; eligible: number };
-  recommended: { entries: RankedShare[]; eligible: number };
-  preferred: { entries: RankedShare[]; eligible: number };
+  considered: RankedResult;
+  recommended: RankedResult;
+  preferred: RankedResult;
   /** How customers reacted to what was recommended. */
   response: { entries: RankedShare[]; classified: number };
 };
@@ -490,7 +476,90 @@ export function productPath(cohort: readonly PopulationRow[], limit = 5): Produc
     preferred: rankedShare(cohort, ["final_preferred_product"], limit),
     response: distribution(
       cohort,
-      (row) => present(row, "recommendation_response")[0]?.valueText ?? null,
+      (row) => statedText(row.values, "recommendation_response")[0] ?? null,
     ),
+  };
+}
+
+/**
+ * Everything the fixed diagnosis panel says about one selected state.
+ *
+ * A rail of four numbers tells a manager where people got to. It does not tell
+ * them what to do, and the honest reason is usually a denominator: a state can
+ * look thin because few reached it, or because few records could answer the
+ * question at all. Both are on this panel, next to each other, with the
+ * interactions behind the gap one click away.
+ */
+export type StageDiagnosis = {
+  key: string;
+  label: string;
+  meaning: string;
+  reached: number;
+  /** Interactions that could have carried this state. */
+  measurable: number;
+  /** Reached, over measurable. */
+  rate: number | null;
+  /** Measurable, over the whole cohort. */
+  coverage: number | null;
+  /** Of those who reached this state, how many were observed in the next one. */
+  nextObserved: number | null;
+  nextMissing: number | null;
+  /** Where the missing observations are concentrated, when that means anything. */
+  concentration: { label: string; count: number; of: number } | null;
+  /** The group a Review button opens, and how many interactions it holds. */
+  reviewCohortKey: string | null;
+  reviewCount: number;
+};
+
+/** Below this the "most affected store" is one conversation wearing a label. */
+const MINIMUM_FOR_CONCENTRATION = 4;
+
+export function journeyDiagnosis(
+  cohort: readonly PopulationRow[],
+  stages: readonly JourneyStage[],
+  stageKey: string,
+  leakage: readonly ActionCohort[],
+  groupOf: (row: PopulationRow) => string | null,
+  labelFor: (key: string) => string,
+): StageDiagnosis | null {
+  const index = stages.findIndex((stage) => stage.key === stageKey);
+  if (index < 0) return null;
+  const stage = stages[index]!;
+  const next = stages[index + 1];
+
+  // The gap a reader would act on is the one leaving this state, not the one
+  // that led into it.
+  const outgoing = next?.gap ?? null;
+  const group = outgoing ? leakage.find((item) => item.key === outgoing.cohortKey) : undefined;
+
+  const missing = new Set(group?.conversationIds ?? []);
+  const counts = new Map<string, number>();
+  for (const row of cohort) {
+    if (!missing.has(row.conversationId)) continue;
+    const key = groupOf(row);
+    if (!key) continue;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  // Named only when there is something to compare it against and enough behind
+  // it to be a pattern rather than a coincidence.
+  const concentration =
+    ranked.length >= 2 && missing.size >= MINIMUM_FOR_CONCENTRATION && ranked[0]
+      ? { label: labelFor(ranked[0][0]), count: ranked[0][1], of: missing.size }
+      : null;
+
+  return {
+    key: stage.key,
+    label: stage.label,
+    meaning: stage.meaning,
+    reached: stage.reached,
+    measurable: stage.reach.observed,
+    rate: stage.reach.value,
+    coverage: stage.reach.coverage,
+    nextObserved: outgoing?.observed ?? null,
+    nextMissing: outgoing?.missing ?? null,
+    concentration,
+    reviewCohortKey: group && group.conversationIds.length > 0 ? group.key : null,
+    reviewCount: group?.conversationIds.length ?? 0,
   };
 }

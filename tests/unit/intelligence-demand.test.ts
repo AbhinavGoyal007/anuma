@@ -4,62 +4,22 @@ import {
   budgetPicture,
   clarityMatrix,
   computeDemand,
+  contextPrices,
   distribution,
   nonConversionReasons,
   rankedShare,
 } from "@/modules/intelligence/demand";
-import { readOutcome } from "@/modules/intelligence/outcome";
-import type { PopulationRow, PopulationValue } from "@/modules/intelligence/population";
+import { notStated, row, value } from "../support/population";
 
-const value = (
-  fieldKey: string,
-  valueText: string | null,
-  label: string | null = null,
-  abstention: string | null = null,
-): PopulationValue => ({
-  fieldKey,
-  label,
-  valueText,
-  valueNumber: null,
-  amountMinor: null,
-  currency: null,
-  abstention,
-  hasEvidence: true,
-  earliestMs: 0,
-});
-
-let seq = 0;
-function row(overrides: Partial<PopulationRow> = {}): PopulationRow {
-  const values = overrides.values ?? [];
-  return {
-    conversationId: `c${(seq += 1)}`,
-    recordId: `r${seq}`,
-    startedAt: "2026-08-01T10:00:00Z",
-    locationId: null,
-    representativeMembershipId: null,
-    teamId: null,
-    purchaseCategory: "laptop",
-    arrivalIntent: null,
-    clarityStart: null,
-    clarityEnd: null,
-    targetBudgetMinor: null,
-    maxBudgetMinor: null,
-    budgetCurrency: "INR",
-    productsRecommendedCount: 0,
-    objectionCount: 0,
-    objectionCoverage: null,
-    competitorCount: 0,
-    financeRequested: false,
-    demoPerformed: null,
-    alternativeOffered: null,
-    crossSellCount: 0,
-    upsellCount: 0,
-    customerQuestionCount: 0,
-    ...overrides,
-    values,
-    outcome: readOutcome(values),
-  };
-}
+const budget = (minor: number) =>
+  value("target_budget", String(minor), { amountMinor: minor, currency: "INR" });
+const ceiling = (minor: number) =>
+  value("maximum_budget", String(minor), { amountMinor: minor, currency: "INR" });
+const CLARITY = ["none", "low", "medium", "high"] as const;
+const clarity = (end: "start" | "end", level: number | null) =>
+  level === null
+    ? notStated(`requirement_clarity_${end}`)
+    : value(`requirement_clarity_${end}`, CLARITY[level]!);
 
 describe("what customers wanted", () => {
   it("counts an interaction once however often it repeats a use case", () => {
@@ -113,7 +73,7 @@ describe("what customers wanted", () => {
     const { entries, eligible } = rankedShare(
       [
         row({ values: [value("brand_preferences", "Sony")] }),
-        row({ values: [value("brand_preferences", null, null, "not_stated")] }),
+        row({ values: [notStated("brand_preferences")] }),
         row({ values: [] }),
       ],
       ["brand_preferences"],
@@ -126,38 +86,37 @@ describe("what customers wanted", () => {
 describe("budgets", () => {
   it("takes the median of stated budgets and never fills a gap with zero", () => {
     const picture = budgetPicture([
-      row({ targetBudgetMinor: 5_000_000 }),
-      row({ targetBudgetMinor: 7_000_000 }),
-      row({ targetBudgetMinor: 9_000_000 }),
-      row({ targetBudgetMinor: null }),
+      row({ values: [budget(5_000_000)] }),
+      row({ values: [budget(7_000_000)] }),
+      row({ values: [budget(9_000_000)] }),
+      row({ values: [notStated("target_budget")] }),
     ]);
-    expect(picture.targetMedian).toBe(7_000_000);
-    expect(picture.targetObserved).toBe(3);
+    expect(picture.mixed).toBe(false);
+    expect(picture.byCurrency[0]!.targetMedian).toBe(7_000_000);
+    expect(picture.byCurrency[0]!.targetObserved).toBe(3);
     expect(picture.observationRate.value).toBe(0.75);
   });
 
   it("requires both figures before it will call anything a stretch", () => {
     const picture = budgetPicture([
-      row({ targetBudgetMinor: 5_000_000, maxBudgetMinor: 6_000_000 }),
-      row({ targetBudgetMinor: 5_000_000 }),
-      row({ maxBudgetMinor: 9_000_000 }),
+      row({ values: [budget(5_000_000), ceiling(6_000_000)] }),
+      row({ values: [budget(5_000_000)] }),
+      row({ values: [ceiling(9_000_000)] }),
     ]);
-    expect(picture.stretchObserved).toBe(1);
-    expect(picture.stretchMedian).toBe(1_000_000);
+    expect(picture.byCurrency[0]!.stretchObserved).toBe(1);
+    expect(picture.byCurrency[0]!.stretchMedian).toBe(1_000_000);
   });
 
   it("drops a ceiling that sits below the opening budget", () => {
     // Somebody has been misread; a negative stretch is not a finding.
-    const picture = budgetPicture([
-      row({ targetBudgetMinor: 8_000_000, maxBudgetMinor: 6_000_000 }),
-    ]);
-    expect(picture.stretchObserved).toBe(0);
-    expect(picture.stretchMedian).toBeNull();
+    const picture = budgetPicture([row({ values: [budget(8_000_000), ceiling(6_000_000)] })]);
+    expect(picture.byCurrency[0]!.stretchObserved).toBe(0);
+    expect(picture.byCurrency[0]!.stretchMedian).toBeNull();
   });
 
   it("reports nothing rather than zero when no budget was stated", () => {
     const picture = budgetPicture([row(), row()]);
-    expect(picture.targetMedian).toBeNull();
+    expect(picture.byCurrency).toEqual([]);
     expect(picture.observationRate.value).toBe(0);
   });
 });
@@ -165,10 +124,10 @@ describe("budgets", () => {
 describe("requirement clarity", () => {
   it("places each interaction in the cell it actually travelled", () => {
     const matrix = clarityMatrix([
-      row({ clarityStart: 0, clarityEnd: 3 }),
-      row({ clarityStart: 1, clarityEnd: 1 }),
-      row({ clarityStart: 2, clarityEnd: 2 }),
-      row({ clarityStart: 1, clarityEnd: null }),
+      row({ values: [clarity("start", 0), clarity("end", 3)] }),
+      row({ values: [clarity("start", 1), clarity("end", 1)] }),
+      row({ values: [clarity("start", 2), clarity("end", 2)] }),
+      row({ values: [clarity("start", 1), clarity("end", null)] }),
     ]);
     expect(matrix.cells[0]![3]).toBe(1);
     expect(matrix.cells[1]![1]).toBe(1);
@@ -179,9 +138,9 @@ describe("requirement clarity", () => {
     // The number an average hides: a mean creeping from 1.4 to 1.6 can contain
     // forty conversations that went nowhere.
     const matrix = clarityMatrix([
-      row({ clarityStart: 0, clarityEnd: 1 }),
-      row({ clarityStart: 1, clarityEnd: 0 }),
-      row({ clarityStart: 1, clarityEnd: 3 }),
+      row({ values: [clarity("start", 0), clarity("end", 1)] }),
+      row({ values: [clarity("start", 1), clarity("end", 0)] }),
+      row({ values: [clarity("start", 1), clarity("end", 3)] }),
     ]);
     expect(matrix.stalledLow).toBe(2);
     expect(matrix.improved.value).toBeCloseTo(2 / 3, 6);
@@ -189,8 +148,8 @@ describe("requirement clarity", () => {
 
   it("measures improvement only where both ends were readable", () => {
     const matrix = clarityMatrix([
-      row({ clarityStart: 1, clarityEnd: 2 }),
-      row({ clarityStart: null, clarityEnd: 3 }),
+      row({ values: [clarity("start", 1), clarity("end", 2)] }),
+      row({ values: [clarity("start", null), clarity("end", 3)] }),
     ]);
     expect(matrix.improved.observed).toBe(1);
     expect(matrix.improved.value).toBe(1);
@@ -200,10 +159,10 @@ describe("requirement clarity", () => {
 describe("intent, friction and outcome", () => {
   it("measures high intent against interactions whose intent was readable", () => {
     const metrics = computeDemand([
-      row({ arrivalIntent: "ready_to_buy" }),
-      row({ arrivalIntent: "specific_product" }),
-      row({ arrivalIntent: "exploratory" }),
-      row({ arrivalIntent: null }),
+      row({ values: [value("arrival_intent_state", "ready_to_buy")] }),
+      row({ values: [value("arrival_intent_state", "specific_product")] }),
+      row({ values: [value("arrival_intent_state", "exploratory")] }),
+      row({ values: [notStated("arrival_intent_state")] }),
     ]);
     expect(metrics.highIntent.observed).toBe(3);
     expect(metrics.highIntent.value).toBeCloseTo(2 / 3, 6);
@@ -216,7 +175,7 @@ describe("intent, friction and outcome", () => {
       row({
         values: [
           value("confirmed_business_outcome", "sale"),
-          value("customer_purchase_conditions", null, null, "not_stated"),
+          notStated("customer_purchase_conditions"),
         ],
       }),
       row({
@@ -228,7 +187,7 @@ describe("intent, friction and outcome", () => {
       row({
         values: [
           value("confirmed_business_outcome", "no_sale"),
-          value("customer_purchase_conditions", null, null, "not_stated"),
+          notStated("customer_purchase_conditions"),
         ],
       }),
     ]);
@@ -269,7 +228,7 @@ describe("intent, friction and outcome", () => {
       }),
       row({
         values: [
-          value("confirmed_business_outcome", null, null, "insufficient_evidence"),
+          value("confirmed_business_outcome", null, { abstention: "insufficient_evidence" }),
           value("primary_non_conversion_reason", "stock"),
         ],
       }),
@@ -277,15 +236,92 @@ describe("intent, friction and outcome", () => {
     ]);
     expect(reasons.confirmedNoSales).toBe(2);
     expect(reasons.classified).toBe(1);
-    expect(reasons.coverage).toBe(0.5);
+    expect(reasons.coverage.value).toBe(0.5);
     expect(reasons.entries.map((entry) => entry.value)).toEqual(["price"]);
   });
 
   it("sums a fixed vocabulary to one", () => {
     const { entries } = distribution(
-      [row({ arrivalIntent: "exploratory" }), row({ arrivalIntent: "comparing" })],
-      (r) => r.arrivalIntent,
+      [
+        row({ values: [value("arrival_intent_state", "exploratory")] }),
+        row({ values: [value("arrival_intent_state", "comparing")] }),
+      ],
+      (item) => item.arrivalIntent,
     );
     expect(entries.reduce((sum, entry) => sum + entry.share, 0)).toBeCloseTo(1, 6);
+  });
+});
+
+describe("currencies are never combined", () => {
+  it("keeps rupees and dirhams as separate medians", () => {
+    // A median across two currencies is not a smaller number or a larger one —
+    // it is not a number. Nothing is converted: an FX rate is a business
+    // decision with a date on it.
+    const picture = budgetPicture([
+      row({
+        values: [value("target_budget", "50000", { amountMinor: 5_000_000, currency: "INR" })],
+      }),
+      row({
+        values: [value("target_budget", "70000", { amountMinor: 7_000_000, currency: "INR" })],
+      }),
+      row({ values: [value("target_budget", "2000", { amountMinor: 200_000, currency: "AED" })] }),
+    ]);
+    expect(picture.mixed).toBe(true);
+    expect(picture.byCurrency).toHaveLength(2);
+    const inr = picture.byCurrency.find((line) => line.currency === "INR")!;
+    const aed = picture.byCurrency.find((line) => line.currency === "AED")!;
+    expect(inr.targetMedian).toBe(6_000_000);
+    expect(inr.targetObserved).toBe(2);
+    expect(aed.targetMedian).toBe(200_000);
+    // No single median exists across the two, and none is offered.
+    expect(picture.byCurrency.some((line) => line.currency === null)).toBe(false);
+  });
+
+  it("keeps quoted and claimed prices apart by currency too", () => {
+    const prices = contextPrices([
+      row({
+        values: [value("store_price_quoted", "59000", { amountMinor: 5_900_000, currency: "INR" })],
+      }),
+      row({
+        values: [value("store_price_quoted", "2400", { amountMinor: 240_000, currency: "AED" })],
+      }),
+    ]);
+    expect(prices.mixed).toBe(true);
+    expect(prices.storeQuoted).toHaveLength(2);
+  });
+});
+
+describe("no-sale reasons, to the specified fixture", () => {
+  it("reports share against reasons observed and coverage against confirmed no-sales", () => {
+    const reasons = nonConversionReasons([
+      ...Array.from({ length: 8 }, () =>
+        row({
+          values: [
+            value("confirmed_business_outcome", "no_sale"),
+            value("primary_non_conversion_reason", "price"),
+          ],
+        }),
+      ),
+      ...Array.from({ length: 8 }, () =>
+        row({
+          values: [
+            value("confirmed_business_outcome", "no_sale"),
+            value("primary_non_conversion_reason", "stock"),
+          ],
+        }),
+      ),
+      ...Array.from({ length: 4 }, () =>
+        row({
+          values: [
+            value("confirmed_business_outcome", "no_sale"),
+            notStated("primary_non_conversion_reason"),
+          ],
+        }),
+      ),
+    ]);
+    expect(reasons.confirmedNoSales).toBe(20);
+    expect(reasons.classified).toBe(16);
+    expect(reasons.entries.find((entry) => entry.value === "price")!.share).toBe(0.5);
+    expect(reasons.coverage.value).toBe(0.8);
   });
 });

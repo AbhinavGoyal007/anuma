@@ -33,6 +33,9 @@ export function SectionTabs({
           className={`ip-tab${tab.key === active ? " ip-tab--active" : ""}`}
           href={hrefFor(tab.key)}
           aria-current={tab.key === active ? "true" : undefined}
+          // Picked up by LocalSwitch, which shows the matching panel without a
+          // round trip. Without JavaScript this stays an ordinary link.
+          data-local-key={tab.key}
         >
           {tab.label}
         </Link>

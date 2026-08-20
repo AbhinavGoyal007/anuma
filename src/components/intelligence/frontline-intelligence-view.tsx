@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { DataState, stateFor, type SlotState } from "@/components/intelligence/data-state";
+import { LocalSwitch } from "@/components/intelligence/local-switch";
 import { RankedBars } from "@/components/intelligence/interactive-ranked-bar";
 import { Delta, formatPercent, tipText } from "@/components/intelligence/metric-tile";
 import { QuadrantBenchmark } from "@/components/intelligence/quadrant-benchmark";
@@ -139,6 +140,7 @@ function ListSlot({
   return state === "POPULATED" ? (
     <RankedBars
       entries={list.entries}
+      distinct={"distinct" in list ? (list.distinct as number) : undefined}
       eligible={eligible}
       unit={unit}
       controlled={controlled}
@@ -364,35 +366,54 @@ function StageDetail({
  * numbers.
  */
 function Dumbbell({ rows }: { rows: OutcomeAssociationResult["rows"] }) {
+  const comparable = rows.filter((row) => row.strength !== "suppressed");
+  const suppressed = rows.filter((row) => row.strength === "suppressed");
+
   return (
-    <div className="ip-dumb">
-      {rows.map((row) => {
-        const sale = (row.saleRate ?? 0) * 100;
-        const noSale = (row.noSaleRate ?? 0) * 100;
-        return (
-          <div className="ip-drow" key={row.behaviourKey}>
-            <span>{row.label}</span>
-            <span
-              className="ip-dline"
-              style={
-                {
-                  "--a": `${Math.min(sale, noSale)}%`,
-                  "--b": `${Math.max(sale, noSale)}%`,
-                } as React.CSSProperties
-              }
-              role="img"
-              aria-label={`${row.label}: ${Math.round(sale)}% in sales, ${Math.round(noSale)}% in non-sales`}
-            >
-              <i style={{ left: `${noSale}%` }} />
-              <b style={{ left: `${sale}%` }} />
-            </span>
-            <span className="ip-meta">
-              {Math.round(sale)}% / {Math.round(noSale)}%
-            </span>
-          </div>
-        );
-      })}
-    </div>
+    <>
+      <div className="ip-dumb">
+        {comparable.map((row) => {
+          const sale = (row.saleRate ?? 0) * 100;
+          const noSale = (row.noSaleRate ?? 0) * 100;
+          return (
+            <div className="ip-drow" key={row.behaviourKey}>
+              <span>
+                {row.label}
+                {row.strength === "directional" ? <em className="ip-badge">Directional</em> : null}
+              </span>
+              <span
+                className="ip-dline"
+                style={
+                  {
+                    "--a": `${Math.min(sale, noSale)}%`,
+                    "--b": `${Math.max(sale, noSale)}%`,
+                  } as React.CSSProperties
+                }
+                role="img"
+                aria-label={`${row.label}: ${row.saleAffected} of ${row.saleN} sales, ${row.noSaleAffected} of ${row.noSaleN} non-sales`}
+              >
+                <i style={{ left: `${noSale}%` }} />
+                <b style={{ left: `${sale}%` }} />
+              </span>
+              {/* Each behaviour carries its own denominator on each side. One
+                  shared "sales N" would count a demo that never applied as a
+                  demo somebody skipped. */}
+              <span className="ip-meta">
+                {row.saleAffected}/{row.saleN} · {row.noSaleAffected}/{row.noSaleN}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {suppressed.length > 0 ? (
+        <p className="ip-note">
+          Suppressed for too few eligible interactions on one side:{" "}
+          {suppressed.map((row) => `${row.label} (${row.saleN} vs ${row.noSaleN})`).join(", ")}. At
+          least {DEFAULT_GUARDRAILS.minimumForComparison} on each side are needed before a behaviour
+          can be compared.
+        </p>
+      ) : null}
+    </>
   );
 }
 
@@ -407,8 +428,6 @@ export function FrontlineIntelligenceView({
   associations,
   analysed,
   withoutMetrics,
-  quadrantTab,
-  quadrantHref,
 }: {
   metrics: FrontlineMetrics;
   previousMetrics: FrontlineMetrics | null;
@@ -421,8 +440,6 @@ export function FrontlineIntelligenceView({
   analysed: number;
   /** Null where a category is selected and the count cannot be stated honestly. */
   withoutMetrics: number | null;
-  quadrantTab: string;
-  quadrantHref: (key: string) => string;
 }) {
   const before = (key: keyof FrontlineMetrics) => previousMetrics?.[key] ?? null;
   const stageLabel = STAGES.find((item) => item.key === stage)!.label;
@@ -459,76 +476,89 @@ export function FrontlineIntelligenceView({
         })}
       </section>
 
-      <section className="ip-execution ip-col-12" aria-label="Execution">
-        {STAGES.map((item) => (
-          <Link
-            className={`ip-stage${item.key === stage ? " ip-stage--active" : ""}`}
-            key={item.key}
-            href={stageHref(item.key)}
-            aria-current={item.key === stage ? "true" : undefined}
-          >
-            <h3>{item.label}</h3>
-            <dl>
-              {STAGE_SUMMARY[item.key].map((metricKey) => {
-                const m = metrics[metricKey];
-                const definition = metric(METRIC_KEYS[metricKey]);
-                return (
-                  <div className="ip-row" key={metricKey}>
-                    <dt>{definition.label}</dt>
-                    <dd>
-                      {m.value === null ? "—" : formatPercent(m.value)}
-                      <span className="ip-meta">
-                        {" "}
-                        {m.affected ?? 0}/{m.observed}
-                      </span>
-                    </dd>
-                  </div>
-                );
-              })}
-            </dl>
-          </Link>
-        ))}
-      </section>
+      {/* The stage cards and the one detail panel are a single local
+          selection: nothing about the population changes, so nothing should
+          wait on the server. */}
+      <LocalSwitch param="stage" initial={stage}>
+        <section className="ip-execution ip-col-12" aria-label="Execution">
+          {STAGES.map((item) => (
+            <Link
+              className={`ip-stage${item.key === stage ? " ip-stage--active" : ""}`}
+              key={item.key}
+              href={stageHref(item.key)}
+              aria-current={item.key === stage ? "true" : undefined}
+              data-local-key={item.key}
+            >
+              <h3>{item.label}</h3>
+              <dl>
+                {STAGE_SUMMARY[item.key].map((metricKey) => {
+                  const m = metrics[metricKey];
+                  const definition = metric(METRIC_KEYS[metricKey]);
+                  return (
+                    <div className="ip-row" key={metricKey}>
+                      <dt>{definition.label}</dt>
+                      <dd>
+                        {m.value === null ? "—" : formatPercent(m.value)}
+                        <span className="ip-meta">
+                          {" "}
+                          {m.affected ?? 0}/{m.observed}
+                        </span>
+                      </dd>
+                    </div>
+                  );
+                })}
+              </dl>
+            </Link>
+          ))}
+        </section>
 
-      <section className="ip-panel ip-col-12" aria-labelledby="fl-detail">
-        <div className="ip-section-title">
-          <h2 id="fl-detail">Detail</h2>
-          <span className="ip-meta">{stageLabel}</span>
-        </div>
-        {analysed === 0 ? (
-          <DataState state="NO_OBSERVATIONS" />
-        ) : (
-          <StageDetail stage={stage} metrics={metrics} previous={previousMetrics} detail={detail} />
-        )}
-      </section>
+        <section className="ip-panel ip-col-12" aria-labelledby="fl-detail">
+          <div className="ip-section-title">
+            <h2 id="fl-detail">Detail</h2>
+          </div>
+          {analysed === 0 ? (
+            <DataState state="NO_OBSERVATIONS" />
+          ) : (
+            STAGES.map((item) => (
+              <div data-local-panel={item.key} hidden={item.key !== stage} key={item.key}>
+                <StageDetail
+                  stage={item.key}
+                  metrics={metrics}
+                  previous={previousMetrics}
+                  detail={detail}
+                />
+              </div>
+            ))
+          )}
+        </section>
+      </LocalSwitch>
 
-      <QuadrantBenchmark tab={quadrantTab} hrefFor={quadrantHref} />
+      <QuadrantBenchmark />
 
       <section className="ip-panel ip-col-12" aria-labelledby="fl-behaviour">
         <details>
           <summary className="ip-section-title">
             <h2 id="fl-behaviour">Behavior &amp; outcome</h2>
             <span className="ip-meta">
-              {associations.saleN} confirmed sales · {associations.noSaleN} confirmed no-sales
+              {associations.saleTotal} confirmed sales · {associations.noSaleTotal} confirmed
+              no-sales
             </span>
           </summary>
-          {associations.strength === "suppressed" ? (
+          {associations.rows.every((row) => row.strength === "suppressed") ? (
             <div className="ip-state" role="status">
               <strong>Too few established outcomes to compare</strong>
               <span>
-                At least {DEFAULT_GUARDRAILS.minimumForComparison} confirmed sales and{" "}
-                {DEFAULT_GUARDRAILS.minimumForComparison} confirmed no-sales are needed.
-                Interactions whose outcome was never settled belong to neither group and are never
-                filed as no-sales.
+                Every behaviour has fewer than {DEFAULT_GUARDRAILS.minimumForComparison} eligible
+                interactions on one side. Interactions whose outcome was never settled belong to
+                neither group and are never filed as no-sales.
               </span>
             </div>
           ) : (
             <>
               <p className="ip-legend">
-                <b className="ip-swatch ip-seg--teal" aria-hidden="true" /> in sales (
-                {associations.saleN}) <b className="ip-swatch ip-seg--coral" aria-hidden="true" />{" "}
-                in non-sales ({associations.noSaleN})
-                {associations.strength === "directional" ? " · directional at this sample" : ""}
+                <b className="ip-swatch ip-seg--teal" aria-hidden="true" /> in sales{" "}
+                <b className="ip-swatch ip-seg--coral" aria-hidden="true" /> in non-sales · each
+                behaviour on its own denominator
               </p>
               <Dumbbell rows={associations.rows} />
               <p className="ip-note">

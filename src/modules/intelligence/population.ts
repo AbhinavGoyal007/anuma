@@ -6,7 +6,13 @@ import {
   currentRecordIds,
   type Correction,
 } from "@/modules/intelligence/corrections";
-import { readOutcome, type Outcome } from "@/modules/intelligence/outcome";
+import {
+  readEffective,
+  type Applicable,
+  type Money,
+  type Presence,
+} from "@/modules/intelligence/effective";
+import type { Outcome } from "@/modules/intelligence/outcome";
 
 /**
  * The set of interactions every number on an Intelligence page is drawn from.
@@ -44,6 +50,16 @@ export type PopulationValue = {
   earliestMs: number | null;
 };
 
+/**
+ * One interaction, already read through the precedence rule.
+ *
+ * Every analytical field here is the *effective* reading — corrections applied,
+ * atomic values preferred, the `interaction_metrics` projection used only where
+ * the atomic field was never asked. The raw projection is deliberately not
+ * exposed: a component that could reach it would eventually be written to, and
+ * a rejected recommendation would then show on the conversation page and not on
+ * the dashboard.
+ */
 export type PopulationRow = {
   conversationId: string;
   recordId: string;
@@ -55,19 +71,17 @@ export type PopulationRow = {
   arrivalIntent: string | null;
   clarityStart: number | null;
   clarityEnd: number | null;
-  targetBudgetMinor: number | null;
-  maxBudgetMinor: number | null;
-  budgetCurrency: string | null;
-  productsRecommendedCount: number;
-  objectionCount: number;
-  objectionCoverage: number | null;
+  /** Every stated target budget, each with the currency it was spoken in. */
+  targetBudget: Money[];
+  maximumBudget: Money[];
+  recommendedCount: number;
+  questionCount: number;
   competitorCount: number;
-  financeRequested: boolean;
-  demoPerformed: string | null;
-  alternativeOffered: string | null;
-  crossSellCount: number;
-  upsellCount: number;
-  customerQuestionCount: number;
+  financeRequested: Presence;
+  demo: Applicable;
+  alternative: Applicable;
+  crossSell: Presence;
+  upsell: Presence;
   outcome: Outcome;
   values: PopulationValue[];
 };
@@ -124,6 +138,16 @@ function clarityToNumber(level: string | number | null): number | null {
 
 /** One page of the field-value read; the API will not return more at once. */
 const VALUE_PAGE_SIZE = 1000;
+
+/**
+ * The only fields whose position in the recording is ever asked about.
+ *
+ * Close-after-commitment is a question about order, so both sides of it need a
+ * timestamp. Nothing else on these pages does — a use case is counted, not
+ * placed — and reading a citation time for every value of every field was the
+ * single most expensive thing the loader did.
+ */
+const CHRONOLOGICAL_FIELDS = new Set(["customer_commitment_signals", "close_attempts"]);
 
 type FieldValueRow = {
   id: string;
@@ -315,18 +339,39 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
 
   // Earliest citation per evidence group, so a value can be placed in the
   // conversation rather than only counted.
+  //
+  // Only for the fields whose metric depends on order. Fetching a timestamp for
+  // every value of every field meant roughly fifty groups per interaction —
+  // thousands of rows, read in sequential pages, to answer one question about
+  // two of them. Everything else is counted, never placed.
   const groupIds = [
     ...new Set(
-      (fieldValues ?? []).flatMap((row) => (row.evidence_group_id ? [row.evidence_group_id] : [])),
+      (fieldValues ?? []).flatMap((row) =>
+        row.evidence_group_id && CHRONOLOGICAL_FIELDS.has(row.field_key)
+          ? [row.evidence_group_id]
+          : [],
+      ),
     ),
   ];
   const earliest = new Map<string, number>();
-  for (let offset = 0; offset < groupIds.length; offset += 200) {
-    const { data } = await supabase
-      .from("evidence_references")
-      .select("evidence_group_id, start_milliseconds")
-      .eq("organization_id", filters.organizationId)
-      .in("evidence_group_id", groupIds.slice(offset, offset + 200));
+  // Pages issued together rather than one after another: they do not depend on
+  // each other, and the page waits for all of them either way.
+  const referencePages = await Promise.all(
+    Array.from({ length: Math.ceil(groupIds.length / 200) }, (_, index) =>
+      supabase
+        .from("evidence_references")
+        .select("evidence_group_id, start_milliseconds")
+        .eq("organization_id", filters.organizationId)
+        .in("evidence_group_id", groupIds.slice(index * 200, index * 200 + 200)),
+    ),
+  );
+  for (const { data, error } of referencePages) {
+    // Chronology decides close-after-commitment. A swallowed failure here does
+    // not blank the metric — it silently moves every interaction out of the
+    // denominator and reports a confident rate about whatever survived.
+    if (error) {
+      throw new Error(`Evidence references could not be read: ${error.message}`);
+    }
     for (const reference of data ?? []) {
       const at = reference.start_milliseconds ?? 0;
       const seen = earliest.get(reference.evidence_group_id);
@@ -360,7 +405,10 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
       currency: row.currency_code,
       abstention: row.abstention,
       hasEvidence: row.evidence_group_id !== null,
-      earliestMs: row.evidence_group_id ? (earliest.get(row.evidence_group_id) ?? null) : null,
+      earliestMs:
+        row.evidence_group_id && CHRONOLOGICAL_FIELDS.has(row.field_key)
+          ? (earliest.get(row.evidence_group_id) ?? null)
+          : null,
     });
     valuesByRecord.set(row.interaction_record_id, list);
   }
@@ -368,13 +416,9 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
   const rows: PopulationRow[] = metricRows.map((row) => {
     const values = valuesByRecord.get(row.interaction_record_id) ?? [];
     const dimension = dimensions.get(row.conversation_id);
-    return {
-      conversationId: row.conversation_id,
-      recordId: row.interaction_record_id,
-      startedAt: dimension?.startedAt ?? row.started_at,
-      locationId: dimension?.locationId ?? null,
-      representativeMembershipId: dimension?.representativeMembershipId ?? null,
-      teamId: dimension?.teamId ?? null,
+    // The projection is handed to the effective reader rather than read
+    // directly, so it can only stand in where the atomic field is unsupported.
+    const effective = readEffective(values, {
       purchaseCategory: row.purchase_category,
       arrivalIntent: row.arrival_intent,
       clarityStart: clarityToNumber(row.clarity_start),
@@ -383,16 +427,20 @@ export async function loadPopulation(filters: PopulationFilters): Promise<Popula
       maxBudgetMinor: row.max_budget_minor === null ? null : Number(row.max_budget_minor),
       budgetCurrency: row.budget_currency,
       productsRecommendedCount: row.products_recommended_count ?? 0,
-      objectionCount: row.objection_count ?? 0,
-      objectionCoverage: row.objection_coverage === null ? null : Number(row.objection_coverage),
       competitorCount: row.competitor_count ?? 0,
+      customerQuestionCount: row.customer_question_count ?? 0,
       financeRequested: Boolean(row.finance_requested),
       demoPerformed: row.demo_performed,
       alternativeOffered: row.alternative_offered,
-      crossSellCount: row.cross_sell_count ?? 0,
-      upsellCount: row.upsell_count ?? 0,
-      customerQuestionCount: row.customer_question_count ?? 0,
-      outcome: readOutcome(values),
+    });
+    return {
+      conversationId: row.conversation_id,
+      recordId: row.interaction_record_id,
+      startedAt: dimension?.startedAt ?? row.started_at,
+      locationId: dimension?.locationId ?? null,
+      representativeMembershipId: dimension?.representativeMembershipId ?? null,
+      teamId: dimension?.teamId ?? null,
+      ...effective,
       values,
     };
   });

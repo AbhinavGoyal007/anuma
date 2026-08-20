@@ -22,6 +22,8 @@ function readable(token: string): string {
 
 export function RankedBars({
   entries,
+  /** The true number of distinct values, before any calculation cap. */
+  distinct,
   eligible,
   unit,
   /** Values come from a fixed vocabulary and may be relabelled for reading. */
@@ -34,20 +36,26 @@ export function RankedBars({
   evidenceHrefFor,
 }: {
   entries: RankedShare[];
+  distinct?: number;
   eligible: number;
   unit: string;
   controlled?: boolean;
   hrefFor?: (value: string) => string;
   limit?: number;
   expandHref?: string | null;
+  /** Opens the evidence behind this value, separately from any filter. */
   evidenceHrefFor?: (value: string) => string;
 }) {
   const widest = entries[0]?.interactions || 1;
   // Truncation is about the panel's shape, not about whether an expansion link
   // happens to exist. A twelve-row list beside a four-row one reads as a
   // finding rather than as two lists of different lengths.
-  const hidden = limit ? Math.max(0, entries.length - limit) : 0;
-  const shown = hidden > 0 ? entries.slice(0, limit) : entries;
+  // Counted against the real total. "Show all 40" was a promise the page could
+  // not keep when the calculation had already been capped at forty and the
+  // honest answer was seventy-three.
+  const total = distinct ?? entries.length;
+  const hidden = limit ? Math.max(0, total - limit) : Math.max(0, total - entries.length);
+  const shown = limit ? entries.slice(0, limit) : entries;
 
   return (
     <>
@@ -74,11 +82,16 @@ export function RankedBars({
               </span>
             </>
           );
-          const href = hrefFor?.(entry.value) ?? evidenceHrefFor?.(entry.value) ?? null;
+          const filterHref = hrefFor?.(entry.value) ?? null;
+          const reviewHref = evidenceHrefFor?.(entry.value) ?? null;
           return (
             <li key={`${entry.label ?? ""}-${entry.value}`}>
-              {href ? (
-                <Link className="ip-bar ip-bar--action ip-tip" data-tip={tip} href={href}>
+              {filterHref ? (
+                <Link className="ip-bar ip-bar--action ip-tip" data-tip={tip} href={filterHref}>
+                  {inner}
+                </Link>
+              ) : reviewHref ? (
+                <Link className="ip-bar ip-bar--action ip-tip" data-tip={tip} href={reviewHref}>
                   {inner}
                 </Link>
               ) : (
@@ -86,6 +99,14 @@ export function RankedBars({
                   {inner}
                 </span>
               )}
+              {/* A second, smaller affordance. One click must not both narrow
+                  the page and open evidence — a reader cannot predict which
+                  they are about to get. */}
+              {filterHref && reviewHref ? (
+                <Link className="ip-review" href={reviewHref} aria-label={`Review ${entry.value}`}>
+                  Review
+                </Link>
+              ) : null}
             </li>
           );
         })}
@@ -97,7 +118,7 @@ export function RankedBars({
             {" · "}
             {expandHref ? (
               <Link className="ip-link" href={expandHref}>
-                Show all {entries.length}
+                Show all {total}
               </Link>
             ) : (
               `${hidden} more not shown`

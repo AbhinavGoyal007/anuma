@@ -1,4 +1,3 @@
-import { SectionTabs, type Tab } from "@/components/intelligence/section-tabs";
 import {
   QUADRANTS,
   QUADRANT_BENCHMARK_ROWS,
@@ -19,79 +18,40 @@ import {
  * circular argument: the metric being coached is the metric that decided who is
  * worth learning from. A manager would act on it, and nobody could tell them
  * where the grouping came from.
+ *
+ * While no source is connected there are no tabs. Three controls that all lead
+ * to the same "not connected" panel are three chances to believe something is
+ * behind one of them.
  */
 
-export const QUADRANT_TABS: readonly Tab[] = [
-  { key: "benchmark", label: "Store benchmark" },
-  { key: "compare", label: "You vs Q1" },
-  { key: "coaching", label: "Coaching" },
-];
+export function QuadrantBenchmark({ source = quadrantSource() }: { source?: QuadrantSource }) {
+  if (source.connected) {
+    // The v7 design activates here once a business-owned assignment exists.
+    // Until then this branch is unreachable by construction, and deliberately
+    // so — there is nothing to render that would not be invented.
+    return null;
+  }
 
-export function QuadrantBenchmark({
-  tab,
-  hrefFor,
-  source = quadrantSource(),
-}: {
-  tab: string;
-  hrefFor: (key: string) => string;
-  source?: QuadrantSource;
-}) {
   return (
     <section className="ip-panel ip-col-12" aria-labelledby="q1-title">
       <div className="ip-section-title">
         <h2 id="q1-title">Learn from Q1</h2>
-        <SectionTabs
-          tabs={QUADRANT_TABS}
-          active={tab}
-          hrefFor={hrefFor}
-          label="Q1 benchmark view"
-        />
       </div>
 
-      {source.connected ? null : (
-        <div className="ip-state" role="status">
-          <strong>Quadrant benchmark not connected</strong>
-          <span>Connect a business-owned Q1/Q2/Q3/Q4 assignment to activate this analysis.</span>
-        </div>
-      )}
-
-      {/* The shape stays visible while the source is missing, so it is obvious
-          what connecting one would switch on — and obvious that nothing here is
-          currently being computed from conversation behaviour. */}
-      <table className="ip-table ip-table--ghost">
-        <caption className="ip-note">
-          Rows are fixed. Each cell would be a pooled sum of affected over eligible for that
-          quadrant — never an average of per-representative percentages, which weights a
-          representative with four conversations the same as one with forty. Q1 is a reference
-          group, not a winner.
-        </caption>
-        <thead>
-          <tr>
-            <th scope="col">Behaviour</th>
-            {QUADRANTS.map((quadrant) => (
-              <th key={quadrant} scope="col">
-                {quadrant}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {QUADRANT_BENCHMARK_ROWS.map((row) => (
-            <tr key={row.key}>
-              <th scope="row">{row.label}</th>
-              {QUADRANTS.map((quadrant) => (
-                <td key={quadrant}>—</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="ip-state" role="status">
+        <strong>Quadrant benchmark not connected</strong>
+        <span>A business-owned Q1/Q2/Q3/Q4 assignment is required for this analysis.</span>
+        <span className="ip-meta">
+          Required: employee · store · quadrant · effective period · source and version
+        </span>
+      </div>
 
       <p className="ip-note">
-        Required source: organization · representative membership · quadrant · effective period ·
-        store scope where applicable · source and version. Benchmark scope is then fixed to the same
-        organization, same store, selected period and selected category — never a silent fallback to
-        a regional or company-wide peer group.
+        Once connected, the benchmark compares{" "}
+        {QUADRANT_BENCHMARK_ROWS.map((behaviour) => behaviour.label.toLowerCase()).join(", ")}{" "}
+        across {QUADRANTS.join(" · ")} within the same store, period and category — pooling affected
+        over eligible per quadrant, never averaging per-representative percentages. Quadrants are
+        never derived from ANUMA conversation metrics.
       </p>
     </section>
   );

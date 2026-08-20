@@ -26,6 +26,8 @@ export type FilterOption = { id: string; name: string };
 
 export type IntelligencePageContext = {
   organizationId: string;
+  /** Null unless a supporting read failed; never rendered as empty data. */
+  directoryError: string | null;
   filters: IntelligenceFilters;
   periods: ResolvedPeriods;
   current: PopulationSummary;
@@ -51,22 +53,31 @@ export type IntelligencePageContext = {
  * the whole roster to someone scoped to one store leaks the shape of the
  * organization.
  */
+type DirectoryResult = { ok: true; options: FilterOption[] } | { ok: false; message: string };
+
 async function representativeOptions(
   organizationId: string,
   membershipIds: readonly string[],
-): Promise<FilterOption[]> {
-  if (membershipIds.length === 0) return [];
+): Promise<DirectoryResult> {
+  if (membershipIds.length === 0) return { ok: true, options: [] };
   const supabase = await createClient();
   // The directory RPC the roster page already uses, rather than a second join
   // that would have to be kept in step with it.
-  const { data } = await supabase.rpc("organization_member_directory", {
+  const { data, error } = await supabase.rpc("organization_member_directory", {
     p_organization_id: organizationId,
   });
+  // A failed directory read used to return an empty list, which validated the
+  // selected representative away and quietly widened the page to everybody —
+  // the reader saw more data than they had asked for and nothing said so.
+  if (error) return { ok: false, message: error.message };
   const wanted = new Set(membershipIds);
-  return (data ?? [])
-    .filter((row) => wanted.has(row.membership_id))
-    .map((row) => ({ id: row.membership_id, name: row.email ?? "Unnamed" }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  return {
+    ok: true,
+    options: (data ?? [])
+      .filter((row) => wanted.has(row.membership_id))
+      .map((row) => ({ id: row.membership_id, name: row.email ?? "Unnamed" }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  };
 }
 
 export async function resolveIntelligencePage(
@@ -118,16 +129,35 @@ export async function resolveIntelligencePage(
   // slice is what made a selection erase its own alternatives — pick one
   // category and the others vanished, pick a representative with no rows in
   // that category and the filter silently widened back to everybody.
-  const base = await load(periods.current.from, periods.current.to, null, null);
-  const representatives = await representativeOptions(organization.id, [
+  // Where nothing narrows the population, the comparison window does not depend
+  // on anything the current one resolves, so the two periods are read together
+  // rather than one after the other. Narrowed, the previous window needs the
+  // validated representative and has to wait.
+  const unnarrowed =
+    scopedFilters.category === null && scopedFilters.representativeMembershipId === null;
+  const [base, eagerPrevious] = await Promise.all([
+    load(periods.current.from, periods.current.to, null, null),
+    unnarrowed && periods.previous
+      ? load(periods.previous.from, periods.previous.to, null, null)
+      : null,
+  ]);
+  const directory = await representativeOptions(organization.id, [
     ...new Set(
       base.rows.flatMap((row) =>
         row.representativeMembershipId ? [row.representativeMembershipId] : [],
       ),
     ),
   ]);
-  const selectedRep =
-    representatives.find((item) => item.id === scopedFilters.representativeMembershipId) ?? null;
+  const representatives = directory.ok ? directory.options : [];
+  // When the directory is unavailable the selection is honoured anyway: it is
+  // still a valid membership id inside this organization, RLS still scopes the
+  // read, and keeping it narrows the page rather than widening it. What is lost
+  // is the ability to name the person, which the page says.
+  const selectedRep = directory.ok
+    ? (representatives.find((item) => item.id === scopedFilters.representativeMembershipId) ?? null)
+    : scopedFilters.representativeMembershipId
+      ? { id: scopedFilters.representativeMembershipId, name: "Selected salesperson" }
+      : null;
   scopedFilters.representativeMembershipId = selectedRep?.id ?? null;
 
   // An authorized representative with no rows in the selected category stays
@@ -144,14 +174,14 @@ export async function resolveIntelligencePage(
           scopedFilters.category,
         )
       : base,
-    periods.previous
+    narrowed && periods.previous
       ? load(
           periods.previous.from,
           periods.previous.to,
           selectedRep?.id ?? null,
           scopedFilters.category,
         )
-      : null,
+      : eagerPrevious,
   ]);
 
   // Interaction-level dimensions are applied after the read, to the same
@@ -167,6 +197,8 @@ export async function resolveIntelligencePage(
 
   return {
     organizationId: organization.id,
+    /** Set where a supporting read failed, so the page can say so rather than under-report. */
+    directoryError: directory.ok ? null : directory.message,
     filters: scopedFilters,
     periods,
     current,

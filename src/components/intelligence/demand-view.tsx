@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { LocalSwitch } from "@/components/intelligence/local-switch";
 
 import { DataState, stateFor, type SlotState } from "@/components/intelligence/data-state";
 import { RankedBars } from "@/components/intelligence/interactive-ranked-bar";
@@ -58,6 +58,17 @@ export type VoicePanel = {
   list: RankedList | Distribution;
   unit: string;
   controlled: boolean;
+  /** The field a value's evidence is read from, where one applies. */
+  fieldKey?: string;
+};
+
+/** Which field each Needs tab reads first, for the evidence link. */
+export const NEED_FIELD_KEYS: Readonly<Record<string, string[]>> = {
+  initial_request: ["initial_request"],
+  use_cases: ["purchase_use_cases"],
+  requirements: ["specification_requirements", "additional_requirements", "other_constraints"],
+  drivers: ["decision_drivers"],
+  brands: ["brand_preferences"],
 };
 
 /** The four fixed arrival intents, in the order a customer moves through them. */
@@ -103,6 +114,7 @@ function ListPanel({
   limit,
   expandHref,
   hrefFor,
+  evidenceHrefFor,
 }: {
   list: RankedList | Distribution;
   unit: string;
@@ -110,6 +122,8 @@ function ListPanel({
   limit?: number;
   expandHref?: string | null;
   hrefFor?: (value: string) => string;
+  /** A separate small affordance, so one click never does two jobs. */
+  evidenceHrefFor?: (value: string) => string;
 }) {
   const eligible = "eligible" in list ? list.eligible : list.classified;
   const state: SlotState =
@@ -118,12 +132,14 @@ function ListPanel({
   return (
     <RankedBars
       entries={list.entries}
+      distinct={"distinct" in list ? (list.distinct as number) : undefined}
       eligible={eligible}
       unit={unit}
       controlled={controlled}
       limit={limit}
       expandHref={expandHref}
       hrefFor={hrefFor}
+      evidenceHrefFor={evidenceHrefFor}
     />
   );
 }
@@ -136,36 +152,42 @@ function ClarityGrid({ matrix }: { matrix: ClarityMatrix }) {
   const step = (count: number) =>
     count === 0 ? "" : ` ip-h${Math.min(4, Math.ceil((count / busiest) * 4))}`;
   return (
-    <div className="ip-matrix" role="table" aria-label="Requirement clarity, arrival against close">
-      <span className="ip-mcell ip-mhead" role="columnheader">
-        ↓ arrival
-      </span>
-      {CLARITY_LABELS.map((label) => (
-        <span className="ip-mcell ip-mhead" key={`head-${label}`} role="columnheader">
-          {label}
-        </span>
-      ))}
-      {matrix.cells.map((rowCells, start) => (
-        // Flat rather than a nested grid: a sub-grid re-declaring the same
-        // tracks pushed the whole matrix wider than its panel.
-        <Fragment key={CLARITY_LABELS[start]}>
-          <span className="ip-mcell ip-mhead" role="rowheader">
-            {CLARITY_LABELS[start]}
-          </span>
-          {rowCells.map((count, end) => (
-            <span
-              className={`ip-mcell${step(count)} ip-tip`}
-              key={end}
-              role="cell"
-              tabIndex={0}
-              data-tip={`Arrived ${CLARITY_LABELS[start]} · closed ${CLARITY_LABELS[end]} · ${count} of ${matrix.paired}`}
-            >
-              {count || ""}
-            </span>
+    <table className="ip-matrix">
+      <caption className="ip-note">
+        Rows: clarity on arrival. Columns: clarity at the close. {matrix.paired} interactions with
+        both.
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col">
+            <span className="ip-visually-hidden">Clarity on arrival</span>
+            <span aria-hidden="true">↓ arrival</span>
+          </th>
+          {CLARITY_LABELS.map((label) => (
+            <th key={label} scope="col">
+              {label}
+            </th>
           ))}
-        </Fragment>
-      ))}
-    </div>
+        </tr>
+      </thead>
+      <tbody>
+        {matrix.cells.map((rowCells, start) => (
+          <tr key={CLARITY_LABELS[start]}>
+            <th scope="row">{CLARITY_LABELS[start]}</th>
+            {rowCells.map((count, end) => (
+              <td
+                className={`ip-mcell${step(count)} ip-tip`}
+                key={end}
+                tabIndex={0}
+                data-tip={`Arrived ${CLARITY_LABELS[start]} · closed ${CLARITY_LABELS[end]} · ${count} of ${matrix.paired}`}
+              >
+                {count || ""}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
@@ -189,6 +211,7 @@ export function DemandView({
   categoryHref,
   categoryExpandHref,
   intentHref,
+  evidenceHref,
 }: {
   metrics: DemandMetrics;
   previous: DemandMetrics | null;
@@ -198,11 +221,13 @@ export function DemandView({
   origins: RankedList;
   categories: Distribution;
   intents: Distribution;
-  needs: RankedList;
+  /** Every Needs panel, so switching tabs never waits on the server. */
+  needs: Record<string, RankedList>;
   need: string;
   needHref: (key: string) => string;
   expandHref: string | null;
-  voice: VoicePanel[];
+  /** Every Context & voice panel set, keyed by tab. */
+  voice: Record<string, VoicePanel[]>;
   voiceTab: string;
   voiceHref: (key: string) => string;
   blockers: NoSaleReasons;
@@ -210,7 +235,11 @@ export function DemandView({
   /** Reveals every category, or null when they are all already shown. */
   categoryExpandHref: string | null;
   intentHref: (value: string) => string;
+  /** Opens the evidence behind one observed value of one field. */
+  evidenceHref: (fieldKey: string, value: string) => string;
 }) {
+  // One currency or none: a median is a number. More than one and it is not.
+  const lead = budget.byCurrency.length === 1 ? budget.byCurrency[0] : null;
   const intentSegments: Segment[] = INTENT_ORDER.map((intent) => ({
     key: intent.value,
     label: intent.label,
@@ -236,8 +265,16 @@ export function DemandView({
         />
         <Figure
           label="Median target budget"
-          value={formatMoney(budget.targetMedian, budget.currency)}
-          meta={`stated in ${budget.targetObserved} interaction${budget.targetObserved === 1 ? "" : "s"}`}
+          value={
+            budget.mixed
+              ? "Multiple currencies"
+              : formatMoney(lead?.targetMedian ?? null, lead?.currency ?? null)
+          }
+          meta={
+            budget.mixed
+              ? `${budget.byCurrency.length} currencies in this scope`
+              : `stated in ${lead?.targetObserved ?? 0} interaction${(lead?.targetObserved ?? 0) === 1 ? "" : "s"}`
+          }
         />
         <Figure
           label="Finance demand"
@@ -256,7 +293,7 @@ export function DemandView({
       <section className="ip-panel ip-col-7" aria-labelledby="dm-mix">
         <div className="ip-section-title">
           <h2 id="dm-mix">Demand mix</h2>
-          <span className="ip-meta">Click a category to filter</span>
+          <span className="ip-meta">Bar filters · Review opens evidence</span>
         </div>
         <ListPanel
           list={categories}
@@ -265,6 +302,7 @@ export function DemandView({
           limit={categoryExpandHref === null ? undefined : 8}
           expandHref={categoryExpandHref}
           hrefFor={categoryHref}
+          evidenceHrefFor={(item: string) => evidenceHref("purchase_category", item)}
         />
       </section>
 
@@ -281,63 +319,107 @@ export function DemandView({
       </section>
 
       <section className="ip-panel ip-col-12" aria-labelledby="dm-needs">
-        <div className="ip-section-title">
-          <h2 id="dm-needs">Needs</h2>
-          <SectionTabs tabs={NEED_TABS} active={need} hrefFor={needHref} label="Need" />
-        </div>
-        <ListPanel
-          list={needs}
-          unit={`of ${needs.eligible} interactions carried this field`}
-          limit={5}
-          expandHref={expandHref}
-        />
-        <p className="ip-note">
-          Shown as spoken, never merged. One customer can want several things, so these exceed 100%
-          — penetration, not a mix.
-        </p>
+        <LocalSwitch param="need" initial={need}>
+          <div className="ip-section-title">
+            <h2 id="dm-needs">Needs</h2>
+            <SectionTabs tabs={NEED_TABS} active={need} hrefFor={needHref} label="Need" />
+          </div>
+          {NEED_TABS.map((tab) => (
+            <div data-local-panel={tab.key} hidden={tab.key !== need} key={tab.key}>
+              <ListPanel
+                list={needs[tab.key]!}
+                unit={`of ${needs[tab.key]!.eligible} interactions carried this field`}
+                limit={5}
+                expandHref={expandHref}
+                evidenceHrefFor={(item: string) =>
+                  evidenceHref(NEED_FIELD_KEYS[tab.key]![0]!, item)
+                }
+              />
+            </div>
+          ))}
+          <p className="ip-note">
+            Shown as spoken, never merged. One customer can want several things, so these exceed
+            100% — penetration, not a mix.
+          </p>
+        </LocalSwitch>
       </section>
 
       <section className="ip-panel ip-col-6" aria-labelledby="dm-budget">
         <div className="ip-section-title">
           <h2 id="dm-budget">Budget</h2>
+          {budget.mixed ? <span className="ip-meta">Multiple currencies in this scope</span> : null}
         </div>
+        {budget.byCurrency.length === 0 ? (
+          <DataState state="NO_OBSERVATIONS" />
+        ) : (
+          budget.byCurrency.map((line) => (
+            <div key={line.currency ?? "none"}>
+              {budget.mixed ? (
+                <h3 className="ip-currency-head">{line.currency ?? "Unstated currency"}</h3>
+              ) : null}
+              <div className="ip-figure-row">
+                <Figure
+                  label="Median target"
+                  value={formatMoney(line.targetMedian, line.currency)}
+                  meta={`${line.targetObserved} stated`}
+                />
+                <Figure
+                  label="Median maximum"
+                  value={formatMoney(line.maximumMedian, line.currency)}
+                  meta={`${line.maximumObserved} stated`}
+                />
+                <Figure
+                  label="Paired median stretch"
+                  value={formatMoney(line.stretchMedian, line.currency)}
+                  meta={`${line.stretchObserved} with both`}
+                />
+              </div>
+            </div>
+          ))
+        )}
         <div className="ip-figure-row">
           <Figure
-            label="Median target"
-            value={formatMoney(budget.targetMedian, budget.currency)}
-            meta={`${budget.targetObserved} stated`}
-          />
-          <Figure
-            label="Median maximum"
-            value={formatMoney(budget.maximumMedian, budget.currency)}
-            meta={`${budget.maximumObserved} stated`}
-          />
-          <Figure
-            label="Paired median stretch"
-            value={formatMoney(budget.stretchMedian, budget.currency)}
-            meta={`${budget.stretchObserved} with both`}
-          />
-          <Figure
-            label="Coverage"
+            label="Budget coverage"
             value={formatPercent(budget.observationRate.value)}
             measure={budget.observationRate}
           />
         </div>
-        <div className="ip-figure-row">
-          <Figure
-            label="Store price quoted"
-            value={formatMoney(prices.storeQuotedMedian, prices.currency)}
-            meta={`median of ${prices.storeQuotedObserved} quoted`}
-          />
-          <Figure
-            label="Customer-stated competitor price"
-            value={formatMoney(prices.competitorClaimMedian, prices.currency)}
-            meta={`median of ${prices.competitorClaimObserved} claim${prices.competitorClaimObserved === 1 ? "" : "s"}`}
-          />
+        <div className="ip-subgrid">
+          <div className="ip-subpanel">
+            <h3>Store price quoted</h3>
+            {prices.storeQuoted.length === 0 ? (
+              <DataState state="NO_OBSERVATIONS" compact />
+            ) : (
+              prices.storeQuoted.map((line) => (
+                <Figure
+                  key={line.currency ?? "none"}
+                  label={line.currency ?? "Unstated currency"}
+                  value={formatMoney(line.median, line.currency)}
+                  meta={`median of ${line.observed} quoted`}
+                />
+              ))
+            )}
+          </div>
+          <div className="ip-subpanel">
+            <h3>Customer-stated competitor price</h3>
+            {prices.competitorClaim.length === 0 ? (
+              <DataState state="NO_OBSERVATIONS" compact />
+            ) : (
+              prices.competitorClaim.map((line) => (
+                <Figure
+                  key={line.currency ?? "none"}
+                  label={line.currency ?? "Unstated currency"}
+                  value={formatMoney(line.median, line.currency)}
+                  meta={`median of ${line.observed} claim${line.observed === 1 ? "" : "s"}`}
+                />
+              ))
+            )}
+          </div>
         </div>
         <p className="ip-note">
           Medians of what was said; an interaction with no budget is left out, not counted as zero.
-          The competitor figure is customer-stated and unverified.
+          Currencies are never combined and nothing is converted. The competitor figure is
+          customer-stated and unverified.
         </p>
       </section>
 
@@ -350,7 +432,6 @@ export function DemandView({
           </span>
         </div>
         <ClarityGrid matrix={clarity} />
-        <p className="ip-note">Rows: clarity on arrival. Columns: clarity at the close.</p>
         {origins.eligible > 0 ? (
           <SegmentedBar
             segments={origins.entries.map((entry, index) => ({
@@ -367,28 +448,39 @@ export function DemandView({
       </section>
 
       <section className="ip-panel ip-col-12" aria-labelledby="dm-voice">
-        <div className="ip-section-title">
-          <h2 id="dm-voice">Context &amp; voice</h2>
-          <SectionTabs
-            tabs={VOICE_TABS}
-            active={voiceTab}
-            hrefFor={voiceHref}
-            label="Context and voice"
-          />
-        </div>
-        <div className="ip-subgrid">
-          {voice.map((panel) => (
-            <div className="ip-subpanel" key={panel.key}>
-              <h3>{panel.title}</h3>
-              <ListPanel
-                list={panel.list}
-                unit={panel.unit}
-                controlled={panel.controlled}
-                limit={6}
-              />
+        <LocalSwitch param="voice" initial={voiceTab}>
+          <div className="ip-section-title">
+            <h2 id="dm-voice">Context &amp; voice</h2>
+            <SectionTabs
+              tabs={VOICE_TABS}
+              active={voiceTab}
+              hrefFor={voiceHref}
+              label="Context and voice"
+            />
+          </div>
+          {VOICE_TABS.map((tab) => (
+            <div data-local-panel={tab.key} hidden={tab.key !== voiceTab} key={tab.key}>
+              <div className="ip-subgrid">
+                {(voice[tab.key] ?? []).map((panel) => (
+                  <div className="ip-subpanel" key={panel.key}>
+                    <h3>{panel.title}</h3>
+                    <ListPanel
+                      list={panel.list}
+                      unit={panel.unit}
+                      controlled={panel.controlled}
+                      limit={6}
+                      evidenceHrefFor={
+                        panel.fieldKey
+                          ? (item: string) => evidenceHref(panel.fieldKey!, item)
+                          : undefined
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
-        </div>
+        </LocalSwitch>
       </section>
 
       <section className="ip-panel ip-col-12" aria-labelledby="dm-blockers">
@@ -396,12 +488,13 @@ export function DemandView({
           <h2 id="dm-blockers">No-sale blockers</h2>
           <span className="ip-meta">
             {blockers.confirmedNoSales} confirmed no-sales · {blockers.classified} with a reason ·{" "}
-            {formatPercent(blockers.coverage)} coverage
+            {formatPercent(blockers.coverage.value)} coverage
           </span>
         </div>
         {blockerState === "POPULATED" ? (
           <RankedBars
             entries={blockers.entries}
+            distinct={blockers.distinct}
             eligible={blockers.classified}
             controlled
             unit={`of ${blockers.classified} confirmed no-sales carrying an observed reason`}

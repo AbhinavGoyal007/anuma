@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { IntelligenceDrawer } from "@/components/intelligence/intelligence-drawer";
 import { IntelligenceFilterBar, IntelligenceHead } from "@/components/intelligence/filter-bar";
 import { OverviewView } from "@/components/intelligence/overview-view";
+import { cohortPath, numeratorCohortKey } from "@/modules/intelligence/cohorts";
 import { intelligenceHref, single, windowLabel } from "@/modules/intelligence/filters";
 import {
   hotspots,
@@ -33,6 +34,7 @@ export default async function IntelligenceOverviewPage({ searchParams }: PagePro
     intents,
     languages,
     storeCount,
+    directoryError,
     selectedStoreName,
   } = page;
   const rows = current.rows;
@@ -70,16 +72,26 @@ export default async function IntelligenceOverviewPage({ searchParams }: PagePro
         languages={languages}
         interactions={rows.length}
         storeCount={storeCount}
+        directoryError={directoryError}
         carry={carry}
       />
       <OverviewView
         signals={overviewSignals(rows, previous ? previous.rows : null)}
         actions={overviewActions(rows)}
         actionHref={(cohortKey) => intelligenceHref(BASE, filters, { ...carry, drawer: cohortKey })}
+        numeratorHref={(measureKey) =>
+          intelligenceHref(BASE, filters, { ...carry, drawer: numeratorCohortKey(measureKey) })
+        }
         pulse={overviewPulse(rows, previous ? previous.rows : null)}
         trend={trend}
         trendMetrics={picked ? [...picked.available] : []}
         trendHref={(key) => intelligenceHref(BASE, filters, { ...carry, signal: key })}
+        // No safe action exists yet. The period filter offers rolling windows
+        // relative to today, not an arbitrary past week, so a point cannot
+        // narrow the page to the period it stands for. Rather than a link that
+        // silently lands somewhere else, the point stays a described,
+        // focusable, non-interactive mark — which is what the reader can trust.
+        trendPointHref={() => null}
         hotspots={hotspots(
           rows,
           (row) => (byStore ? row.locationId : row.purchaseCategory),
@@ -91,6 +103,13 @@ export default async function IntelligenceOverviewPage({ searchParams }: PagePro
             BASE,
             byStore ? { ...filters, storeId: key } : { ...filters, category: key },
             carry,
+          )
+        }
+        hotspotCellHref={(key, measureKey) =>
+          intelligenceHref(
+            BASE,
+            byStore ? { ...filters, storeId: key } : { ...filters, category: key },
+            { ...carry, drawer: numeratorCohortKey(measureKey) },
           )
         }
         analysed={rows.length}
@@ -107,7 +126,7 @@ export default async function IntelligenceOverviewPage({ searchParams }: PagePro
             filters.category ?? "All categories",
           ]}
           closeHref={intelligenceHref(BASE, filters, { ...carry, drawer: null })}
-          fullHref={intelligenceHref(`/intelligence/cohort/${openDrawer}`, filters)}
+          fullHref={intelligenceHref(cohortPath(openDrawer), filters)}
         />
       ) : null}
     </>

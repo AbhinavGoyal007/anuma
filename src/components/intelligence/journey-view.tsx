@@ -16,6 +16,7 @@ import {
   type JourneyStage,
   type OutcomeSlice,
   type ProductPath,
+  type StageDiagnosis,
 } from "@/modules/intelligence/journey";
 
 /**
@@ -117,6 +118,9 @@ export function JourneyView({
   cohortKey,
   cohortSizes,
   stages,
+  selectedStage,
+  stageHref,
+  diagnosis,
   lanes,
   gaps,
   breakdown,
@@ -130,6 +134,10 @@ export function JourneyView({
   cohortKey: JourneyCohortKey;
   cohortSizes: Record<JourneyCohortKey, number>;
   stages: JourneyStage[];
+  /** The node whose diagnosis is showing. Page-local; never carried elsewhere. */
+  selectedStage: string;
+  stageHref: (stageKey: string) => string;
+  diagnosis: StageDiagnosis | null;
   lanes: InterventionRate[];
   gaps: ActionCohort[];
   breakdown: JourneyBreakdownRow[];
@@ -180,14 +188,19 @@ export function JourneyView({
           <>
             <div className="ip-nodes">
               {stages.map((stage) => (
-                <div className="ip-node" key={stage.key}>
+                <Link
+                  className={`ip-node ip-node-link${stage.key === selectedStage ? " ip-node--active" : ""}`}
+                  key={stage.key}
+                  href={stageHref(stage.key)}
+                  aria-current={stage.key === selectedStage ? "true" : undefined}
+                >
                   <span className="ip-dot" aria-hidden="true" />
                   <strong>{stage.reached}</strong>
                   <span className="ip-label">{stage.label}</span>
                   <small className="ip-meta">
                     {formatPercent(stage.reach.value)} of {stage.reach.observed} measurable
                   </small>
-                </div>
+                </Link>
               ))}
             </div>
             <div className="ip-gaps">
@@ -218,6 +231,73 @@ export function JourneyView({
           </>
         ) : (
           <DataState state={pathState} />
+        )}
+      </section>
+
+      {/* One fixed panel, whichever node is selected. Four expandable nodes
+          would move the answer down the page every time somebody looked at a
+          different one. */}
+      <section className="ip-panel ip-panel--grouped ip-col-12" aria-labelledby="jr-diagnosis">
+        {diagnosis === null ? (
+          <>
+            <div className="ip-section-title">
+              <h2 id="jr-diagnosis">Diagnosis</h2>
+            </div>
+            <DataState state="NO_OBSERVATIONS" />
+          </>
+        ) : (
+          <>
+            {/* Compact on purpose: the outcome panels below are part of the
+                first viewport, and a diagnosis that pushes them under the fold
+                has moved the page's answer to make room for its explanation. */}
+            <div className="ip-section-title">
+              <h2 id="jr-diagnosis">
+                Diagnosis <span className="ip-meta">· {diagnosis.label}</span>
+              </h2>
+              {diagnosis.reviewCohortKey ? (
+                <Link className="ip-link" href={gapHref(diagnosis.reviewCohortKey)}>
+                  Review {diagnosis.reviewCount} interaction
+                  {diagnosis.reviewCount === 1 ? "" : "s"} →
+                </Link>
+              ) : (
+                <span className="ip-meta">No group to review from this state</span>
+              )}
+            </div>
+            <div className="ip-figure-row">
+              <div className="ip-pitem">
+                <span className="ip-label">Reached</span>
+                <strong>{diagnosis.reached}</strong>
+                <span className="ip-meta">of {diagnosis.measurable} measurable</span>
+              </div>
+              <div className="ip-pitem">
+                <span className="ip-label">Rate among measurable</span>
+                <strong>{formatPercent(diagnosis.rate)}</strong>
+                <span className="ip-meta">coverage {formatPercent(diagnosis.coverage)}</span>
+              </div>
+              <div className="ip-pitem">
+                <span className="ip-label">Next state observed</span>
+                <strong>{diagnosis.nextObserved ?? "—"}</strong>
+                <span className="ip-meta">
+                  {diagnosis.nextMissing === null
+                    ? "no later state on this rail"
+                    : `${diagnosis.nextMissing} missing`}
+                </span>
+              </div>
+              <div className="ip-pitem">
+                <span className="ip-label">Concentration</span>
+                <strong>{diagnosis.concentration?.count ?? "—"}</strong>
+                <span className="ip-meta">
+                  {diagnosis.concentration
+                    ? `${diagnosis.concentration.label}, of ${diagnosis.concentration.of}`
+                    : "no group stands out"}
+                </span>
+              </div>
+              <div className="ip-pitem">
+                <span className="ip-label">Means</span>
+                <span className="ip-meta ip-meaning">{diagnosis.meaning}</span>
+              </div>
+            </div>
+          </>
         )}
       </section>
 

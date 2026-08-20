@@ -3,11 +3,12 @@ import { redirect } from "next/navigation";
 import { IntelligenceDrawer } from "@/components/intelligence/intelligence-drawer";
 import { IntelligenceFilterBar, IntelligenceHead } from "@/components/intelligence/filter-bar";
 import { JourneyView } from "@/components/intelligence/journey-view";
-import { valueCohortKey } from "@/modules/intelligence/cohorts";
+import { cohortPath, valueCohortKey } from "@/modules/intelligence/cohorts";
 import { intelligenceHref, single, windowLabel } from "@/modules/intelligence/filters";
 import {
   interventions,
   journeyBreakdown,
+  journeyDiagnosis,
   journeyLeakageCohorts,
   journeyStages,
   outcomeDistributions,
@@ -38,6 +39,7 @@ export default async function CustomerJourneyPage({ searchParams }: PageProps) {
     intents,
     languages,
     storeCount,
+    directoryError,
     selectedStoreName,
   } = page;
 
@@ -59,8 +61,14 @@ export default async function CustomerJourneyPage({ searchParams }: PageProps) {
     JOURNEY_COHORTS.map((key) => [key, selectCohort(current.rows, key).length]),
   ) as Record<JourneyCohortKey, number>;
 
+  const stages = journeyStages(cohort, leakage);
+  // Page-local: which node's diagnosis is showing. Never carried to another
+  // page, where it would mean nothing.
+  const selectedStage =
+    stages.find((stage) => stage.key === single(raw, "stage"))?.key ?? "entered";
+
   const openDrawer = single(raw, "drawer");
-  const carry = { cohort: cohortKey };
+  const carry = { cohort: cohortKey, stage: selectedStage };
 
   return (
     <>
@@ -75,12 +83,25 @@ export default async function CustomerJourneyPage({ searchParams }: PageProps) {
         languages={languages}
         interactions={current.rows.length}
         storeCount={storeCount}
+        directoryError={directoryError}
         carry={carry}
       />
       <JourneyView
         cohortKey={cohortKey}
         cohortSizes={sizes}
-        stages={journeyStages(cohort, leakage)}
+        stages={stages}
+        selectedStage={selectedStage}
+        stageHref={(stageKey) =>
+          intelligenceHref(BASE, filters, { ...carry, stage: stageKey, drawer: null })
+        }
+        diagnosis={journeyDiagnosis(
+          cohort,
+          stages,
+          selectedStage,
+          leakage,
+          (row) => (byStore ? row.locationId : row.purchaseCategory),
+          (key) => (byStore ? (storeName.get(key) ?? key) : key),
+        )}
         lanes={interventions(cohort)}
         gaps={leakage}
         breakdown={journeyBreakdown(
@@ -91,7 +112,9 @@ export default async function CustomerJourneyPage({ searchParams }: PageProps) {
         breakdownLabel={byStore ? "Store" : "Category"}
         outcomes={outcomeDistributions(cohort)}
         products={productPath(cohort)}
-        cohortHref={(key) => intelligenceHref(BASE, filters, { cohort: key, drawer: null })}
+        cohortHref={(key) =>
+          intelligenceHref(BASE, filters, { cohort: key, stage: null, drawer: null })
+        }
         gapHref={(key) => intelligenceHref(BASE, filters, { ...carry, drawer: key })}
         productHref={(fieldKey, value) =>
           intelligenceHref(BASE, filters, { ...carry, drawer: valueCohortKey(fieldKey, value) })
@@ -110,7 +133,7 @@ export default async function CustomerJourneyPage({ searchParams }: PageProps) {
             `Cohort: ${cohortKey.replaceAll("_", " ")}`,
           ]}
           closeHref={intelligenceHref(BASE, filters, { ...carry, drawer: null })}
-          fullHref={intelligenceHref(`/intelligence/cohort/${openDrawer}`, filters, carry)}
+          fullHref={intelligenceHref(cohortPath(openDrawer), filters, carry)}
         />
       ) : null}
     </>

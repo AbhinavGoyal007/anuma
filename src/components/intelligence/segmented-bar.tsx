@@ -23,11 +23,10 @@ export function SegmentedBar({ segments, unit }: { segments: Segment[]; unit: st
   if (total === 0) return null;
   return (
     <>
-      <div
-        className="ip-stack"
-        role="img"
-        aria-label={segments.map((segment) => `${segment.label} ${segment.count}`).join(", ")}
-      >
+      {/* No role="img" on the container. It would fold every segment into one
+          label and hide the links inside from anyone using a screen reader —
+          exactly the readers who most need the legend below to be reachable. */}
+      <div className="ip-stack">
         {segments
           .filter((segment) => segment.count > 0)
           .map((segment) => {

@@ -37,9 +37,11 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm.cmd run start",
+    // `npm.cmd` only exists on Windows, so the suite could not start its own
+    // server anywhere else — including CI.
+    command: process.platform === "win32" ? "npm.cmd run start" : "npm run start",
     url: baseURL,
-    reuseExistingServer: false,
+    reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
 });

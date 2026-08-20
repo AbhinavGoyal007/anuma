@@ -2,7 +2,12 @@ import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { DataState, stateFor } from "@/components/intelligence/data-state";
-import { DemandView, NEED_TABS, VOICE_TABS } from "@/components/intelligence/demand-view";
+import {
+  DemandView,
+  NEED_FIELD_KEYS,
+  NEED_TABS,
+  VOICE_TABS,
+} from "@/components/intelligence/demand-view";
 import { IntelligenceFilterBar } from "@/components/intelligence/filter-bar";
 import {
   FrontlineIntelligenceView,
@@ -41,6 +46,7 @@ import {
 import {
   interventions,
   journeyBreakdown,
+  journeyDiagnosis,
   journeyLeakageCohorts,
   journeyStages,
   outcomeDistributions,
@@ -49,7 +55,8 @@ import {
 } from "@/modules/intelligence/journey";
 import { readOutcome } from "@/modules/intelligence/outcome";
 import { overviewActions, overviewPulse, overviewSignals } from "@/modules/intelligence/overview";
-import type { PopulationRow, PopulationValue } from "@/modules/intelligence/population";
+import type { PopulationRow } from "@/modules/intelligence/population";
+import { notStated, row, value } from "../support/population";
 import { quadrantSource } from "@/modules/intelligence/quadrant";
 
 /**
@@ -61,55 +68,6 @@ import { quadrantSource } from "@/modules/intelligence/quadrant";
  * comparison drawn from four conversations is suppressed rather than styled, and
  * that nothing on the page invents a quadrant.
  */
-
-const value = (
-  fieldKey: string,
-  valueText: string | null,
-  label: string | null = null,
-): PopulationValue => ({
-  fieldKey,
-  label,
-  valueText,
-  valueNumber: null,
-  amountMinor: null,
-  currency: "INR",
-  abstention: null,
-  hasEvidence: true,
-  earliestMs: 0,
-});
-
-let seq = 0;
-function row(overrides: Partial<PopulationRow> = {}): PopulationRow {
-  const values = overrides.values ?? [];
-  return {
-    conversationId: `c${(seq += 1)}`,
-    recordId: `r${seq}`,
-    startedAt: "2026-08-01T10:00:00Z",
-    locationId: "store-1",
-    representativeMembershipId: null,
-    teamId: null,
-    purchaseCategory: "laptop",
-    arrivalIntent: "ready_to_buy",
-    clarityStart: 1,
-    clarityEnd: 2,
-    targetBudgetMinor: null,
-    maxBudgetMinor: null,
-    budgetCurrency: "INR",
-    productsRecommendedCount: 0,
-    objectionCount: 0,
-    objectionCoverage: null,
-    competitorCount: 0,
-    financeRequested: false,
-    demoPerformed: null,
-    alternativeOffered: null,
-    crossSellCount: 0,
-    upsellCount: 0,
-    customerQuestionCount: 0,
-    ...overrides,
-    values,
-    outcome: readOutcome(values),
-  };
-}
 
 const FILTERS: IntelligenceFilters = parseFilters({});
 
@@ -126,6 +84,7 @@ function renderOverview(rows: PopulationRow[]) {
       hotspots={[]}
       hotspotLabel="Store"
       hotspotHref={() => null}
+      hotspotCellHref={() => null}
       analysed={rows.length}
     />,
   );
@@ -142,19 +101,27 @@ function renderDemand(rows: PopulationRow[]) {
       origins={originStrip(rows)}
       categories={distribution(rows, (item) => item.purchaseCategory)}
       intents={distribution(rows, (item) => item.arrivalIntent)}
-      needs={rankedShare(rows, ["purchase_use_cases"], 5)}
+      needs={Object.fromEntries(
+        NEED_TABS.map((tab) => [tab.key, rankedShare(rows, NEED_FIELD_KEYS[tab.key]!, 5)]),
+      )}
       need="use_cases"
       needHref={(key) => `/intelligence/demand?need=${key}`}
       expandHref={null}
-      voice={[
-        {
-          key: "language_mix",
-          title: "Language",
-          list: rankedShare(rows, ["language_mix"], 6),
-          unit: "as spoken",
-          controlled: false,
-        },
-      ]}
+      voice={Object.fromEntries(
+        VOICE_TABS.map((tab) => [
+          tab.key,
+          [
+            {
+              key: "language_mix",
+              title: "Language",
+              list: rankedShare(rows, ["language_mix"], 6),
+              unit: "as spoken",
+              controlled: false,
+              fieldKey: "language_mix",
+            },
+          ],
+        ]),
+      )}
       voiceTab="context"
       voiceHref={(key) => `/intelligence/demand?voice=${key}`}
       blockers={nonConversionReasons(rows)}
@@ -164,6 +131,7 @@ function renderDemand(rows: PopulationRow[]) {
       intentHref={(value) =>
         intelligenceHref("/intelligence/demand", { ...FILTERS, intent: value })
       }
+      evidenceHref={(fieldKey, value) => `/intelligence/demand?drawer=value:${fieldKey}:${value}`}
     />,
   );
 }
@@ -171,6 +139,7 @@ function renderDemand(rows: PopulationRow[]) {
 function renderJourney(rows: PopulationRow[]) {
   const cohort = selectCohort(rows, "all");
   const leakage = journeyLeakageCohorts(cohort);
+  const stages = journeyStages(cohort, leakage);
   return render(
     <JourneyView
       cohortKey="all"
@@ -180,7 +149,17 @@ function renderJourney(rows: PopulationRow[]) {
         specific_product: 0,
         all: cohort.length,
       }}
-      stages={journeyStages(cohort, leakage)}
+      stages={stages}
+      selectedStage="entered"
+      stageHref={(key) => `/intelligence/journey?stage=${key}`}
+      diagnosis={journeyDiagnosis(
+        cohort,
+        stages,
+        "entered",
+        leakage,
+        (item) => item.locationId,
+        (key) => key,
+      )}
       lanes={interventions(cohort)}
       gaps={leakage}
       breakdown={journeyBreakdown(
@@ -230,8 +209,6 @@ function renderFrontline(
       associations={outcomeAssociations(rows)}
       analysed={rows.length}
       withoutMetrics={null}
-      quadrantTab="benchmark"
-      quadrantHref={(key) => `/intelligence/frontline?q1=${key}`}
     />,
   );
 }
@@ -273,10 +250,11 @@ describe("the five data states are distinct", () => {
         coverage: null,
         confidence: "insufficient",
       }),
-    ).toBe("NO_OBSERVATIONS");
+    ).toBe("NOT_SUPPORTED");
+    // Recorded, but in a form that settles nothing — not the same as absent.
     expect(
       stateFor({ value: null, eligible: 12, observed: 0, coverage: 0, confidence: "insufficient" }),
-    ).toBe("NOT_SUPPORTED");
+    ).toBe("NO_USABLE_OBSERVATIONS");
     expect(
       stateFor(
         {
@@ -294,7 +272,13 @@ describe("the five data states are distinct", () => {
 
   it("gives each state its own words", () => {
     const seen = new Set<string>();
-    for (const state of ["NO_OBSERVATIONS", "NOT_SUPPORTED", "LOW_SAMPLE", "ERROR"] as const) {
+    for (const state of [
+      "NO_OBSERVATIONS",
+      "NO_USABLE_OBSERVATIONS",
+      "NOT_SUPPORTED",
+      "LOW_SAMPLE",
+      "ERROR",
+    ] as const) {
       const { container, unmount } = render(<DataState state={state} />);
       const text = container.textContent ?? "";
       expect(text.length).toBeGreaterThan(0);
@@ -312,13 +296,23 @@ describe("the five data states are distinct", () => {
 
 describe("clicking a visual applies a filter", () => {
   it("turns a category bar into a category filter", () => {
-    renderDemand([row(), row({ purchaseCategory: "washing machine" })]);
-    const link = screen.getByRole("link", { name: /laptop/i });
-    expect(link.getAttribute("href")).toBe("/intelligence/demand?category=laptop");
+    renderDemand([
+      row({ values: [value("purchase_category", "laptop")] }),
+      row({ values: [value("purchase_category", "washing machine")] }),
+    ]);
+    // The bar narrows the page; the small Review beside it opens evidence.
+    // One click must never do both jobs.
+    const links = screen
+      .getAllByRole("link", { name: /laptop/i })
+      .map((link) => link.getAttribute("href") ?? "");
+    expect(links).toContain("/intelligence/demand?category=laptop");
+    expect(links.some((href) => href.includes("drawer=value:purchase_category:laptop"))).toBe(true);
   });
 
   it("turns an arrival-intent segment into an intent filter", () => {
-    const { container } = renderDemand([row({ arrivalIntent: "ready_to_buy" })]);
+    const { container } = renderDemand([
+      row({ values: [value("arrival_intent_state", "ready_to_buy")] }),
+    ]);
     const segment = container.querySelector('a[href*="intent=ready_to_buy"]');
     expect(segment).not.toBeNull();
   });
@@ -376,9 +370,15 @@ describe("the selection travels", () => {
 
   it("narrows rows by the interaction-level dimensions", () => {
     const rows = [
-      row({ arrivalIntent: "ready_to_buy", values: [value("language_mix", "Hindi")] }),
-      row({ arrivalIntent: "exploratory", values: [value("language_mix", "Hindi")] }),
-      row({ arrivalIntent: "ready_to_buy", values: [value("language_mix", "Tamil")] }),
+      row({
+        values: [value("arrival_intent_state", "ready_to_buy"), value("language_mix", "Hindi")],
+      }),
+      row({
+        values: [value("arrival_intent_state", "exploratory"), value("language_mix", "Hindi")],
+      }),
+      row({
+        values: [value("arrival_intent_state", "ready_to_buy"), value("language_mix", "Tamil")],
+      }),
     ];
     expect(
       narrowByScope(rows, { ...FILTERS, intent: "ready_to_buy", language: "Hindi" }),
@@ -386,7 +386,7 @@ describe("the selection travels", () => {
   });
 
   it("returns nothing rather than widening when the combination matches nothing", () => {
-    const rows = [row({ arrivalIntent: "exploratory" })];
+    const rows = [row({ values: [value("arrival_intent_state", "exploratory")] })];
     expect(narrowByScope(rows, { ...FILTERS, intent: "ready_to_buy" })).toHaveLength(0);
   });
 });
@@ -501,12 +501,15 @@ describe("frontline execution", () => {
   });
 
   it("shows the alternative rate in the recommend detail", () => {
-    renderFrontline([row({ alternativeOffered: "yes" }), row({ alternativeOffered: "no" })]);
+    renderFrontline([
+      row({ values: [value("alternative_offered", "yes")] }),
+      row({ values: [value("alternative_offered", "no")] }),
+    ]);
     expect(screen.getByText("Offered an alternative")).toBeInTheDocument();
   });
 
   it("never calls a missing finance status unanswered", () => {
-    const rows = [row({ values: [value("customer_questions", "emi?", "finance")] })];
+    const rows = [row({ values: [value("customer_questions", "emi?", { label: "finance" })] })];
     const { container } = renderFrontline(rows, "resolve");
     expect(container.textContent).toContain("No response status recorded");
     expect(container.textContent).not.toMatch(/finance[^.]*unanswered/i);

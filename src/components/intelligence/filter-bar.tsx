@@ -177,6 +177,7 @@ export function IntelligenceFilterBar({
   interactions,
   storeCount,
   carry = {},
+  directoryError = null,
 }: {
   basePath: string;
   filters: IntelligenceFilters;
@@ -190,6 +191,8 @@ export function IntelligenceFilterBar({
   storeCount: number;
   /** Page-local state (open tab, selected stage) preserved by every filter link. */
   carry?: Record<string, string>;
+  /** Set where the salesperson directory could not be read. */
+  directoryError?: string | null;
 }) {
   const narrowed =
     filters.storeId !== null ||
@@ -350,6 +353,15 @@ export function IntelligenceFilterBar({
           </Link>
         ) : null}
       </div>
+      {directoryError ? (
+        // Named rather than absorbed. An empty salesperson list would look like
+        // an organization with one member, and the selected person would have
+        // been quietly dropped along with it.
+        <p className="ip-scope ip-scope--error" role="status">
+          Salesperson names are unavailable — the directory could not be read. Any selected
+          salesperson is still applied.
+        </p>
+      ) : null}
       <p className="ip-scope">
         Scope: {interactions} interaction{interactions === 1 ? "" : "s"} · {storeCount} store
         {storeCount === 1 ? "" : "s"} · {windowLabel(filters.days)}

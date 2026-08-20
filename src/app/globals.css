@@ -3909,6 +3909,37 @@ a {
   --intel-amber: #a8660a;
   --intel-amber-soft: #fff5e6;
   --intel-viz-muted: #7a8699;
+
+  /* Approved extension palette.
+     These do not replace anything above: status meaning always wins, so a sale
+     stays teal, a gap stays coral, caution stays amber and the current
+     analytical focus stays indigo. These exist for analytical distinction —
+     a second or third series, a neutral reference that must not read as
+     success, and quiet surfaces that keep a dense page from going flat.
+
+     Rules kept deliberately narrow, because an extension palette is how a
+     calm product becomes a colourful one by accident:
+       navy       structural emphasis, section anchors, a restrained reference
+                  line. Never a risk or status colour.
+       blue       the secondary analytical series when indigo is already the
+                  primary — current against benchmark, not a status.
+       violet     a third series, only where comprehension actually needs one.
+                  Never a default accent.
+       sage       a neutral reference or benchmark series where teal would
+                  wrongly imply success. Never "good".
+       ice /      quiet surfaces for selected comparison areas, hover context
+       *-soft     and grouped analytical sections. Never a general card colour.
+     At most two strong accents in one visual; the page stays roughly
+     three-quarters neutral, and coral stays scarce so attention keeps meaning
+     something. */
+  --intel-navy: #1e2a44;
+  --intel-blue: #3973b7;
+  --intel-violet: #745ea8;
+  --intel-sage: #5f8f7b;
+  --intel-ice: #eaf2f8;
+  --intel-lilac-soft: #f2eefa;
+  --intel-sage-soft: #edf5f0;
+  --intel-navy-soft: #eef1f6;
 }
 
 /* Adds a styling hook without adding a box: the shell lays out the page
@@ -3933,7 +3964,7 @@ a {
 
 .ip-eyebrow {
   color: var(--intel-muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.12em;
   margin: 0;
@@ -3976,7 +4007,7 @@ a {
 
 .ip-filter-label {
   color: var(--intel-muted);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.13em;
   margin: 0 0 6px;
@@ -3997,7 +4028,7 @@ a {
   color: var(--intel-text);
   cursor: pointer;
   display: inline-block;
-  font-size: 11px;
+  font-size: 12px;
   list-style: none;
   padding: 7px 10px;
   text-decoration: none;
@@ -4048,7 +4079,7 @@ a {
   border: 1px solid transparent;
   border-radius: 7px;
   color: var(--intel-text);
-  font-size: 11px;
+  font-size: 12px;
   padding: 5px 8px;
   text-decoration: none;
   white-space: nowrap;
@@ -4091,7 +4122,7 @@ a {
   border: 1px solid var(--intel-border);
   border-radius: 7px;
   color: var(--intel-text);
-  font-size: 11px;
+  font-size: 12px;
   max-width: 14rem;
   padding: 5px 8px;
 }
@@ -4103,7 +4134,7 @@ a {
   border-radius: 7px;
   color: var(--intel-muted);
   cursor: pointer;
-  font-size: 11px;
+  font-size: 12px;
   padding: 5px 9px;
   text-decoration: none;
 }
@@ -4116,7 +4147,7 @@ a {
 
 .ip-scope {
   color: var(--intel-muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 15px;
   margin: 8px 0 0;
 }
@@ -4187,20 +4218,20 @@ a {
 .ip-label {
   color: var(--intel-muted);
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
   line-height: 15px;
 }
 
 .ip-meta {
   color: var(--intel-muted);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 15px;
 }
 
 .ip-note {
   color: var(--intel-muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 16px;
   margin: 8px 0 0;
   max-width: 78ch;
@@ -4238,7 +4269,7 @@ a {
   border-radius: 8px;
   color: var(--intel-muted);
   display: grid;
-  font-size: 11px;
+  font-size: 12px;
   gap: 4px;
   line-height: 16px;
   min-height: 120px;
@@ -4261,6 +4292,29 @@ a {
 
 /* CSS only, on hover and on keyboard focus. A tooltip that appears only under a
    mouse is a tooltip half the readers never see. */
+.ip-filter:focus-visible,
+.ip-option:focus-visible,
+.ip-tab:focus-visible,
+.ip-signal:focus-visible,
+.ip-action:focus-visible,
+.ip-action-card:focus-visible,
+.ip-stage:focus-visible,
+.ip-node-link:focus-visible,
+.ip-bar:focus-visible,
+.ip-seg:focus-visible,
+.ip-pitem:focus-visible,
+.ip-mcell:focus-visible,
+.ip-gap:focus-visible,
+.ip-link:focus-visible,
+.ip-close:focus-visible,
+.ip-reset:focus-visible,
+.ip-apply:focus-visible,
+.ip-chart-point:focus-visible {
+  outline: 2px solid var(--intel-indigo);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
 .ip-tip {
   position: relative;
 }
@@ -4273,7 +4327,7 @@ a {
   border-radius: 7px;
   color: #fff;
   content: "";
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 500;
   left: 0;
   line-height: 15px;
@@ -4340,7 +4394,7 @@ a.ip-signal:focus-visible {
 }
 
 .ip-delta {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 750;
   margin-left: 6px;
 }
@@ -4380,12 +4434,12 @@ a.ip-action:focus-visible {
 
 .ip-action-n {
   color: var(--intel-coral-text);
-  font-size: 19px;
+  font-size: 20px;
   font-weight: 800;
 }
 
 .ip-action-label {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 650;
 }
 
@@ -4458,6 +4512,7 @@ a.ip-action:focus-visible {
   display: grid;
   gap: 9px;
   grid-template-columns: minmax(110px, 190px) minmax(0, 1fr) 68px;
+  min-width: 0;
   text-decoration: none;
 }
 
@@ -4466,7 +4521,7 @@ a.ip-action:focus-visible {
 }
 
 .ip-bar-name {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 16px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4480,7 +4535,7 @@ a.ip-action:focus-visible {
 .ip-bar-name em {
   color: var(--intel-muted);
   display: block;
-  font-size: 9px;
+  font-size: 11px;
   font-style: normal;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -4509,7 +4564,7 @@ a.ip-action:focus-visible {
 
 .ip-value {
   color: var(--intel-muted);
-  font-size: 10px;
+  font-size: 11px;
   text-align: right;
   white-space: nowrap;
 }
@@ -4559,7 +4614,7 @@ a.ip-seg:focus-visible {
   color: var(--intel-text);
   display: flex;
   flex-wrap: wrap;
-  font-size: 10px;
+  font-size: 11px;
   gap: 12px;
   list-style: none;
   margin: 9px 0 0;
@@ -4592,7 +4647,7 @@ a.ip-seg:focus-visible {
   border: 1px solid var(--intel-border);
   border-radius: 7px;
   color: var(--intel-text);
-  font-size: 10px;
+  font-size: 12px;
   padding: 6px 9px;
   text-decoration: none;
   transition:
@@ -4631,7 +4686,7 @@ a.ip-seg:focus-visible {
 
 .ip-table {
   border-collapse: collapse;
-  font-size: 11px;
+  font-size: 12px;
   width: 100%;
 }
 
@@ -4650,7 +4705,7 @@ a.ip-seg:focus-visible {
 
 .ip-table thead th {
   color: var(--intel-muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
   /* Headers wrap so a narrow panel reads without sideways scrolling; the data
@@ -4664,13 +4719,18 @@ a.ip-seg:focus-visible {
   text-align: left;
 }
 
+.ip-table tbody tr:hover {
+  /* Quiet context on the row under the pointer, before reaching for an accent. */
+  background: var(--intel-ice);
+}
+
 .ip-cell-thin {
   color: var(--intel-muted);
 }
 
 .ip-cell-n {
   color: var(--intel-muted);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .ip-table--ghost tbody td {
@@ -4681,25 +4741,32 @@ a.ip-seg:focus-visible {
 
 /* One sequential family, not four hues: the reading is ordinal. */
 .ip-matrix {
-  display: grid;
-  gap: 4px;
-  grid-template-columns: 68px repeat(4, minmax(0, 1fr));
+  border-collapse: separate;
+  border-spacing: 4px;
+  table-layout: fixed;
+  width: 100%;
+}
+
+.ip-matrix th {
+  color: var(--intel-muted);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px;
+}
+
+.ip-matrix thead th:first-child,
+.ip-matrix tbody th {
+  text-align: left;
+  width: 68px;
 }
 
 .ip-mcell {
-  align-items: center;
   background: #f2f4f7;
   border-radius: 5px;
-  display: grid;
-  font-size: 10px;
-  justify-items: center;
-  min-height: 32px;
-}
-
-.ip-mhead {
-  background: transparent;
-  color: var(--intel-muted);
-  font-weight: 700;
+  font-size: 11px;
+  height: 34px;
+  text-align: center;
+  vertical-align: middle;
 }
 
 .ip-h1 {
@@ -4712,7 +4779,9 @@ a.ip-seg:focus-visible {
   background: #7bcbc0;
 }
 .ip-h4 {
-  background: #37a99c;
+  /* Darkened from #37A99C: white text on that failed contrast, and the cell
+     with the most interactions in it was the one hardest to read. */
+  background: var(--intel-teal);
   color: #fff;
 }
 
@@ -4726,7 +4795,7 @@ a.ip-seg:focus-visible {
 
 .ip-chart-move {
   color: var(--intel-muted);
-  font-size: 11px;
+  font-size: 12px;
   margin: 0 0 4px;
 }
 
@@ -4774,7 +4843,7 @@ a.ip-seg:focus-visible {
 
 .ip-chart-tick {
   fill: var(--intel-muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 /* ---- Journey rail ------------------------------------------------------- */
@@ -4786,7 +4855,8 @@ a.ip-seg:focus-visible {
 }
 
 .ip-nodes::before {
-  background: #dce2ea;
+  /* Navy at low weight: a structural reference line for the rail, not a status. */
+  background: color-mix(in srgb, var(--intel-navy) 22%, transparent);
   content: "";
   height: 3px;
   left: 7%;
@@ -4831,7 +4901,7 @@ a.ip-seg:focus-visible {
 
 .ip-gap-observed {
   color: var(--intel-muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .ip-gap {
@@ -4840,7 +4910,7 @@ a.ip-seg:focus-visible {
   border-radius: 8px;
   color: var(--intel-coral-text);
   display: block;
-  font-size: 10px;
+  font-size: 12px;
   padding: 8px 10px;
   text-decoration: none;
   transition: border-color 150ms ease;
@@ -4871,7 +4941,7 @@ a.ip-gap:focus-visible {
 }
 
 .ip-productcol h3 {
-  font-size: 11px;
+  font-size: 14px;
   margin: 0 0 7px;
 }
 
@@ -4884,7 +4954,7 @@ a.ip-gap:focus-visible {
 }
 
 .ip-productlist li {
-  font-size: 10px;
+  font-size: 12px;
 }
 
 /* Name and count in separate columns: run together, "…CWH 2" reads as part of
@@ -4935,12 +5005,12 @@ a.ip-action-card:focus-visible {
 }
 
 .ip-action-card strong {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 800;
 }
 
 .ip-action-card span {
-  font-size: 11px;
+  font-size: 12px;
   margin-left: 5px;
 }
 
@@ -4979,7 +5049,7 @@ a.ip-action-card:focus-visible {
 }
 
 .ip-stage h3 {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
   margin: 0 0 8px;
@@ -4993,7 +5063,7 @@ a.ip-action-card:focus-visible {
 .ip-row {
   border-top: 1px solid #e9ecf1;
   display: flex;
-  font-size: 10px;
+  font-size: 12px;
   gap: 5px;
   justify-content: space-between;
   padding: 4px 0;
@@ -5038,7 +5108,7 @@ a.ip-action-card:focus-visible {
 .ip-drow {
   align-items: center;
   display: grid;
-  font-size: 10px;
+  font-size: 12px;
   gap: 10px;
   grid-template-columns: minmax(110px, 190px) minmax(0, 1fr) 68px;
 }
@@ -5089,6 +5159,15 @@ a.ip-action-card:focus-visible {
 /* ---- Evidence drawer ---------------------------------------------------- */
 
 .ip-drawer-bg {
+  /* Visible as rendered, animated by keyframes rather than by a class the
+     client adds. Tying visibility to a mount effect meant the sheet stayed
+     transparent until hydration — and stayed invisible forever without
+     JavaScript, which is exactly when the evidence matters most. */
+  /* No fill mode: the element's own state is the visible one, and the
+     animation only plays into it. `both` held the `from` state until the
+     animation started, which left the sheet transparent wherever animations
+     are paused or never run. */
+  animation: ip-backdrop-in 160ms ease;
   background: rgb(16 19 26 / 28%);
   inset: 0;
   position: fixed;
@@ -5096,6 +5175,7 @@ a.ip-action-card:focus-visible {
 }
 
 .ip-drawer {
+  animation: ip-drawer-in 160ms ease;
   background: var(--intel-surface);
   box-shadow: -10px 0 35px rgb(16 24 40 / 14%);
   height: 100%;
@@ -5105,6 +5185,38 @@ a.ip-action-card:focus-visible {
   right: 0;
   top: 0;
   width: min(460px, 94vw);
+}
+
+@keyframes ip-backdrop-in {
+  from {
+    background: rgb(16 19 26 / 0%);
+  }
+}
+
+@keyframes ip-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(2%);
+  }
+}
+
+/* Restrained by contract, and skipped entirely for readers who ask. */
+@media (prefers-reduced-motion: reduce) {
+  .ip-drawer-bg,
+  .ip-drawer {
+    animation: none;
+  }
+
+  .ip-drawer-bg,
+  .ip-drawer,
+  .ip-filter,
+  .ip-tab,
+  .ip-stage,
+  .ip-signal,
+  .ip-fill,
+  .ip-seg {
+    transition: none;
+  }
 }
 
 .ip-drawer h2 {
@@ -5140,13 +5252,13 @@ a.ip-action-card:focus-visible {
   background: var(--intel-surface-subtle);
   border-radius: 999px;
   color: var(--intel-muted);
-  font-size: 10px;
+  font-size: 11px;
   padding: 4px 9px;
 }
 
 .ip-drawer-section {
   color: var(--intel-muted);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.13em;
   margin: 16px 0 4px;
@@ -5164,12 +5276,12 @@ a.ip-action-card:focus-visible {
 
 .ip-drawer-value span {
   color: var(--intel-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .ip-evrow {
   border-top: 1px solid var(--intel-border);
-  font-size: 11px;
+  font-size: 12px;
   padding: 11px 0;
 }
 
@@ -5187,7 +5299,7 @@ a.ip-action-card:focus-visible {
   background: var(--intel-teal-soft);
   border-left: 3px solid var(--intel-teal);
   color: var(--intel-text);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.45;
   margin-top: 7px;
   padding: 10px;
@@ -5307,4 +5419,163 @@ a.ip-action-card:focus-visible {
   .ip-pagehead h1 {
     font-size: 26px;
   }
+}
+
+/* ---- Stage B additions --------------------------------------------------- */
+
+/* A second, deliberately smaller affordance beside a bar. One click must not
+   both narrow the page and open evidence — a reader cannot predict which they
+   are about to get, so they stop clicking either. */
+.ip-review {
+  color: var(--intel-muted);
+  font-size: 12px;
+  padding: 2px 4px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.ip-review:hover,
+.ip-review:focus-visible {
+  color: var(--intel-indigo);
+  text-decoration: underline;
+}
+
+.ip-bars li {
+  align-items: center;
+  display: grid;
+  gap: 6px;
+  /* The bar and its Review sit on one line: stacking the second affordance
+     doubled every row's height and made the list read as ragged. */
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.ip-bars li > .ip-bar {
+  grid-column: 1;
+}
+
+/* Journey nodes are controls, not labels. */
+.ip-node-link {
+  border-radius: 9px;
+  color: inherit;
+  cursor: pointer;
+  display: block;
+  padding: 4px 6px 8px;
+  text-decoration: none;
+  transition:
+    background-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.ip-node-link:hover {
+  background: var(--intel-surface-subtle);
+}
+
+.ip-node--active {
+  background: var(--intel-indigo-soft);
+  box-shadow: inset 0 0 0 1px var(--intel-indigo);
+}
+
+.ip-node--active .ip-dot {
+  background: var(--intel-indigo);
+}
+
+/* A pulse figure that opens its own numerator reads as a control. */
+.ip-pitem--action {
+  color: inherit;
+  text-decoration: none;
+  transition: background-color 150ms ease;
+}
+
+.ip-pitem--action:hover,
+.ip-pitem--action:focus-visible {
+  background: var(--intel-indigo-soft);
+}
+
+/* A plotted point can be focused and described even where clicking it would
+   not honestly narrow anything. */
+.ip-chart-point {
+  cursor: pointer;
+}
+
+.ip-chart-point:hover .ip-chart-dot,
+.ip-chart-point:focus-visible .ip-chart-dot {
+  fill: var(--intel-coral);
+}
+
+.ip-currency-head {
+  color: var(--intel-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  margin: 10px 0 6px;
+  text-transform: uppercase;
+}
+
+.ip-badge {
+  background: var(--intel-amber-soft);
+  border-radius: 999px;
+  color: var(--intel-amber);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  margin-left: 6px;
+  padding: 2px 6px;
+  text-transform: uppercase;
+}
+
+.ip-scope--error {
+  color: var(--intel-coral-text);
+}
+
+.ip-pager {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.ip-pager-controls {
+  display: flex;
+  gap: 16px;
+}
+
+/* The local switch adds no box of its own: its children take part in the grid
+   exactly as they would have. */
+.ip-local {
+  display: contents;
+}
+
+/* A metric cell is a control only where an exact cohort stands behind it. */
+.ip-cell-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.ip-cell-link:hover,
+.ip-cell-link:focus-visible {
+  color: var(--intel-indigo);
+  text-decoration: underline;
+}
+
+/* A grouped analytical section. Navy Soft rather than another saturated accent:
+   on a dense page a quiet surface separates a block better than colour does. */
+.ip-panel--grouped {
+  background: var(--intel-navy-soft);
+}
+
+.ip-panel--grouped .ip-pitem {
+  background: var(--intel-surface);
+  border-radius: 8px;
+}
+
+.ip-meaning {
+  display: block;
+  margin-top: 4px;
+}
+
+.ip-panel--grouped .ip-figure-row {
+  border: 0;
+  gap: 1px;
+  margin-bottom: 0;
 }

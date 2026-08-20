@@ -2,6 +2,8 @@ import "server-only";
 
 import Link from "next/link";
 
+import { DrawerShell } from "@/components/intelligence/drawer-shell";
+
 import { createClient } from "@/lib/supabase/server";
 import { resolveCohort } from "@/modules/intelligence/cohorts";
 import { evidenceForField, timestamp, type EvidenceLine } from "@/modules/intelligence/evidence";
@@ -65,18 +67,16 @@ export async function IntelligenceDrawer({
 
   if (!cohort) {
     return (
-      <aside className="ip-drawer-bg">
-        <div className="ip-drawer" role="dialog" aria-label="Evidence">
-          <Link className="ip-close" href={closeHref} aria-label="Close evidence">
-            ×
-          </Link>
-          <p className="ip-eyebrow">Evidence</p>
-          <h2>Nothing to show</h2>
-          <p className="ip-note">
-            This group is not defined for the current selection. It may exist under a wider period.
-          </p>
-        </div>
-      </aside>
+      <DrawerShell closeHref={closeHref} triggerKey={cohortKey} label="Evidence">
+        <Link className="ip-close" href={closeHref} aria-label="Close evidence">
+          ×
+        </Link>
+        <p className="ip-eyebrow">Evidence</p>
+        <h2>Nothing to show</h2>
+        <p className="ip-note">
+          This group is not defined for the current selection. It may exist under a wider period.
+        </p>
+      </DrawerShell>
     );
   }
 
@@ -84,7 +84,7 @@ export async function IntelligenceDrawer({
   const matchedRows = rows.filter((row) => matched.has(row.conversationId));
   const shown = matchedRows.slice(0, DRAWER_ROWS);
 
-  const [{ data: conversations }, evidence] = await Promise.all([
+  const [{ data: conversations, error: conversationsError }, evidence] = await Promise.all([
     createClient().then((supabase) =>
       supabase
         .from("conversations")
@@ -104,6 +104,11 @@ export async function IntelligenceDrawer({
       cohort.evidenceFieldKeys,
     ),
   ]);
+  // A failed metadata read is reported, never rendered as a cohort of untitled
+  // interactions that looks like thin data.
+  if (conversationsError) {
+    throw new Error(`Conversation details could not be read: ${conversationsError.message}`);
+  }
   const detail = new Map((conversations ?? []).map((row) => [row.id, row]));
 
   const affected = cohort.conversationIds.length;
@@ -111,87 +116,89 @@ export async function IntelligenceDrawer({
   const coverage = eligible && eligible > 0 ? affected / eligible : null;
 
   return (
-    <aside className="ip-drawer-bg">
-      <div className="ip-drawer" role="dialog" aria-label="Evidence">
-        <Link className="ip-close" href={closeHref} aria-label="Close evidence">
-          ×
-        </Link>
-        <p className="ip-eyebrow">Cohort</p>
-        <h2>Interactions that {cohort.headline}</h2>
-        <ul className="ip-scope-chips">
-          {scopeChips.map((chip) => (
-            <li key={chip}>{chip}</li>
-          ))}
-        </ul>
+    <DrawerShell
+      closeHref={closeHref}
+      triggerKey={cohortKey}
+      label={`Evidence: interactions that ${cohort.headline}`}
+    >
+      <Link className="ip-close" href={closeHref} aria-label="Close evidence">
+        ×
+      </Link>
+      <p className="ip-eyebrow">Cohort</p>
+      <h2>Interactions that {cohort.headline}</h2>
+      <ul className="ip-scope-chips">
+        {scopeChips.map((chip) => (
+          <li key={chip}>{chip}</li>
+        ))}
+      </ul>
 
-        <p className="ip-drawer-section">Value</p>
-        <p className="ip-drawer-value">
-          <strong>{affected}</strong>
-          {eligible && eligible > 0 ? (
-            <span>
-              {" "}
-              of {eligible} measurable · {Math.round((coverage ?? 0) * 100)}%
-            </span>
-          ) : (
-            <span> interactions</span>
-          )}
-        </p>
-        <p className="ip-note">{cohort.reason}.</p>
+      <p className="ip-drawer-section">Value</p>
+      <p className="ip-drawer-value">
+        <strong>{affected}</strong>
+        {eligible && eligible > 0 ? (
+          <span>
+            {" "}
+            of {eligible} measurable · {Math.round((coverage ?? 0) * 100)}%
+          </span>
+        ) : (
+          <span> interactions</span>
+        )}
+      </p>
+      <p className="ip-note">{cohort.reason}.</p>
 
-        <p className="ip-drawer-section">
-          Interactions{matchedRows.length > shown.length ? ` · showing ${shown.length}` : ""}
-        </p>
-        {shown.length === 0 ? (
-          <p className="ip-note">No interaction matches this group in the current selection.</p>
-        ) : null}
-        {shown.map((row) => {
-          const conversation = detail.get(row.conversationId);
-          const store = conversation?.locations as { name: string } | null;
-          const lines = dedupeLines(evidence.get(row.conversationId) ?? []);
-          return (
-            <div key={row.conversationId} className="ip-evrow">
-              <Link className="ip-ev-title" href={`/conversations/${row.conversationId}`}>
-                {conversation?.title ?? "Untitled interaction"}
-              </Link>
-              <p className="ip-meta">
-                {conversation?.started_at
-                  ? new Date(conversation.started_at).toLocaleDateString()
-                  : "—"}
-                {store?.name ? ` · ${store.name}` : ""}
-                {row.purchaseCategory ? ` · ${row.purchaseCategory}` : ""}
-              </p>
-              {lines.length > 0 ? (
-                lines.map((line, index) => (
-                  <p className="ip-quote" key={`${line.startMilliseconds}-${index}`}>
-                    <span className="ip-meta">
-                      {line.role} · {timestamp(line.startMilliseconds)}
-                    </span>
-                    {line.text}
-                  </p>
-                ))
-              ) : (
-                // Said plainly rather than left blank. A cohort defined by an
-                // absence often has nothing to quote, and empty space would read
-                // as a failed load.
-                <p className="ip-note">
-                  No transcript line — this interaction matched on something that was not said.
-                </p>
-              )}
-              <Link className="ip-link" href={`/conversations/${row.conversationId}`}>
-                Open full conversation →
-              </Link>
-            </div>
-          );
-        })}
-
-        {matchedRows.length > shown.length ? (
-          <p className="ip-drawer-foot">
-            <Link className="ip-link" href={fullHref}>
-              Review all {matchedRows.length} interactions →
+      <p className="ip-drawer-section">
+        Interactions{matchedRows.length > shown.length ? ` · showing ${shown.length}` : ""}
+      </p>
+      {shown.length === 0 ? (
+        <p className="ip-note">No interaction matches this group in the current selection.</p>
+      ) : null}
+      {shown.map((row) => {
+        const conversation = detail.get(row.conversationId);
+        const store = conversation?.locations as { name: string } | null;
+        const lines = dedupeLines(evidence.get(row.conversationId) ?? []);
+        return (
+          <div key={row.conversationId} className="ip-evrow">
+            <Link className="ip-ev-title" href={`/conversations/${row.conversationId}`}>
+              {conversation?.title ?? "Untitled interaction"}
             </Link>
-          </p>
-        ) : null}
-      </div>
-    </aside>
+            <p className="ip-meta">
+              {conversation?.started_at
+                ? new Date(conversation.started_at).toLocaleDateString()
+                : "—"}
+              {store?.name ? ` · ${store.name}` : ""}
+              {row.purchaseCategory ? ` · ${row.purchaseCategory}` : ""}
+            </p>
+            {lines.length > 0 ? (
+              lines.map((line, index) => (
+                <p className="ip-quote" key={`${line.startMilliseconds}-${index}`}>
+                  <span className="ip-meta">
+                    {line.role} · {timestamp(line.startMilliseconds)}
+                  </span>
+                  {line.text}
+                </p>
+              ))
+            ) : (
+              // Said plainly rather than left blank. A cohort defined by an
+              // absence often has nothing to quote, and empty space would read
+              // as a failed load.
+              <p className="ip-note">
+                No transcript line — this interaction matched on something that was not said.
+              </p>
+            )}
+            <Link className="ip-link" href={`/conversations/${row.conversationId}`}>
+              Open full conversation →
+            </Link>
+          </div>
+        );
+      })}
+
+      {matchedRows.length > shown.length ? (
+        <p className="ip-drawer-foot">
+          <Link className="ip-link" href={fullHref}>
+            Review all {matchedRows.length} interactions →
+          </Link>
+        </p>
+      ) : null}
+    </DrawerShell>
   );
 }

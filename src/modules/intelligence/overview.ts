@@ -1,5 +1,15 @@
 import { budgetPicture, clarityMatrix, computeDemand } from "@/modules/intelligence/demand";
 import {
+  arrivedDecided,
+  clarityImproved,
+  closeAfterCommitment,
+  competitorMentionIncidence,
+  financeDemand,
+  nextActionCapture,
+  outcomeEstablished,
+  recommendationRationaleCoverage,
+} from "@/modules/intelligence/measures";
+import {
   computeFrontline,
   frontlineActionCohorts,
   type ActionCohort,
@@ -40,57 +50,49 @@ export function overviewSignals(
   rows: readonly PopulationRow[],
   previousRows: readonly PopulationRow[] | null,
 ): OverviewSignal[] {
-  const demand = computeDemand(rows);
-  const clarity = clarityMatrix(rows);
-  const frontline = computeFrontline(rows);
-  const before = previousRows
-    ? {
-        demand: computeDemand(previousRows),
-        clarity: clarityMatrix(previousRows),
-        frontline: computeFrontline(previousRows),
-      }
-    : null;
+  const before = <T>(read: (subject: readonly PopulationRow[]) => T): T | null =>
+    previousRows ? read(previousRows) : null;
+  const close = closeAfterCommitment(rows);
 
   return [
     {
       key: "arrived_decided",
       label: "Arrived decided",
       fieldKeys: ["arrival_intent_state"],
-      measure: demand.highIntent,
-      previous: before?.demand.highIntent ?? null,
+      measure: arrivedDecided(rows),
+      previous: before(arrivedDecided),
       attention: false,
-      cohortKey: null,
+      cohortKey: "arrived_decided",
     },
     {
       key: "finance_demand",
       label: "Finance demand",
       fieldKeys: ["finance_requested"],
-      measure: demand.financeDemand,
-      previous: before?.demand.financeDemand ?? null,
+      measure: financeDemand(rows),
+      previous: before(financeDemand),
       attention: false,
-      cohortKey: "finance_question_without_response",
+      cohortKey: "finance_demand",
     },
     {
       key: "clarity_improved",
       label: "Clarity improved",
       fieldKeys: ["requirement_clarity_start", "requirement_clarity_end"],
-      measure: clarity.improved,
-      previous: before?.clarity.improved ?? null,
+      measure: clarityImproved(rows),
+      previous: before(clarityImproved),
       attention: false,
-      cohortKey: null,
+      cohortKey: "clarity_improved",
     },
     {
       key: "close_after_commitment",
       label: "Close after commitment",
       fieldKeys: ["customer_commitment_signals", "close_attempts"],
-      measure: frontline.closeAfterCommitment,
-      previous: before?.frontline.closeAfterCommitment ?? null,
+      measure: close,
+      previous: before(closeAfterCommitment),
       // The one signal on the page that is unambiguously the store's own work
       // and unambiguously bad when low. Marked so the eye lands on it, not
       // scored — the rule is one line and a business can argue with it.
-      attention:
-        frontline.closeAfterCommitment.value !== null && frontline.closeAfterCommitment.value < 0.5,
-      cohortKey: "commitment_without_close_attempt",
+      attention: close.value !== null && close.value < 0.5,
+      cohortKey: "close_after_commitment",
     },
   ];
 }
@@ -123,25 +125,28 @@ export function overviewActions(
 export type PulseItem = {
   key: string;
   label: string;
-  format: "count" | "percent" | "money";
+  /** `mixed_currency` refuses to print a median across two currencies. */
+  format: "count" | "percent" | "money" | "mixed_currency";
   /** For counts, the number itself; for money, minor units; else null. */
   amount: number | null;
   currency: string | null;
   measure: Measure | null;
   previous: Measure | null;
   fieldKeys: string[];
+  /** The numerator cohort a click opens, where one exists. */
+  cohortKey: string | null;
 };
 
 export function overviewPulse(
   rows: readonly PopulationRow[],
   previousRows: readonly PopulationRow[] | null,
 ): PulseItem[] {
-  const demand = computeDemand(rows);
   const budget = budgetPicture(rows);
-  const frontline = computeFrontline(rows);
-  const before = previousRows
-    ? { demand: computeDemand(previousRows), frontline: computeFrontline(previousRows) }
-    : null;
+  const before = <T>(read: (subject: readonly PopulationRow[]) => T): T | null =>
+    previousRows ? read(previousRows) : null;
+  // One currency or none: a median is a number. More than one and it is not,
+  // so the tile says so rather than adding rupees to dirhams.
+  const single = budget.byCurrency.length === 1 ? budget.byCurrency[0]! : null;
 
   return [
     {
@@ -153,16 +158,18 @@ export function overviewPulse(
       measure: null,
       previous: null,
       fieldKeys: [],
+      cohortKey: null,
     },
     {
       key: "median_budget",
       label: "Median target budget",
-      format: "money",
-      amount: budget.targetMedian,
-      currency: budget.currency,
+      format: budget.mixed ? "mixed_currency" : "money",
+      amount: single?.targetMedian ?? null,
+      currency: single?.currency ?? null,
       measure: budget.observationRate,
       previous: null,
       fieldKeys: ["target_budget"],
+      cohortKey: null,
     },
     {
       key: "competitor",
@@ -170,9 +177,10 @@ export function overviewPulse(
       format: "percent",
       amount: null,
       currency: null,
-      measure: demand.competitorPressure,
-      previous: before?.demand.competitorPressure ?? null,
+      measure: competitorMentionIncidence(rows),
+      previous: before(competitorMentionIncidence),
       fieldKeys: ["competitor_named"],
+      cohortKey: "competitor_mentioned",
     },
     {
       key: "outcome",
@@ -180,9 +188,10 @@ export function overviewPulse(
       format: "percent",
       amount: null,
       currency: null,
-      measure: demand.outcomeClassified,
-      previous: before?.demand.outcomeClassified ?? null,
+      measure: outcomeEstablished(rows),
+      previous: before(outcomeEstablished),
       fieldKeys: ["confirmed_business_outcome"],
+      cohortKey: "outcome_established",
     },
     {
       key: "rationale",
@@ -190,9 +199,10 @@ export function overviewPulse(
       format: "percent",
       amount: null,
       currency: null,
-      measure: frontline.recommendationRationale,
-      previous: before?.frontline.recommendationRationale ?? null,
+      measure: recommendationRationaleCoverage(rows),
+      previous: before(recommendationRationaleCoverage),
       fieldKeys: ["recommendation_reasons"],
+      cohortKey: null,
     },
     {
       key: "next_action",
@@ -200,9 +210,10 @@ export function overviewPulse(
       format: "percent",
       amount: null,
       currency: null,
-      measure: frontline.nextActionCapture,
-      previous: before?.frontline.nextActionCapture ?? null,
+      measure: nextActionCapture(rows),
+      previous: before(nextActionCapture),
       fieldKeys: ["next_action"],
+      cohortKey: "next_action_captured",
     },
   ];
 }
@@ -237,16 +248,13 @@ export function hotspots(
   }
   return [...groups.entries()]
     .map(([key, group]) => {
-      const demand = computeDemand(group);
-      const clarity = clarityMatrix(group);
-      const frontline = computeFrontline(group);
       return {
         key,
         label: labelFor(key),
         size: group.length,
-        financeDemand: demand.financeDemand,
-        clarityImproved: clarity.improved,
-        closeAfterCommitment: frontline.closeAfterCommitment,
+        financeDemand: financeDemand(group),
+        clarityImproved: clarityImproved(group),
+        closeAfterCommitment: closeAfterCommitment(group),
       };
     })
     .sort((a, b) => b.size - a.size || a.label.localeCompare(b.label))

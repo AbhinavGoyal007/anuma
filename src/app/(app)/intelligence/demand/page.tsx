@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import {
   DemandView,
+  NEED_FIELD_KEYS,
   NEED_TABS,
   VOICE_TABS,
   type VoicePanel,
@@ -18,23 +19,18 @@ import {
   partySizeDistribution,
   rankedShare,
 } from "@/modules/intelligence/demand";
+import { valueCohortKey } from "@/modules/intelligence/cohorts";
 import { intelligenceHref, single } from "@/modules/intelligence/filters";
 import { isUnresolved } from "@/modules/intelligence/outcome";
+import { IntelligenceDrawer } from "@/components/intelligence/intelligence-drawer";
+import { cohortPath } from "@/modules/intelligence/cohorts";
+import { windowLabel } from "@/modules/intelligence/filters";
 import { resolveIntelligencePage } from "@/modules/intelligence/page-context";
 import type { PopulationRow } from "@/modules/intelligence/population";
 
 type PageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 const BASE = "/intelligence/demand";
-
-/** Which fields each Needs tab reads, fixed by the field-home map. */
-const NEED_FIELDS: Readonly<Record<string, string[]>> = {
-  initial_request: ["initial_request"],
-  use_cases: ["purchase_use_cases"],
-  requirements: ["specification_requirements", "additional_requirements", "other_constraints"],
-  drivers: ["decision_drivers"],
-  brands: ["brand_preferences"],
-};
 
 function voicePanels(tab: string, rows: readonly PopulationRow[]): VoicePanel[] {
   const list = (fieldKeys: string[]) => rankedShare(rows, fieldKeys, 40);
@@ -49,6 +45,7 @@ function voicePanels(tab: string, rows: readonly PopulationRow[]): VoicePanel[] 
           list: list(["competitor_named"]),
           unit: unit("named by the customer"),
           controlled: false,
+          fieldKey: "competitor_named",
         },
         {
           key: "competitor_product",
@@ -56,6 +53,7 @@ function voicePanels(tab: string, rows: readonly PopulationRow[]): VoicePanel[] 
           list: list(["competitor_product"]),
           unit: unit("as described"),
           controlled: false,
+          fieldKey: "competitor_product",
         },
         {
           key: "competitor_price_claim",
@@ -63,6 +61,7 @@ function voicePanels(tab: string, rows: readonly PopulationRow[]): VoicePanel[] 
           list: list(["competitor_price_claim"]),
           unit: unit("claimed, never verified"),
           controlled: false,
+          fieldKey: "competitor_price_claim",
         },
       ];
     case "stock":
@@ -73,6 +72,7 @@ function voicePanels(tab: string, rows: readonly PopulationRow[]): VoicePanel[] 
           list: list(["stock_status"]),
           unit: unit("as recorded"),
           controlled: true,
+          fieldKey: "stock_status",
         },
         {
           key: "promotion_discussed",
@@ -80,6 +80,7 @@ function voicePanels(tab: string, rows: readonly PopulationRow[]): VoicePanel[] 
           list: list(["promotion_discussed"]),
           unit: unit("as recorded"),
           controlled: false,
+          fieldKey: "promotion_discussed",
         },
         {
           key: "finance_requested",
@@ -87,6 +88,7 @@ function voicePanels(tab: string, rows: readonly PopulationRow[]): VoicePanel[] 
           list: list(["finance_requested"]),
           unit: unit("as recorded"),
           controlled: true,
+          fieldKey: "finance_requested",
         },
       ];
     case "questions":
@@ -97,6 +99,7 @@ function voicePanels(tab: string, rows: readonly PopulationRow[]): VoicePanel[] 
           list: list(["customer_questions"]),
           unit: unit("asked"),
           controlled: false,
+          fieldKey: "customer_questions",
         },
         {
           key: "question_response_status",
@@ -104,6 +107,7 @@ function voicePanels(tab: string, rows: readonly PopulationRow[]): VoicePanel[] 
           list: list(["question_response_status"]),
           unit: unit("recorded against a question"),
           controlled: true,
+          fieldKey: "question_response_status",
         },
       ];
     case "objections":
@@ -114,6 +118,7 @@ function voicePanels(tab: string, rows: readonly PopulationRow[]): VoicePanel[] 
           list: list(["objections"]),
           unit: unit("raised by the customer"),
           controlled: false,
+          fieldKey: "objections",
         },
       ];
     case "conditions":
@@ -140,6 +145,7 @@ function voicePanels(tab: string, rows: readonly PopulationRow[]): VoicePanel[] 
           list: list(["language_mix"]),
           unit: unit("as spoken"),
           controlled: false,
+          fieldKey: "language_mix",
         },
         {
           key: "customer_party_size",
@@ -147,6 +153,7 @@ function voicePanels(tab: string, rows: readonly PopulationRow[]): VoicePanel[] 
           list: partySizeDistribution(rows),
           unit: unit("with a readable party size"),
           controlled: false,
+          fieldKey: "customer_party_size",
         },
         {
           key: "purchase_timing",
@@ -154,6 +161,7 @@ function voicePanels(tab: string, rows: readonly PopulationRow[]): VoicePanel[] 
           list: list(["purchase_timing"]),
           unit: unit("as stated"),
           controlled: true,
+          fieldKey: "purchase_timing",
         },
       ];
   }
@@ -165,6 +173,7 @@ export default async function CustomerDemandPage({ searchParams }: PageProps) {
   if ("redirect" in page) redirect(page.redirect);
 
   const {
+    organizationId,
     filters,
     current,
     previous,
@@ -174,6 +183,8 @@ export default async function CustomerDemandPage({ searchParams }: PageProps) {
     intents,
     languages,
     storeCount,
+    selectedStoreName,
+    directoryError,
   } = page;
   const rows = current.rows;
 
@@ -187,6 +198,7 @@ export default async function CustomerDemandPage({ searchParams }: PageProps) {
   // Expanding has to mean everything, or "Show all 10" is a promise the page
   // does not keep when the underlying list is longer than ten.
   const listLimit = expanded ? Number.MAX_SAFE_INTEGER : 40;
+  const openDrawer = single(raw, "drawer");
   const carry: Record<string, string> = {
     need,
     voice: voiceTab,
@@ -207,6 +219,7 @@ export default async function CustomerDemandPage({ searchParams }: PageProps) {
         languages={languages}
         interactions={rows.length}
         storeCount={storeCount}
+        directoryError={directoryError}
         carry={carry}
       />
       <DemandView
@@ -221,17 +234,42 @@ export default async function CustomerDemandPage({ searchParams }: PageProps) {
           allCategories ? null : intelligenceHref(BASE, filters, { ...carry, cats: "1" })
         }
         intents={distribution(rows, (row) => row.arrivalIntent)}
-        needs={rankedShare(rows, NEED_FIELDS[need]!, listLimit)}
+        // Every panel, computed from rows already in memory. Switching a tab
+        // then costs nothing and never blanks the page.
+        needs={Object.fromEntries(
+          NEED_TABS.map((tab) => [
+            tab.key,
+            rankedShare(rows, NEED_FIELD_KEYS[tab.key]!, listLimit),
+          ]),
+        )}
         need={need}
         needHref={(key) => intelligenceHref(BASE, filters, { ...carry, need: key, all: null })}
         expandHref={expanded ? null : intelligenceHref(BASE, filters, { ...carry, all: "1" })}
-        voice={voicePanels(voiceTab, rows)}
+        voice={Object.fromEntries(VOICE_TABS.map((tab) => [tab.key, voicePanels(tab.key, rows)]))}
         voiceTab={voiceTab}
         voiceHref={(key) => intelligenceHref(BASE, filters, { ...carry, voice: key })}
         blockers={nonConversionReasons(rows)}
         categoryHref={(value) => intelligenceHref(BASE, { ...filters, category: value }, carry)}
         intentHref={(value) => intelligenceHref(BASE, { ...filters, intent: value }, carry)}
+        evidenceHref={(fieldKey, value) =>
+          intelligenceHref(BASE, filters, { ...carry, drawer: valueCohortKey(fieldKey, value) })
+        }
       />
+      {openDrawer ? (
+        <IntelligenceDrawer
+          organizationId={organizationId}
+          rows={rows}
+          cohortKey={openDrawer}
+          journeyCohort="all"
+          scopeChips={[
+            windowLabel(filters.days),
+            selectedStoreName ?? `${storeCount} store${storeCount === 1 ? "" : "s"}`,
+            filters.category ?? "All categories",
+          ]}
+          closeHref={intelligenceHref(BASE, filters, { ...carry, drawer: null })}
+          fullHref={intelligenceHref(cohortPath(openDrawer), filters)}
+        />
+      ) : null}
     </>
   );
 }

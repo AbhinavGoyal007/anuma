@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { IntelligenceHead } from "@/components/intelligence/filter-bar";
 import { createClient } from "@/lib/supabase/server";
-import { resolveCohort } from "@/modules/intelligence/cohorts";
+import { cohortPath, decodeCohortKey, resolveCohort } from "@/modules/intelligence/cohorts";
 import {
   evidenceForField,
   timestamp,
@@ -27,6 +27,9 @@ function dedupeLines(quotes: readonly FieldEvidence[], limit = 3): EvidenceLine[
     .sort((a, b) => a.startMilliseconds - b.startMilliseconds)
     .slice(0, limit);
 }
+
+/** Interactions per page in the full cohort list. */
+const COHORT_PAGE_SIZE = 25;
 
 type PageProps = {
   params: Promise<{ cohortKey: string }>;
@@ -59,40 +62,61 @@ export default async function FrontlineCohortPage({ params, searchParams }: Page
   // The journey groups are defined inside a selected cohort, so the same key
   // means a different set depending on which one the reader was looking at. It
   // travels in the URL, which is what lets a shared link open the same group.
-  const requested = single(raw, "cohort");
-  const journeyCohort: JourneyCohortKey = JOURNEY_COHORTS.find((key) => key === requested) ?? "all";
+  const requestedCohort = single(raw, "cohort");
+  const journeyCohort: JourneyCohortKey =
+    JOURNEY_COHORTS.find((key) => key === requestedCohort) ?? "all";
 
-  const cohort = resolveCohort(population.rows, decodeURIComponent(cohortKey), journeyCohort);
+  // Decoded exactly once, by Next, before it arrives here. A second
+  // decodeURIComponent turns "50% off" into a malformed-URI exception.
+  const cohort = resolveCohort(population.rows, decodeCohortKey(cohortKey), journeyCohort);
   if (!cohort) notFound();
 
   const matched = new Set(cohort.conversationIds);
   const rows = population.rows.filter((row) => matched.has(row.conversationId));
 
-  const [{ data: conversations }, evidence] = await Promise.all([
+  // Paged. A cohort of four hundred meant four hundred evidence lookups and a
+  // single `.in(...)` long enough to be refused, to render a list nobody scrolls
+  // past the top of.
+  const pages = Math.max(1, Math.ceil(rows.length / COHORT_PAGE_SIZE));
+  const requestedPage = Number(single(raw, "page") ?? "1");
+  const pageNumber = Number.isFinite(requestedPage)
+    ? Math.min(Math.max(1, Math.trunc(requestedPage)), pages)
+    : 1;
+  const visible = rows.slice((pageNumber - 1) * COHORT_PAGE_SIZE, pageNumber * COHORT_PAGE_SIZE);
+
+  const [{ data: conversations, error: conversationsError }, evidence] = await Promise.all([
     createClient().then((supabase) =>
       supabase
         .from("conversations")
         .select("id, title, started_at, locations(name)")
         .eq("organization_id", organizationId)
-        .in("id", cohort.conversationIds),
+        .in(
+          "id",
+          visible.map((row) => row.conversationId),
+        ),
     ),
     // Evidence is asked for by record, not by conversation, so a reprocessed
     // conversation cannot show a quote from an analysis the number did not
     // come from.
+    // Only the page in front of the reader. Preloading the whole cohort's
+    // evidence is the single most expensive thing this route could do.
     evidenceForField(
       organizationId,
-      rows.map((row) => ({
+      visible.map((row) => ({
         conversationId: row.conversationId,
         interactionRecordId: row.recordId,
       })),
       cohort.evidenceFieldKeys,
     ),
   ]);
+  if (conversationsError) {
+    throw new Error(`Conversation details could not be read: ${conversationsError.message}`);
+  }
   const detail = new Map((conversations ?? []).map((row) => [row.id, row]));
 
   // Back to wherever this group is shown. Journey groups carry a cohort in the
   // URL; frontline ones do not.
-  const back = requested
+  const back = requestedCohort
     ? intelligenceHref("/intelligence/journey", filters, { cohort: journeyCohort })
     : intelligenceHref("/intelligence/frontline", filters);
 
@@ -123,7 +147,7 @@ export default async function FrontlineCohortPage({ params, searchParams }: Page
           <p className="ip-note">{cohort.reason}.</p>
         </section>
 
-        {rows.map((row) => {
+        {visible.map((row) => {
           const conversation = detail.get(row.conversationId);
           const store = conversation?.locations as { name: string } | null;
           const quotes = evidence.get(row.conversationId) ?? [];
@@ -168,6 +192,40 @@ export default async function FrontlineCohortPage({ params, searchParams }: Page
             </section>
           );
         })}
+
+        {pages > 1 ? (
+          <nav className="ip-panel ip-col-12 ip-pager" aria-label="Cohort pages">
+            <span className="ip-meta">
+              Showing {(pageNumber - 1) * COHORT_PAGE_SIZE + 1}–
+              {(pageNumber - 1) * COHORT_PAGE_SIZE + visible.length} of {rows.length} · page{" "}
+              {pageNumber} of {pages}
+            </span>
+            <span className="ip-pager-controls">
+              {pageNumber > 1 ? (
+                <Link
+                  className="ip-link"
+                  href={intelligenceHref(cohortPath(cohortKey), filters, {
+                    ...(requestedCohort ? { cohort: journeyCohort } : {}),
+                    page: String(pageNumber - 1),
+                  })}
+                >
+                  ← Previous
+                </Link>
+              ) : null}
+              {pageNumber < pages ? (
+                <Link
+                  className="ip-link"
+                  href={intelligenceHref(cohortPath(cohortKey), filters, {
+                    ...(requestedCohort ? { cohort: journeyCohort } : {}),
+                    page: String(pageNumber + 1),
+                  })}
+                >
+                  Next →
+                </Link>
+              ) : null}
+            </span>
+          </nav>
+        ) : null}
 
         {rows.length === 0 ? (
           <section className="ip-panel ip-col-12">

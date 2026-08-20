@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import type { TrendMetric, TrendSeries } from "@/modules/intelligence/trend";
 
 /**
@@ -22,7 +24,14 @@ function formatValue(value: number, format: TrendMetric["format"]): string {
   return format === "percent" ? `${Math.round(value * 100)}%` : String(value);
 }
 
-export function TrackingChart({ series }: { series: TrendSeries }) {
+export function TrackingChart({
+  series,
+  /** Focuses the period a point stands for, where that is a safe thing to do. */
+  pointHref,
+}: {
+  series: TrendSeries;
+  pointHref?: (point: TrendSeries["points"][number]) => string | null;
+}) {
   const { points, metric } = series;
   const plotted = points.filter((point) => point.value !== null);
   const highest =
@@ -114,15 +123,38 @@ export function TrackingChart({ series }: { series: TrendSeries }) {
               />
             ) : null
           ) : (
-            <circle
-              key={point.from}
-              className={`ip-chart-dot${point === last ? " ip-chart-dot--last" : ""}`}
-              cx={x(index)}
-              cy={y(point.value)}
-              r={point === last ? 4.5 : 3}
-            >
-              <title>{`${point.label} · ${formatValue(point.value, metric.format)} · ${point.matched} of ${point.eligible}`}</title>
-            </circle>
+            // A plotted point is a real period with a real denominator, so it
+            // can be described and — where the page can honestly narrow to it —
+            // opened. A thin point is never clickable: there is nothing behind
+            // it that would survive being looked at.
+            (() => {
+              const description = `${point.label} · ${formatValue(point.value, metric.format)} · ${point.matched} of ${point.eligible}`;
+              const href = pointHref?.(point) ?? null;
+              const dot = (
+                <circle
+                  className={`ip-chart-dot${point === last ? " ip-chart-dot--last" : ""}`}
+                  cx={x(index)}
+                  cy={y(point.value)}
+                  r={point === last ? 4.5 : 3}
+                >
+                  <title>{description}</title>
+                </circle>
+              );
+              return href ? (
+                <Link
+                  key={point.from}
+                  className="ip-chart-point"
+                  href={href}
+                  aria-label={description}
+                >
+                  {dot}
+                </Link>
+              ) : (
+                <g key={point.from} tabIndex={0} role="img" aria-label={description}>
+                  {dot}
+                </g>
+              );
+            })()
           ),
         )}
         {last ? (

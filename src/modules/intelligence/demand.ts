@@ -1,6 +1,17 @@
-import { measure, type Measure } from "@/modules/intelligence/guardrails";
+import { isSupported, statedRows, statedText, type Money } from "@/modules/intelligence/effective";
+import type { Measure } from "@/modules/intelligence/guardrails";
+import { measure } from "@/modules/intelligence/guardrails";
+import {
+  arrivedDecided,
+  clarityImproved,
+  competitorMentionIncidence,
+  confirmedNoSaleReasonCoverage,
+  financeDemand,
+  outcomeEstablished,
+  questionResponseCoverage,
+} from "@/modules/intelligence/measures";
 import { isUnresolved } from "@/modules/intelligence/outcome";
-import type { PopulationRow, PopulationValue } from "@/modules/intelligence/population";
+import type { PopulationRow } from "@/modules/intelligence/population";
 
 /**
  * What customers came in wanting, and where they got stuck.
@@ -10,16 +21,9 @@ import type { PopulationRow, PopulationValue } from "@/modules/intelligence/popu
  * demand rose without that fact immediately becoming an accusation about the
  * floor staff.
  *
- * Pure, so every denominator here is testable without a database.
+ * Every rate here is delegated to the canonical measures. This file shapes
+ * distributions and lists; it does not define a business concept a second time.
  */
-
-const present = (row: PopulationRow, fieldKey: string): PopulationValue[] =>
-  row.values.filter((value) => value.fieldKey === fieldKey && !value.abstention);
-
-const supported = (row: PopulationRow, fieldKey: string): boolean =>
-  row.values.some((value) => value.fieldKey === fieldKey);
-
-const HIGH_INTENT = new Set(["specific_product", "ready_to_buy"]);
 
 /**
  * How often each distinct value appears, counted by interaction.
@@ -37,17 +41,26 @@ export type RankedShare = {
   label: string | null;
 };
 
+export type RankedResult = {
+  entries: RankedShare[];
+  eligible: number;
+  /** Distinct values before any limit — what "Show all" must promise. */
+  distinct: number;
+};
+
 export function rankedShare(
   rows: readonly PopulationRow[],
   fieldKeys: readonly string[],
   limit = 10,
-): { entries: RankedShare[]; eligible: number } {
-  const eligible = rows.filter((row) => fieldKeys.some((key) => supported(row, key))).length;
+): RankedResult {
+  const eligible = rows.filter((row) =>
+    fieldKeys.some((key) => isSupported(row.values, key)),
+  ).length;
   const counts = new Map<string, { interactions: Set<string>; label: string | null }>();
 
   for (const row of rows) {
     for (const key of fieldKeys) {
-      for (const value of present(row, key)) {
+      for (const value of statedRows(row.values, key)) {
         const text = (value.valueText ?? "").trim();
         if (!text) continue;
         // Cased and spaced as spoken. Merging near-identical free text here
@@ -60,17 +73,19 @@ export function rankedShare(
     }
   }
 
-  const entries = [...counts.entries()]
+  const all = [...counts.entries()]
     .map(([value, entry]) => ({
       value,
       interactions: entry.interactions.size,
       share: eligible > 0 ? entry.interactions.size / eligible : 0,
       label: entry.label,
     }))
-    .sort((a, b) => b.interactions - a.interactions || a.value.localeCompare(b.value))
-    .slice(0, limit);
+    .sort((a, b) => b.interactions - a.interactions || a.value.localeCompare(b.value));
 
-  return { entries, eligible };
+  // The distinct count travels with the list. "Show all 40" was a promise the
+  // page could not keep when the underlying calculation had already been capped
+  // at forty and the real answer was seventy-three.
+  return { entries: all.slice(0, limit), eligible, distinct: all.length };
 }
 
 /** A distribution over a fixed, mutually exclusive vocabulary. */
@@ -104,45 +119,76 @@ function median(values: readonly number[]): number | null {
   return sorted.length % 2 === 0 ? (sorted[middle - 1]! + sorted[middle]!) / 2 : sorted[middle]!;
 }
 
-export type BudgetPicture = {
-  /** Median of budgets customers actually stated, in minor units. */
+/** Budgets for one currency. Never combined with another. */
+export type CurrencyBudget = {
+  currency: string | null;
   targetMedian: number | null;
   targetObserved: number;
   maximumMedian: number | null;
   maximumObserved: number;
-  /** Median distance between the opening budget and the ceiling. */
   stretchMedian: number | null;
   stretchObserved: number;
-  currency: string | null;
-  /** Share of interactions that stated a budget at all. */
+};
+
+/**
+ * What customers said they would spend, kept apart by currency.
+ *
+ * A median across rupees and dirhams is not a smaller number or a larger one —
+ * it is not a number. There is no conversion here on purpose: an FX rate is a
+ * business decision with a date on it, and inventing one inside a dashboard
+ * would produce a figure nobody could reproduce.
+ */
+export type BudgetPicture = {
+  byCurrency: CurrencyBudget[];
+  /** True where more than one currency was observed in this scope. */
+  mixed: boolean;
+  /** Share of interactions that stated a target budget at all. */
   observationRate: Measure;
 };
 
-export function budgetPicture(rows: readonly PopulationRow[]): BudgetPicture {
-  const targets = rows.flatMap((row) =>
-    row.targetBudgetMinor !== null ? [row.targetBudgetMinor] : [],
-  );
-  const maximums = rows.flatMap((row) => (row.maxBudgetMinor !== null ? [row.maxBudgetMinor] : []));
-  // Both figures, and the ceiling must not sit below the opening budget — a
-  // customer who said 80 and then 60 has been misread somewhere, and averaging
-  // that in produces a negative stretch that means nothing.
-  const stretches = rows.flatMap((row) =>
-    row.targetBudgetMinor !== null &&
-    row.maxBudgetMinor !== null &&
-    row.maxBudgetMinor >= row.targetBudgetMinor
-      ? [row.maxBudgetMinor - row.targetBudgetMinor]
-      : [],
-  );
+function budgetsFor(rows: readonly PopulationRow[], currency: string | null): CurrencyBudget {
+  const inCurrency = (money: Money[]) =>
+    money.filter((amount) => (amount.currency ?? null) === currency).map((amount) => amount.minor);
+
+  const targets = rows.flatMap((row) => inCurrency(row.targetBudget).slice(0, 1));
+  const maximums = rows.flatMap((row) => inCurrency(row.maximumBudget).slice(0, 1));
+  // Both figures, in the same currency, and the ceiling must not sit below the
+  // opening budget — a customer who said 80 and then 60 has been misread
+  // somewhere, and averaging that in produces a negative stretch meaning
+  // nothing.
+  const stretches = rows.flatMap((row) => {
+    const target = inCurrency(row.targetBudget)[0];
+    const maximum = inCurrency(row.maximumBudget)[0];
+    return target !== undefined && maximum !== undefined && maximum >= target
+      ? [maximum - target]
+      : [];
+  });
 
   return {
+    currency,
     targetMedian: median(targets),
     targetObserved: targets.length,
     maximumMedian: median(maximums),
     maximumObserved: maximums.length,
     stretchMedian: median(stretches),
     stretchObserved: stretches.length,
-    currency: rows.find((row) => row.budgetCurrency)?.budgetCurrency ?? null,
-    observationRate: measure(targets.length, rows.length, rows.length),
+  };
+}
+
+export function budgetPicture(rows: readonly PopulationRow[]): BudgetPicture {
+  const currencies = [
+    ...new Set(
+      rows.flatMap((row) =>
+        [...row.targetBudget, ...row.maximumBudget].map((amount) => amount.currency ?? null),
+      ),
+    ),
+  ].sort((a, b) => (a ?? "").localeCompare(b ?? ""));
+
+  const stated = rows.filter((row) => row.targetBudget.length > 0).length;
+  return {
+    byCurrency: currencies.map((currency) => budgetsFor(rows, currency)),
+    mixed: currencies.length > 1,
+    observationRate: measure(stated, rows.length, rows.length),
   };
 }
 
@@ -169,14 +215,12 @@ export const CLARITY_LABELS = ["None", "Low", "Medium", "High"] as const;
 export function clarityMatrix(rows: readonly PopulationRow[]): ClarityMatrix {
   const cells = [0, 1, 2, 3].map(() => [0, 0, 0, 0]);
   let paired = 0;
-  let improved = 0;
   let stalledLow = 0;
 
   for (const row of rows) {
     if (row.clarityStart === null || row.clarityEnd === null) continue;
     paired += 1;
     cells[row.clarityStart]![row.clarityEnd]! += 1;
-    if (row.clarityEnd > row.clarityStart) improved += 1;
     if (row.clarityStart <= 1 && row.clarityEnd <= 1) stalledLow += 1;
   }
 
@@ -184,7 +228,7 @@ export function clarityMatrix(rows: readonly PopulationRow[]): ClarityMatrix {
   return {
     cells,
     paired,
-    improved: measure(improved, rows.length, paired),
+    improved: clarityImproved(rows),
     clearByClose: measure(
       rows.filter((row) => row.clarityEnd !== null && row.clarityEnd >= 2).length,
       rows.length,
@@ -206,43 +250,35 @@ export type DemandMetrics = {
 };
 
 export function computeDemand(rows: readonly PopulationRow[]): DemandMetrics {
-  const base = rows.length;
-  const intentClassified = rows.filter((row) => row.arrivalIntent !== null);
-
   // Purchase conditions only mean something where the visit did not close. A
   // customer who bought had no condition left to state.
   const unresolved = rows.filter((row) => isUnresolved(row.outcome));
   const conditionSupported = unresolved.filter((row) =>
-    supported(row, "customer_purchase_conditions"),
+    isSupported(row.values, "customer_purchase_conditions"),
+  );
+  const preferenceSupported = rows.filter((row) =>
+    isSupported(row.values, "final_preferred_product"),
   );
 
-  const preferenceSupported = rows.filter((row) => supported(row, "final_preferred_product"));
-
   return {
-    analysed: base,
-    highIntent: measure(
-      intentClassified.filter((row) => HIGH_INTENT.has(row.arrivalIntent!)).length,
-      base,
-      intentClassified.length,
-    ),
-    financeDemand: measure(rows.filter((row) => row.financeRequested).length, base, base),
-    competitorPressure: measure(rows.filter((row) => row.competitorCount > 0).length, base, base),
-    questionRate: measure(rows.filter((row) => row.customerQuestionCount > 0).length, base, base),
+    analysed: rows.length,
+    highIntent: arrivedDecided(rows),
+    financeDemand: financeDemand(rows),
+    competitorPressure: competitorMentionIncidence(rows),
+    questionRate: questionResponseCoverage(rows),
     purchaseConditions: measure(
-      conditionSupported.filter((row) => present(row, "customer_purchase_conditions").length > 0)
-        .length,
+      conditionSupported.filter(
+        (row) => statedText(row.values, "customer_purchase_conditions").length > 0,
+      ).length,
       unresolved.length,
       conditionSupported.length,
     ),
-    outcomeClassified: measure(
-      rows.filter((row) => row.outcome.business !== "unknown").length,
-      base,
-      base,
-    ),
+    outcomeClassified: outcomeEstablished(rows),
     preferenceFormed: measure(
-      preferenceSupported.filter((row) => present(row, "final_preferred_product").length > 0)
-        .length,
-      base,
+      preferenceSupported.filter(
+        (row) => statedText(row.values, "final_preferred_product").length > 0,
+      ).length,
+      rows.length,
       preferenceSupported.length,
     ),
   };
@@ -251,7 +287,7 @@ export function computeDemand(rows: readonly PopulationRow[]): DemandMetrics {
 /**
  * The primary observed reason among interactions confirmed as no sale.
  *
- * Drawn strictly from confirmed no-sales. The earlier version used "unresolved",
+ * Drawn strictly from confirmed no-sales. An earlier version used "unresolved",
  * which swept in every interaction whose outcome was never established — a
  * population we know nothing about — while excluding a customer who explicitly
  * declined. A chart titled "why we did not convert" cannot be built from
@@ -261,25 +297,27 @@ export function computeDemand(rows: readonly PopulationRow[]): DemandMetrics {
  */
 export type NoSaleReasons = {
   entries: RankedShare[];
+  distinct: number;
   /** Confirmed no-sales carrying an observed reason. */
   classified: number;
   /** All confirmed no-sales, whether a reason was recorded or not. */
   confirmedNoSales: number;
   /** Share of confirmed no-sales where a reason was actually observed. */
-  coverage: number | null;
+  coverage: Measure;
 };
 
-export function nonConversionReasons(rows: readonly PopulationRow[]): NoSaleReasons {
+export function nonConversionReasons(rows: readonly PopulationRow[], limit = 10): NoSaleReasons {
   const confirmed = rows.filter((row) => row.outcome.business === "no_sale");
   const { entries, classified } = distribution(
     confirmed,
-    (row) => present(row, "primary_non_conversion_reason")[0]?.valueText ?? null,
+    (row) => statedText(row.values, "primary_non_conversion_reason")[0] ?? null,
   );
   return {
-    entries,
+    entries: entries.slice(0, limit),
+    distinct: entries.length,
     classified,
     confirmedNoSales: confirmed.length,
-    coverage: confirmed.length > 0 ? classified / confirmed.length : null,
+    coverage: confirmedNoSaleReasonCoverage(rows),
   };
 }
 
@@ -296,7 +334,7 @@ export function partySizeDistribution(rows: readonly PopulationRow[]): {
   classified: number;
 } {
   return distribution(rows, (row) => {
-    const text = present(row, "customer_party_size")[0]?.valueText ?? null;
+    const text = statedText(row.values, "customer_party_size")[0] ?? null;
     if (!text) return null;
     const digits = text.match(/\d+/);
     if (!digits) return null;
@@ -320,11 +358,11 @@ export function originStrip(rows: readonly PopulationRow[]): {
   entries: RankedShare[];
   eligible: number;
 } {
-  const eligible = rows.filter((row) => supported(row, "requirement_origin")).length;
+  const eligible = rows.filter((row) => isSupported(row.values, "requirement_origin")).length;
   const counts = new Map<string, number>();
   for (const row of rows) {
     const seen = new Set<string>();
-    for (const value of present(row, "requirement_origin")) {
+    for (const value of statedRows(row.values, "requirement_origin")) {
       const token = (value.valueText ?? "").trim().toLowerCase();
       const origin = REQUIREMENT_ORIGINS.find((option) => option === token);
       if (!origin || seen.has(origin)) continue;
@@ -344,39 +382,51 @@ export function originStrip(rows: readonly PopulationRow[]): {
 }
 
 /**
- * The two prices spoken in the room, kept apart from the customer's budget.
+ * The two prices spoken in the room, kept apart from the customer's budget and
+ * apart from each other's currency.
  *
  * A competitor price is what the customer said a competitor charges. Nobody has
  * checked it, and presenting it beside our own quoted prices without saying so
  * would turn hearsay into a market rate — so the label travels with the number
  * everywhere it is shown.
  */
-export type ContextPrices = {
-  storeQuotedMedian: number | null;
-  storeQuotedObserved: number;
-  competitorClaimMedian: number | null;
-  competitorClaimObserved: number;
+export type PriceLine = {
   currency: string | null;
+  median: number | null;
+  observed: number;
 };
 
+export type ContextPrices = {
+  storeQuoted: PriceLine[];
+  competitorClaim: PriceLine[];
+  mixed: boolean;
+};
+
+function priceLines(rows: readonly PopulationRow[], fieldKey: string): PriceLine[] {
+  const amounts = rows.flatMap((row) =>
+    statedRows(row.values, fieldKey).flatMap((value) =>
+      typeof value.amountMinor === "number"
+        ? [{ minor: value.amountMinor, currency: value.currency ?? null }]
+        : [],
+    ),
+  );
+  const currencies = [...new Set(amounts.map((amount) => amount.currency))];
+  return currencies
+    .sort((a, b) => (a ?? "").localeCompare(b ?? ""))
+    .map((currency) => {
+      const inCurrency = amounts
+        .filter((amount) => amount.currency === currency)
+        .map((amount) => amount.minor);
+      return { currency, median: median(inCurrency), observed: inCurrency.length };
+    });
+}
+
 export function contextPrices(rows: readonly PopulationRow[]): ContextPrices {
-  const amounts = (fieldKey: string): number[] =>
-    rows.flatMap((row) =>
-      present(row, fieldKey).flatMap((value) =>
-        typeof value.amountMinor === "number" ? [value.amountMinor] : [],
-      ),
-    );
-  const quoted = amounts("store_price_quoted");
-  const claimed = amounts("competitor_price_claim");
+  const storeQuoted = priceLines(rows, "store_price_quoted");
+  const competitorClaim = priceLines(rows, "competitor_price_claim");
   return {
-    storeQuotedMedian: median(quoted),
-    storeQuotedObserved: quoted.length,
-    competitorClaimMedian: median(claimed),
-    competitorClaimObserved: claimed.length,
-    currency:
-      rows.flatMap((row) => present(row, "store_price_quoted")).find((value) => value.currency)
-        ?.currency ??
-      rows.find((row) => row.budgetCurrency)?.budgetCurrency ??
-      null,
+    storeQuoted,
+    competitorClaim,
+    mixed: storeQuoted.length > 1 || competitorClaim.length > 1,
   };
 }

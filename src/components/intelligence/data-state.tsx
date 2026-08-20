@@ -16,9 +16,11 @@ import { DEFAULT_GUARDRAILS, type Measure } from "@/modules/intelligence/guardra
 export type SlotState =
   /** Real values, drawn as intended. */
   | "POPULATED"
-  /** The field exists and nothing was observed in this scope. */
+  /** The field was asked and nothing was recorded in this scope. */
   | "NO_OBSERVATIONS"
-  /** The field is not available for this period or population. */
+  /** It was recorded, but not in a form that can be read either way. */
+  | "NO_USABLE_OBSERVATIONS"
+  /** Nothing in this scope carries the field at all. */
   | "NOT_SUPPORTED"
   /** Observed, but too thin to draw the intended comparison. */
   | "LOW_SAMPLE"
@@ -30,9 +32,17 @@ const COPY: Readonly<Record<Exclude<SlotState, "POPULATED">, { title: string; no
     title: "No observations in this scope",
     note: "Nothing matching this was recorded in the selected period and filters.",
   },
+  NO_USABLE_OBSERVATIONS: {
+    title: "No usable observations in this scope",
+    note: "The field was recorded but not in a form that settles the question either way.",
+  },
   NOT_SUPPORTED: {
+    // Deliberately not "analysed before this field existed". That is a claim
+    // about extraction history, and nothing here proves it — the field may
+    // simply not have been reached in these conversations. Missing is not zero
+    // and it is not a version story either.
     title: "Not available for this period",
-    note: "These interactions were analysed before this field existed, so there is nothing to count.",
+    note: "No interaction in this scope carries this field, so there is nothing to count.",
   },
   LOW_SAMPLE: {
     title: "Too few to compare",
@@ -40,24 +50,25 @@ const COPY: Readonly<Record<Exclude<SlotState, "POPULATED">, { title: string; no
   },
   ERROR: {
     title: "Unable to load this analysis",
-    note: "Reload the page. If it keeps failing, the underlying read is at fault — this is never shown as zero.",
+    note: "Reload the page. If it keeps failing the underlying read is at fault — this is never shown as zero.",
   },
 };
 
 /**
  * Decides a slot's state from the measure behind it.
  *
- * Coverage and eligibility are read separately on purpose: a field nobody could
- * answer and a field everybody answered "no" to produce the same rate and mean
- * opposite things.
+ * Eligibility and observation are read separately on purpose. A field nobody
+ * could answer and a field everybody answered "no" to produce the same rate and
+ * mean opposite things, and a rate of 0% over a real denominator is a finding
+ * rather than an empty state.
  */
 export function stateFor(
   m: Measure | null,
   { comparison = false }: { comparison?: boolean } = {},
 ): SlotState {
   if (m === null) return "NOT_SUPPORTED";
-  if (m.eligible === 0) return "NO_OBSERVATIONS";
-  if (m.observed === 0) return "NOT_SUPPORTED";
+  if (m.eligible === 0) return "NOT_SUPPORTED";
+  if (m.observed === 0) return "NO_USABLE_OBSERVATIONS";
   if (comparison && m.observed < DEFAULT_GUARDRAILS.minimumForComparison) return "LOW_SAMPLE";
   return "POPULATED";
 }

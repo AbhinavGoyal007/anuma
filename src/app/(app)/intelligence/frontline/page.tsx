@@ -7,7 +7,8 @@ import {
   STAGES,
   type StageKey,
 } from "@/components/intelligence/frontline-intelligence-view";
-import { QUADRANT_TABS } from "@/components/intelligence/quadrant-benchmark";
+import { cohortPath } from "@/modules/intelligence/cohorts";
+import { statedText } from "@/modules/intelligence/effective";
 import { distribution, rankedShare } from "@/modules/intelligence/demand";
 import { intelligenceHref, single, windowLabel } from "@/modules/intelligence/filters";
 import {
@@ -42,16 +43,15 @@ export default async function FrontlineIntelligencePage({ searchParams }: PagePr
     intents,
     languages,
     storeCount,
+    directoryError,
     selectedStoreName,
   } = page;
   const rows = current.rows;
 
   const stage: StageKey =
     STAGES.find((item) => item.key === single(raw, "stage"))?.key ?? "understand";
-  const quadrantTab =
-    QUADRANT_TABS.find((tab) => tab.key === single(raw, "q1"))?.key ?? "benchmark";
   const openDrawer = single(raw, "drawer");
-  const carry = { stage, q1: quadrantTab };
+  const carry = { stage };
 
   const compositions = responseCompositions(rows);
 
@@ -68,6 +68,7 @@ export default async function FrontlineIntelligencePage({ searchParams }: PagePr
         languages={languages}
         interactions={rows.length}
         storeCount={storeCount}
+        directoryError={directoryError}
         carry={carry}
       />
       <FrontlineIntelligenceView
@@ -84,10 +85,7 @@ export default async function FrontlineIntelligencePage({ searchParams }: PagePr
           reasons: rankedShare(rows, ["recommendation_reasons"], 40),
           recommendationResponse: distribution(
             rows,
-            (row) =>
-              row.values.find(
-                (value) => value.fieldKey === "recommendation_response" && !value.abstention,
-              )?.valueText ?? null,
+            (row) => statedText(row.values, "recommendation_response")[0] ?? null,
           ),
           objection: compositions.objection,
           finance: compositions.finance,
@@ -100,8 +98,6 @@ export default async function FrontlineIntelligencePage({ searchParams }: PagePr
         associations={outcomeAssociations(rows)}
         analysed={rows.length}
         withoutMetrics={current.withoutMetrics}
-        quadrantTab={quadrantTab}
-        quadrantHref={(key) => intelligenceHref(BASE, filters, { ...carry, q1: key })}
       />
       {openDrawer ? (
         <IntelligenceDrawer
@@ -115,7 +111,7 @@ export default async function FrontlineIntelligencePage({ searchParams }: PagePr
             filters.category ?? "All categories",
           ]}
           closeHref={intelligenceHref(BASE, filters, { ...carry, drawer: null })}
-          fullHref={intelligenceHref(`/intelligence/cohort/${openDrawer}`, filters)}
+          fullHref={intelligenceHref(cohortPath(openDrawer), filters)}
         />
       ) : null}
     </>

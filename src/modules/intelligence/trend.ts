@@ -1,6 +1,5 @@
 import { DEFAULT_GUARDRAILS, type Guardrails } from "@/modules/intelligence/guardrails";
-import { isUnresolved } from "@/modules/intelligence/outcome";
-import type { PopulationRow, PopulationValue } from "@/modules/intelligence/population";
+import type { PopulationRow } from "@/modules/intelligence/population";
 
 /**
  * Movement over real time, when the data can actually carry it.
@@ -16,14 +15,6 @@ import type { PopulationRow, PopulationValue } from "@/modules/intelligence/popu
  * A week nobody walked in is a gap in the line, not a zero: zero customers
  * asking about finance and no customers at all are different facts.
  */
-
-const present = (row: PopulationRow, fieldKey: string): PopulationValue[] =>
-  row.values.filter((value) => value.fieldKey === fieldKey && !value.abstention);
-
-const has = (row: PopulationRow, fieldKey: string): boolean => present(row, fieldKey).length > 0;
-
-const supported = (row: PopulationRow, fieldKey: string): boolean =>
-  row.values.some((value) => value.fieldKey === fieldKey);
 
 export type TrendGuardrails = {
   /** Interactions a bin needs before its rate is plotted at all. */
@@ -69,8 +60,9 @@ export const TREND_METRICS: readonly TrendMetric[] = [
   {
     key: "finance_demand",
     label: "Finance was raised",
-    eligible: (row) => supported(row, "finance_requested"),
-    matched: (row) => row.financeRequested,
+    // Only interactions we can read either way. An unreadable one is not a no.
+    eligible: (row) => row.financeRequested === "yes" || row.financeRequested === "no",
+    matched: (row) => row.financeRequested === "yes",
     format: "percent",
   },
   {
@@ -88,10 +80,14 @@ export const TREND_METRICS: readonly TrendMetric[] = [
     format: "percent",
   },
   {
-    key: "unresolved_share",
-    label: "Left without an established outcome",
+    // The label has to describe the predicate exactly. This one previously read
+    // "Left without an established outcome" while matching a much broader
+    // unresolved predicate that included customers who had explicitly declined
+    // — a line whose name was a claim the data did not make.
+    key: "outcome_not_established",
+    label: "Outcome not established",
     eligible: () => true,
-    matched: (row) => isUnresolved(row.outcome),
+    matched: (row) => row.outcome.business === "unknown",
     format: "percent",
   },
   {

@@ -8,77 +8,41 @@ import {
   journeyStages,
   selectCohort,
 } from "@/modules/intelligence/journey";
-import { readOutcome } from "@/modules/intelligence/outcome";
-import type { PopulationRow, PopulationValue } from "@/modules/intelligence/population";
+import { notStated, row, value } from "../support/population";
 
-const value = (
-  fieldKey: string,
-  valueText: string | null,
-  abstention: string | null = null,
-): PopulationValue => ({
-  fieldKey,
-  label: null,
-  valueText,
-  valueNumber: null,
-  amountMinor: null,
-  currency: null,
-  abstention,
-  hasEvidence: true,
-  earliestMs: 0,
-});
+/** An interaction that reached a given point on the rail, and no further. */
+type Reached = "clear" | "preference" | "commitment" | "sale";
 
-let seq = 0;
-function row(overrides: Partial<PopulationRow> = {}): PopulationRow {
-  const values = overrides.values ?? [];
-  return {
-    conversationId: `c${(seq += 1)}`,
-    recordId: `r${seq}`,
-    startedAt: "2026-08-01T10:00:00Z",
-    locationId: null,
-    representativeMembershipId: null,
-    teamId: null,
-    purchaseCategory: "laptop",
-    arrivalIntent: "ready_to_buy",
-    clarityStart: 1,
-    clarityEnd: 2,
-    targetBudgetMinor: null,
-    maxBudgetMinor: null,
-    budgetCurrency: "INR",
-    productsRecommendedCount: 0,
-    objectionCount: 0,
-    objectionCoverage: null,
-    competitorCount: 0,
-    financeRequested: false,
-    demoPerformed: null,
-    alternativeOffered: null,
-    crossSellCount: 0,
-    upsellCount: 0,
-    customerQuestionCount: 0,
-    ...overrides,
-    values,
-    outcome: readOutcome(values),
-  };
-}
+const ORDER: Reached[] = ["clear", "preference", "commitment", "sale"];
 
-/** A record that reached every state up to and including the one named. */
-function through(state: "clear" | "preference" | "commitment" | "sale") {
-  const values: PopulationValue[] = [value("final_preferred_product", null, "not_stated")];
-  if (state !== "clear") values[0] = value("final_preferred_product", "Model A");
-  values.push(
-    state === "commitment" || state === "sale"
+function through(reached: Reached, extra: { locationId?: string | null } = {}) {
+  const depth = ORDER.indexOf(reached);
+  const values = [
+    value("requirement_clarity_start", "low"),
+    value("requirement_clarity_end", "medium"),
+    depth >= 1
+      ? value("final_preferred_product", "Acer Swift")
+      : notStated("final_preferred_product"),
+    depth >= 2
       ? value("customer_commitment_signals", "I'll take it")
-      : value("customer_commitment_signals", null, "not_stated"),
-  );
-  values.push(value("confirmed_business_outcome", state === "sale" ? "sale" : "no_sale"));
-  return row({ clarityEnd: 2, values });
+      : notStated("customer_commitment_signals"),
+    ...(depth >= 3 ? [value("confirmed_business_outcome", "sale")] : []),
+  ];
+  return row({ ...extra, values });
 }
+
+/** A record analysed before the later fields existed. */
+const clarityOnly = (level: "none" | "low" | "medium" | "high") =>
+  row({
+    values: [value("requirement_clarity_start", "low"), value("requirement_clarity_end", level)],
+  });
 
 describe("choosing who the journey is about", () => {
   it("treats arrived-decided as either specific product or ready to buy", () => {
     const rows = [
-      row({ arrivalIntent: "ready_to_buy" }),
-      row({ arrivalIntent: "specific_product" }),
-      row({ arrivalIntent: "exploratory" }),
+      row({ values: [value("arrival_intent_state", "ready_to_buy")] }),
+      row({ values: [value("arrival_intent_state", "specific_product")] }),
+      row({ values: [value("arrival_intent_state", "exploratory")] }),
     ];
     expect(selectCohort(rows, "high_intent")).toHaveLength(2);
     expect(selectCohort(rows, "ready_to_buy")).toHaveLength(1);
@@ -108,7 +72,7 @@ describe("how far the cohort got", () => {
   it("does not count a record that predates a field as failing to reach a state", () => {
     // Nobody asked this record about a preferred product, so it leaves the
     // denominator rather than counting against the store.
-    const stages = journeyStages([through("preference"), row({ clarityEnd: 2, values: [] })]);
+    const stages = journeyStages([through("preference"), clarityOnly("medium")]);
     const preference = stages.find((stage) => stage.key === "preference_formed")!;
     expect(preference.reach.observed).toBe(1);
     expect(preference.reach.value).toBe(1);
@@ -116,7 +80,7 @@ describe("how far the cohort got", () => {
 
   it("reports no progression where nobody reached the state before", () => {
     // A percentage of zero people is not a small number, it is not a number.
-    const stages = journeyStages([row({ clarityEnd: 0, values: [] })]);
+    const stages = journeyStages([clarityOnly("none")]);
     expect(stages.find((stage) => stage.key === "preference_formed")!.progression).toBeNull();
   });
 
@@ -162,19 +126,24 @@ describe("where the journey broke", () => {
   it("separates a confirmed no-sale from an outcome nobody established", () => {
     // These look identical in a filter and mean opposite things: one is a sale
     // to chase, the other is a hole in our own record.
+    const signalled = (outcome: string | null) =>
+      row({
+        values: [
+          value("customer_commitment_signals", "I'll take it"),
+          ...(outcome ? [value("confirmed_business_outcome", outcome)] : []),
+        ],
+      });
     const cohorts = journeyLeakageCohorts([
-      through("commitment"),
-      through("sale"),
-      { ...through("commitment"), values: [], outcome: readOutcome([]) },
+      signalled("no_sale"),
+      signalled("sale"),
+      signalled(null),
     ]);
     expect(
       cohorts.find((cohort) => cohort.key === "commitment_then_no_sale")?.conversationIds,
     ).toHaveLength(1);
-    // The group exists as a fixed slot — the rail takes its denominator from
-    // here — but nothing is in it.
     expect(
       cohorts.find((cohort) => cohort.key === "commitment_outcome_unknown")?.conversationIds,
-    ).toHaveLength(0);
+    ).toHaveLength(1);
   });
 
   it("cites something that was said, never an absence", () => {
@@ -199,7 +168,10 @@ describe("where the journey broke", () => {
 
 describe("resolving a cohort for the drill-down", () => {
   it("finds a frontline cohort and a journey cohort through one door", () => {
-    const rows = [through("preference"), row({ productsRecommendedCount: 2, values: [] })];
+    const rows = [
+      through("preference"),
+      row({ values: [value("products_recommended", "Dell 14")] }),
+    ];
     expect(resolveCohort(rows, "recommendation_without_rationale")).not.toBeNull();
     expect(resolveCohort(rows, "no_commitment_signal", "all")).not.toBeNull();
   });
@@ -216,15 +188,15 @@ describe("the frontline lane beside the journey", () => {
     // behaviour read 25% here and 50% on Frontline, which is how a reader
     // decides the dashboard cannot be trusted.
     const rates = interventions([
-      row({ demoPerformed: "yes" }),
-      row({ demoPerformed: "no" }),
+      row({ values: [value("product_demo_performed", "yes")] }),
+      row({ values: [value("product_demo_performed", "no")] }),
       row({ values: [value("close_attempts", "shall I bill it")] }),
       row({ values: [] }),
     ]);
     const demo = rates.find((rate) => rate.key === "demo")!.measure;
     expect(demo.value).toBe(0.5);
     expect(demo.observed).toBe(2);
-    expect(demo.eligible).toBe(4);
+    expect(demo.eligible).toBe(2);
     expect(rates.find((rate) => rate.key === "close")!.measure.observed).toBe(1);
   });
 });
@@ -233,11 +205,11 @@ describe("where the journey breaks by store", () => {
   it("groups and keeps each group's own size", () => {
     const rows = journeyBreakdown(
       [
-        { ...through("sale"), locationId: "s1" },
-        { ...through("clear"), locationId: "s1" },
-        { ...through("clear"), locationId: "s2" },
+        through("sale", { locationId: "s1" }),
+        through("clear", { locationId: "s1" }),
+        through("clear", { locationId: "s2" }),
       ],
-      (r) => r.locationId,
+      (item) => item.locationId,
       (key) => key,
     );
     expect(rows[0]).toMatchObject({ key: "s1", size: 2 });
@@ -247,9 +219,9 @@ describe("where the journey breaks by store", () => {
   it("skips rows with nothing to group on", () => {
     expect(
       journeyBreakdown(
-        [row({ locationId: null })],
-        (r) => r.locationId,
-        (k) => k,
+        [row({ locationId: null, values: [] })],
+        (item) => item.locationId,
+        (key) => key,
       ),
     ).toHaveLength(0);
   });
